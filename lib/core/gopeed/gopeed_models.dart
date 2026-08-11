@@ -1,3 +1,5 @@
+import '../../utils/types.dart';
+
 enum GopeedStatus {
   ready,
   running,
@@ -79,10 +81,10 @@ class GopeedTask {
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       status: GopeedStatus.from(json['status']?.toString()),
-      size: (res['size'] as num?)?.toInt() ?? 0,
-      downloaded: (progress['downloaded'] as num?)?.toInt() ?? 0,
-      speed: (progress['speed'] as num?)?.toInt() ?? 0,
-      createdAt: (json['createdAt'] as num?)?.toInt() ?? 0,
+      size: toInt(res['size']),
+      downloaded: toInt(progress['downloaded']),
+      speed: toInt(progress['speed']),
+      createdAt: toInt(json['createdAt']),
     );
   }
 }

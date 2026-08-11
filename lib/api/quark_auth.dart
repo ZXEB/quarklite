@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:dio/dio.dart';
 
+import '../utils/types.dart';
 import 'quark_client.dart';
 
 class QuarkQrLogin {
@@ -63,7 +64,7 @@ class QuarkQrLogin {
         },
         options: Options(headers: _headers(), validateStatus: (_) => true));
     final body = _decode(resp);
-    final status = body['status'];
+    final status = toInt(body['status'], fallback: -1);
     final serviceTicket =
         body['data']?['members']?['service_ticket']?.toString();
     if (status == 2000000 &&

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../utils/types.dart';
 import 'quark_models.dart';
 
 class QuarkException implements Exception {
@@ -121,7 +122,7 @@ class QuarkClient {
   }
 
   dynamic _check(Map<String, dynamic> body) {
-    final code = (body['code'] as num?)?.toInt() ?? -1;
+    final code = toInt(body['code'], fallback: -1);
     if (code != 0) {
       throw QuarkException(code, body['message']?.toString() ?? '请求失败');
     }
@@ -194,8 +195,15 @@ class QuarkClient {
   // ---------------- account ----------------
 
   Future<QuarkUserInfo> getUserInfo() async {
-    final data = await _get('$panApi/account/info',
+    final resp = await _request('GET', '$panApi/account/info',
         params: {'fr': 'pc', 'platform': 'pc'});
+    final body = _parseBody(resp);
+    final data = body['data'];
+    if (data is! Map) {
+      throw QuarkException(
+          toInt(body['code'], fallback: -1),
+          body['message']?.toString() ?? '登录状态无效，请重新登录');
+    }
     return QuarkUserInfo.fromJson({'data': data});
   }
 
@@ -378,7 +386,7 @@ class QuarkClient {
           'task_id': taskId,
           'retry_index': i,
         });
-        final status = (data['status'] as num?)?.toInt();
+        final status = toInt(data['status'], fallback: -1);
         if (status == 2) return;
         if (status == 3) throw QuarkException(-1, '转存任务失败');
       } on QuarkException {

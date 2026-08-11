@@ -1,3 +1,5 @@
+import '../utils/types.dart';
+
 class QuarkUserInfo {
   final String nickname;
   final String avatar;
@@ -57,11 +59,11 @@ class QuarkFile {
       fileName: json['file_name']?.toString() ?? '',
       fileType: type,
       isDir: type == 'folder',
-      size: (json['size'] as num?)?.toInt() ?? 0,
+      size: toInt(json['size']),
       pdirFid: json['pdir_fid']?.toString() ?? '',
       fileExt: json['file_ext']?.toString() ?? '',
-      updatedAt: (json['updated_at'] as num?)?.toInt() ?? 0,
-      category: (json['category'] as num?)?.toInt() ?? 0,
+      updatedAt: toInt(json['updated_at']),
+      category: toInt(json['category']),
     );
   }
 }
@@ -92,7 +94,7 @@ class QuarkShareFile {
       fileName: json['file_name']?.toString() ?? '',
       fileType: type,
       isDir: type == 'folder',
-      size: (json['size'] as num?)?.toInt() ?? 0,
+      size: toInt(json['size']),
       pdirFid: json['pdir_fid']?.toString() ?? '',
       shareFidToken: json['share_fid_token']?.toString() ?? '',
     );
@@ -116,7 +118,7 @@ class QuarkDownloadInfo {
     return QuarkDownloadInfo(
       url: json['download_url']?.toString() ?? '',
       fileName: json['file_name']?.toString() ?? '',
-      size: (json['size'] as num?)?.toInt() ?? 0,
+      size: toInt(json['size']),
       fid: json['fid']?.toString() ?? '',
     );
   }

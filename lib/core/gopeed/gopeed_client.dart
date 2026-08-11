@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../../utils/types.dart';
 import 'gopeed_models.dart';
 
 class GopeedClient {
@@ -17,7 +18,7 @@ class GopeedClient {
   dynamic _check(Response<dynamic> resp) {
     final body = resp.data;
     if (body is Map) {
-      final code = (body['code'] as num?)?.toInt() ?? -1;
+      final code = toInt(body['code'], fallback: -1);
       if (code != 0) {
         throw Exception(body['msg']?.toString() ?? 'Gopeed 请求失败');
       }
