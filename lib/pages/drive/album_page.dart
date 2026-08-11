@@ -12,7 +12,9 @@ import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import 'search_page.dart';
 
-/// 相册：官方 file/category 接口分页 + 滚动视口懒加载 + 磁盘缓存 + 动态照片
+enum AlbumFilter { all, photo, screenshot, live }
+
+/// 相册：官方 file/category 分页 + 时间轴跳转 + 年月分组 + 筛选 + 动态照片
 class AlbumPage extends StatefulWidget {
   const AlbumPage({super.key});
 
@@ -22,9 +24,14 @@ class AlbumPage extends StatefulWidget {
 
 class _AlbumPageState extends State<AlbumPage> {
   static const _pageSize = 100;
+  static const _tileGap = 4.0;
+  static const _headerH = 36.0;
+  static const _axisW = 34.0;
 
-  final List<QuarkFile> _photos = []; // 按 updatedAt 倒序合并（图片+动态照片）
+  final List<QuarkFile> _photos = [];
   final Set<String> _seenFids = {};
+  final ScrollController _scroll = ScrollController();
+
   bool _loading = false;
   bool _loadingMore = false;
   bool _imgHasMore = true;
@@ -33,10 +40,36 @@ class _AlbumPageState extends State<AlbumPage> {
   int _vidPage = 0;
   String? _error;
 
+  AlbumFilter _filter = AlbumFilter.all;
+
+  // 时间轴
+  List<({String key, String label, int startIndex, double offset, double extent})>
+      _monthIndex = [];
+  String _axisDragMonth = '';
+  double _axisDragFraction = 0;
+  String _liveMonth = '';
+
+  List<QuarkFile> get _filtered {
+    if (_filter == AlbumFilter.all) return _photos;
+    return _photos.where((f) {
+      switch (_filter) {
+        case AlbumFilter.all:
+          return true;
+        case AlbumFilter.photo:
+          return f.isImage && !f.isScreenshot;
+        case AlbumFilter.screenshot:
+          return f.isImage && f.isScreenshot;
+        case AlbumFilter.live:
+          return f.isLivePhoto;
+      }
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
     AppState.I.addListener(_onLoginChanged);
+    _scroll.addListener(_updateLiveMonth);
     if (AppState.I.isLoggedIn) {
       _loadFirst();
     }
@@ -45,6 +78,7 @@ class _AlbumPageState extends State<AlbumPage> {
   @override
   void dispose() {
     AppState.I.removeListener(_onLoginChanged);
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -68,7 +102,7 @@ class _AlbumPageState extends State<AlbumPage> {
     int lo = 0, hi = _photos.length;
     while (lo < hi) {
       final mid = (lo + hi) >> 1;
-      if (_photos[mid].updatedAt >= f.updatedAt) {
+      if (_photos[mid].albumTime >= f.albumTime) {
         lo = mid + 1;
       } else {
         hi = mid;
@@ -96,8 +130,7 @@ class _AlbumPageState extends State<AlbumPage> {
       for (final f in images) {
         _insertSorted(f);
       }
-      // 动态照片：拉取全部短时视频（通常只有几页）
-      while (!_videoLoaded && _vidPage < 20) {
+      while (!_videoLoaded && _vidPage < 40) {
         final videos = await AppState.I.quark
             .listCategoryVideos(page: _vidPage + 1, size: _pageSize);
         _vidPage++;
@@ -105,9 +138,8 @@ class _AlbumPageState extends State<AlbumPage> {
           _videoLoaded = true;
           break;
         }
-        final live = videos.where((f) => f.isLivePhoto).toList();
-        for (final f in live) {
-          _insertSorted(f);
+        for (final f in videos) {
+          if (f.isLivePhoto) _insertSorted(f);
         }
         if (videos.length < _pageSize) {
           _videoLoaded = true;
@@ -117,7 +149,9 @@ class _AlbumPageState extends State<AlbumPage> {
       setState(() {
         _loading = false;
         _videoLoaded = true;
+        _rebuildMonthIndex();
       });
+      _updateLiveMonth();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -140,12 +174,125 @@ class _AlbumPageState extends State<AlbumPage> {
         for (final f in list) {
           _insertSorted(f);
         }
+        _rebuildMonthIndex();
       });
     } catch (_) {
-      // 静默，滚动可重试
     } finally {
       if (mounted) _loadingMore = false;
     }
+  }
+
+  void _rebuildMonthIndex() {
+    final index = <({String key, String label, int startIndex, double offset, double extent})>[];
+    double offset = 0;
+    String? curKey;
+    int curStart = 0;
+    int curCount = 0;
+    double tileSize = 0;
+    void flush() {
+      if (curKey == null) return;
+      final rows = (curCount / 3).ceil();
+      final h = tileSize * rows + _tileGap * (rows - 1) + _headerH;
+      index.add((
+        key: curKey,
+        label: curKey,
+        startIndex: curStart,
+        offset: offset,
+        extent: h,
+      ));
+      offset += h;
+    }
+
+    final width = MediaQuery.of(context).size.width - _axisW;
+    tileSize = (width - _tileGap * 2) / 3;
+    for (var i = 0; i < _photos.length; i++) {
+      final f = _photos[i];
+      final t = DateTime.fromMillisecondsSinceEpoch(f.albumTime);
+      final key = '${t.year}-${t.month}';
+      if (key != curKey) {
+        flush();
+        curKey = key;
+        curStart = i;
+        curCount = 0;
+      }
+      curCount++;
+    }
+    flush();
+    _monthIndex = index;
+  }
+
+  String _monthLabel(String key) {
+    final p = key.split('-');
+    return '${p[0]}年${int.parse(p[1])}月';
+  }
+
+  void _updateLiveMonth() {
+    if (_monthIndex.isEmpty) return;
+    final pos = _scroll.hasClients ? _scroll.offset : 0;
+    String cur = _monthIndex.last.label;
+    for (final m in _monthIndex) {
+      if (pos >= m.offset) {
+        cur = m.label;
+      } else {
+        break;
+      }
+    }
+    if (cur != _liveMonth && mounted) {
+      setState(() => _liveMonth = cur);
+    }
+  }
+
+  // ---------- 筛选 ----------
+
+  void _setFilter(AlbumFilter f) {
+    if (_filter == f) return;
+    setState(() => _filter = f);
+    if (f == AlbumFilter.screenshot) {
+      _autoScanScreenshots();
+    }
+  }
+
+  int get _screenshotCount =>
+      _photos.where((x) => x.isImage && x.isScreenshot).length;
+
+  Future<void> _autoScanScreenshots() async {
+    while (_imgHasMore && _screenshotCount < 200) {
+      await _loadMoreImages();
+      if (!mounted) return;
+    }
+  }
+
+  bool get _scanningScreenshots =>
+      _filter == AlbumFilter.screenshot &&
+      _imgHasMore &&
+      _screenshotCount < 200;
+
+  // ---------- 时间轴跳转 ----------
+
+  void _axisDrag(double dy, double height) {
+    if (_monthIndex.isEmpty) return;
+    final frac = (dy / height).clamp(0.0, 0.999);
+    final idx = (frac * _monthIndex.length).floor();
+    final month = _monthIndex[idx];
+    setState(() {
+      _axisDragFraction = frac;
+      _axisDragMonth = _monthLabel(month.key);
+    });
+  }
+
+  void _axisJump() {
+    if (_axisDragMonth.isEmpty || _monthIndex.isEmpty) return;
+    final target = _monthIndex.firstWhere(
+      (m) => _monthLabel(m.key) == _axisDragMonth,
+      orElse: () => _monthIndex.last,
+    );
+    if (_scroll.hasClients) {
+      _scroll.jumpTo(target.offset.clamp(0.0, _scroll.position.maxScrollExtent));
+    }
+    setState(() {
+      _axisDragMonth = '';
+      _axisDragFraction = 0;
+    });
   }
 
   @override
@@ -198,55 +345,277 @@ class _AlbumPageState extends State<AlbumPage> {
         subText: '把照片上传到夸克网盘后即可在这里查看',
       );
     }
+    final filtered = _filtered;
     final liveCount = _photos.where((f) => f.isLivePhoto).length;
-    return Column(
+    return Stack(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: Text(
-            '共 ${_photos.length} 项'
-            '${liveCount > 0 ? '  ·  动态照片 $liveCount 张' : ''}'
-            '${_imgHasMore ? '  ·  上滑加载更多' : ''}',
-            style:
-                const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-          ),
-        ),
-        Expanded(
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              mainAxisSpacing: 4,
-              crossAxisSpacing: 4,
+        Column(
+          children: [
+            _buildFilterBar(liveCount),
+            if (_scanningScreenshots)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('正在筛选中… 已找到 $_screenshotCount 张截图',
+                        style: const TextStyle(
+                            color: AppColors.textSecondary, fontSize: 12)),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? const EmptyView(
+                      icon: Icons.photo_library_outlined, text: '筛选结果为空')
+                  : _buildTimeline(filtered),
             ),
-            itemCount: _photos.length + (_imgHasMore ? 1 : 0),
-            itemBuilder: (_, i) {
-              if (i >= _photos.length) {
-                return const Center(
-                  child: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                );
-              }
-              if (i > _photos.length - 25) {
-                _loadMoreImages();
-              }
-              return _buildTile(_photos[i], i);
-            },
-          ),
+          ],
         ),
+        // 滚动中的月份气泡
+        if (_liveMonth.isNotEmpty && _axisDragMonth.isEmpty)
+          Positioned(
+            top: 12,
+            left: 12,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.cardLight,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(_liveMonth,
+                  style: const TextStyle(color: Colors.white, fontSize: 12)),
+            ),
+          ),
+        // 拖动时间轴时的气泡
+        if (_axisDragMonth.isNotEmpty)
+          Positioned(
+            top: MediaQuery.of(context).size.height * 0.4,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: Center(
+                child: Container(
+                  width: 110,
+                  height: 110,
+                  decoration: BoxDecoration(
+                    color: AppColors.cardLight.withValues(alpha: 0.95),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(_axisDragMonth,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
 
+  Widget _buildFilterBar(int liveCount) {
+    final total = _photos.length;
+    final photoCount =
+        _photos.where((f) => f.isImage && !f.isScreenshot).length;
+    final shotCount = _screenshotCount;
+    final items = [
+      (AlbumFilter.all, '全部', total),
+      (AlbumFilter.photo, '照片', photoCount),
+      (AlbumFilter.screenshot, '截图', shotCount),
+      (AlbumFilter.live, '动态', liveCount),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+      child: Row(
+        children: [
+          for (final (f, label, count) in items) ...[
+            if (f != AlbumFilter.all) const SizedBox(width: 8),
+            InkWell(
+              onTap: () => _setFilter(f),
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _filter == f ? AppColors.accent : AppColors.card,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  _filter == f ? '$label $count' : label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _filter == f
+                        ? Colors.white
+                        : AppColors.textSecondary,
+                    fontWeight:
+                        _filter == f ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ---------- 时间轴分组网格 ----------
+
+  Widget _buildTimeline(List<QuarkFile> filtered) {
+    final groups = <
+        ({String key, String label, List<(QuarkFile, int)> items})>[];
+    for (var i = 0; i < filtered.length; i++) {
+      final f = filtered[i];
+      final t = DateTime.fromMillisecondsSinceEpoch(f.albumTime);
+      final key = '${t.year}-${t.month}';
+      if (groups.isEmpty || groups.last.key != key) {
+        groups.add((key: key, label: _monthLabel(key), items: []));
+      }
+      groups.last.items.add((f, i));
+    }
+    return Row(
+      children: [
+        Expanded(
+          child: CustomScrollView(
+            controller: _scroll,
+            slivers: [
+              for (final g in groups)
+                SliverMainAxisGroup(slivers: [
+                  SliverToBoxAdapter(child: _buildMonthHeader(g.label)),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    sliver: SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: _tileGap,
+                        crossAxisSpacing: _tileGap,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (_, i) {
+                          final (photo, index) = g.items[i];
+                          if (filtered.length > 200 &&
+                              index > filtered.length - 25) {
+                            _loadMoreImages();
+                          }
+                          return _buildTile(photo, index);
+                        },
+                        childCount: g.items.length,
+                      ),
+                    ),
+                  ),
+                ]),
+              if (_imgHasMore && _filter == AlbumFilter.all)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  ),
+                ),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+            ],
+          ),
+        ),
+        _buildTimeAxis(),
+      ],
+    );
+  }
+
+  Widget _buildMonthHeader(String label) {
+    return Container(
+      height: _headerH,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      alignment: Alignment.centerLeft,
+      child: Text(label,
+          style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600)),
+    );
+  }
+
+  Widget _buildTimeAxis() {
+    if (_monthIndex.isEmpty) return const SizedBox(width: _axisW);
+    final labels = _monthIndex.reversed.toList();
+    return SizedBox(
+      width: _axisW,
+      child: GestureDetector(
+        onVerticalDragUpdate: (d) {
+          final box = context.findRenderObject() as RenderBox?;
+          final h = box == null ? 400.0 : box.size.height;
+          _axisDrag(d.globalPosition.dy, h);
+        },
+        onVerticalDragEnd: (_) => _axisJump(),
+        onTapUp: (d) {
+          final box = context.findRenderObject() as RenderBox?;
+          final h = box == null ? 400.0 : box.size.height;
+          _axisDrag(d.localPosition.dy, h);
+          _axisJump();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: LayoutBuilder(
+            builder: (_, c) {
+              final itemH = c.maxHeight / labels.length;
+              return Column(
+                children: [
+                  for (final m in labels)
+                    SizedBox(
+                      height: itemH,
+                      child: Center(
+                        child: Text(
+                          _shortMonth(m.key),
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: _axisDragFraction > 0 &&
+                                    _monthLabel(m.key) == _axisDragMonth
+                                ? AppColors.accent
+                                : AppColors.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _shortMonth(String key) {
+    final p = key.split('-');
+    final y = p[0].substring(2);
+    return '$y/${int.parse(p[1])}';
+  }
+
   Widget _buildTile(QuarkFile photo, int index) {
     final live = photo.isLivePhoto;
+    final shot = photo.isScreenshot;
     return InkWell(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => PhotoViewerPage(
-            photos: _photos,
+            photos: _filtered,
             index: index,
           ),
         ),
@@ -265,28 +634,16 @@ class _AlbumPageState extends State<AlbumPage> {
               ),
             ),
           if (live)
-            Positioned(
+            const Positioned(
               left: 4,
               top: 4,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.motion_photos_on_rounded,
-                        color: Colors.white, size: 13),
-                    SizedBox(width: 3),
-                    Text('动态',
-                        style:
-                            TextStyle(color: Colors.white, fontSize: 10)),
-                  ],
-                ),
-              ),
+              child: Badge2(label: '动态'),
+            )
+          else if (shot)
+            const Positioned(
+              left: 4,
+              top: 4,
+              child: Badge2(label: '截图'),
             ),
         ],
       ),
@@ -294,7 +651,25 @@ class _AlbumPageState extends State<AlbumPage> {
   }
 }
 
-/// 全屏查看器：图片（可查看原图）+ 动态照片视频播放
+class Badge2 extends StatelessWidget {
+  final String label;
+  const Badge2({super.key, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(label,
+          style: const TextStyle(color: Colors.white, fontSize: 10)),
+    );
+  }
+}
+
+/// 全屏查看器：图片（查看原图）+ 动态照片视频播放
 class PhotoViewerPage extends StatefulWidget {
   final List<QuarkFile> photos;
   final int index;
@@ -330,9 +705,11 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
 
   QuarkFile get _photo => widget.photos[_current];
 
+  /// 预览质量：preview_url（高分辨率 CDN）> big_thumbnail > thumbnail
   String _displayUrl(QuarkFile f) {
     final orig = _origUrls[f.fid];
     if (orig != null && orig.isNotEmpty) return orig;
+    if (f.previewUrl.isNotEmpty) return f.previewUrl;
     return f.bigThumbnail.isNotEmpty ? f.bigThumbnail : f.thumbnail;
   }
 
@@ -369,9 +746,8 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
       if (infos.isEmpty || infos.first.url.isEmpty) {
         throw Exception('获取视频地址失败');
       }
-      final url = infos.first.url;
       final controller = VideoPlayerController.networkUrl(
-        Uri.parse(url),
+        Uri.parse(infos.first.url),
         httpHeaders: quarkImageHeaders(),
         videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
       );

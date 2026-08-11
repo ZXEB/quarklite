@@ -214,7 +214,7 @@ class MePage extends StatelessWidget {
         leading: const Icon(Icons.info_outline_rounded,
             color: AppColors.accent),
         title: const Text('关于'),
-        subtitle: const Text('Quarklite v1.1.3  ·  基于 Gopeed 下载引擎'),
+        subtitle: const Text('Quarklite v1.1.4  ·  基于 Gopeed 下载引擎'),
         onTap: () => _showAbout(context),
       ),
     );

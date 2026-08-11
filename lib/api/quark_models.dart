@@ -44,6 +44,7 @@ class QuarkFile {
   final String bigThumbnail;
   final String previewUrl;
   final int duration;
+  final int shotAt;
 
   QuarkFile({
     required this.fid,
@@ -60,19 +61,35 @@ class QuarkFile {
     required this.bigThumbnail,
     required this.previewUrl,
     required this.duration,
+    required this.shotAt,
   });
+
+  /// 相册展示用的拍摄/修改时间（毫秒）
+  int get albumTime => shotAt > 0 ? shotAt : updatedAt;
 
   bool get isImage =>
       objCategory == 'image' ||
       ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic']
           .contains(fileExt.toLowerCase());
 
-  /// 动态照片（手机 live photo，短时长视频片段）
+  /// 动态照片（手机 live photo，短时长视频片段，duration 单位为秒）
   bool get isLivePhoto =>
       !isDir &&
       (objCategory == 'video' || fileExt.toLowerCase() == 'mp4') &&
       duration > 0 &&
-      duration <= 15000;
+      duration <= 5;
+
+  /// 截图（文件名特征识别）
+  bool get isScreenshot {
+    final n = fileName.toLowerCase();
+    return n.startsWith('screenshot') ||
+        n.startsWith('screencap') ||
+        n.startsWith('screen_shot') ||
+        n.startsWith('screenrecord') ||
+        n.contains('screencapture') ||
+        n.contains('截图') ||
+        n.contains('屏幕截图');
+  }
 
   factory QuarkFile.fromJson(Map<String, dynamic> json) {
     final type = json['file_type']?.toString() ?? '';
@@ -93,6 +110,7 @@ class QuarkFile {
       bigThumbnail: json['big_thumbnail']?.toString() ?? '',
       previewUrl: json['preview_url']?.toString() ?? '',
       duration: toInt(json['duration']),
+      shotAt: toInt(json['l_shot_at']),
     );
   }
 }
