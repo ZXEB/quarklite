@@ -268,6 +268,27 @@ class QuarkClient {
         .toList();
   }
 
+  /// 官方分类接口：图片列表（相册数据源，比递归扫描快百倍）。
+  /// [labels] 为 AI 识别标签（仅对已被夸克 AI 打标的照片生效）
+  Future<List<QuarkFile>> listCategoryImages(
+      {int page = 1, int size = 100, String labels = ''}) async {
+    final data = await _get('$drivePcApi/file/category', params: {
+      'pr': 'ucpro',
+      'fr': 'pc',
+      'cat': 'image',
+      '_page': page,
+      '_size': size,
+      '_fetch_total': 1,
+      if (labels.isNotEmpty) 'labels': labels,
+    });
+    final list = data['list'];
+    if (list is! List) return [];
+    return list
+        .whereType<Map>()
+        .map((e) => QuarkFile.fromJson(e.cast<String, dynamic>()))
+        .toList();
+  }
+
   /// 获取下载直链。返回 (下载信息列表, 请求时使用的 cookie 快照)
   Future<(List<QuarkDownloadInfo>, String)> getDownloadInfo(
       List<String> fids) async {

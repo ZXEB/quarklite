@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/quark_models.dart';
 import '../../state/app_state.dart';
@@ -9,52 +6,11 @@ import '../../state/download_manager.dart';
 import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/permission.dart';
-import '../../utils/types.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import 'search_page.dart';
 
-class AlbumPhoto {
-  final String fid;
-  final String name;
-  final String thumbnail;
-  final int size;
-  final int updatedAt;
-
-  const AlbumPhoto({
-    required this.fid,
-    required this.name,
-    required this.thumbnail,
-    required this.size,
-    required this.updatedAt,
-  });
-
-  factory AlbumPhoto.fromQuarkFile(QuarkFile f) => AlbumPhoto(
-        fid: f.fid,
-        name: f.fileName,
-        thumbnail: f.thumbnail,
-        size: f.size,
-        updatedAt: f.updatedAt,
-      );
-
-  Map<String, dynamic> toJson() => {
-        'fid': fid,
-        'name': name,
-        'thumbnail': thumbnail,
-        'size': size,
-        'updatedAt': updatedAt,
-      };
-
-  factory AlbumPhoto.fromJson(Map<String, dynamic> json) => AlbumPhoto(
-        fid: json['fid']?.toString() ?? '',
-        name: json['name']?.toString() ?? '',
-        thumbnail: json['thumbnail']?.toString() ?? '',
-        size: toInt(json['size']),
-        updatedAt: toInt(json['updatedAt']),
-      );
-}
-
-/// 相册：并行递归扫描网盘照片，带本地缓存（秒开）
+/// 相册：官方 file/category 接口分页拉取全部照片，滚动懒加载
 class AlbumPage extends StatefulWidget {
   const AlbumPage({super.key});
 
@@ -63,26 +19,22 @@ class AlbumPage extends StatefulWidget {
 }
 
 class _AlbumPageState extends State<AlbumPage> {
-  static const _cacheKey = 'album_cache';
-  static const _workerCount = 5;
-  static const _maxFolders = 5000;
+  static const _pageSize = 100;
 
-  final List<AlbumPhoto> _photos = [];
-  final Set<String> _seenFids = {};
-  final List<String> _queue = [];
-  bool _scanning = false;
-  bool _scanStarted = false;
-  bool _cached = false;
+  final List<QuarkFile> _photos = [];
+  bool _loading = false;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  int _page = 1;
   String? _error;
-  DateTime? _lastScanTime;
+  int _total = -1;
 
   @override
   void initState() {
     super.initState();
     AppState.I.addListener(_onLoginChanged);
-    _loadCache();
     if (AppState.I.isLoggedIn) {
-      _startScan();
+      _loadFirst();
     }
   }
 
@@ -93,93 +45,62 @@ class _AlbumPageState extends State<AlbumPage> {
   }
 
   void _onLoginChanged() {
-    if (AppState.I.isLoggedIn && !_scanStarted) {
-      _startScan();
+    if (AppState.I.isLoggedIn && _photos.isEmpty && !_loading) {
+      _loadFirst();
     } else if (!AppState.I.isLoggedIn && mounted) {
       setState(() {
         _photos.clear();
-        _scanStarted = false;
-        _cached = false;
-        _lastScanTime = null;
+        _hasMore = true;
+        _page = 1;
+        _total = -1;
       });
     }
   }
 
-  Future<void> _loadCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_cacheKey);
-    if (raw == null) return;
+  Future<void> _loadFirst() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _page = 1;
+      _hasMore = true;
+      _photos.clear();
+    });
     try {
-      final data = jsonDecode(raw) as Map<String, dynamic>;
-      final items = (data['items'] as List? ?? [])
-          .whereType<Map>()
-          .map((e) => AlbumPhoto.fromJson(e.cast<String, dynamic>()))
-          .toList();
-      final time = toInt(data['time']);
+      final list = await AppState.I.quark.listCategoryImages(
+          page: 1, size: _pageSize);
       if (!mounted) return;
       setState(() {
-        _photos
-          ..clear()
-          ..addAll(items);
-        _cached = items.isNotEmpty;
-        if (time > 0) _lastScanTime = DateTime.fromMillisecondsSinceEpoch(time);
+        _photos.addAll(list);
+        _total = list.length < _pageSize ? list.length : -1;
+        _hasMore = list.length == _pageSize;
+        _loading = false;
       });
-    } catch (_) {}
-  }
-
-  Future<void> _saveCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _cacheKey,
-      jsonEncode({
-        'time': DateTime.now().millisecondsSinceEpoch,
-        'items': _photos.map((p) => p.toJson()).toList(),
-      }),
-    );
-  }
-
-  Future<void> _startScan() async {
-    if (_scanning) return;
-    setState(() {
-      _scanStarted = true;
-      _scanning = true;
-      _error = null;
-      _photos.clear();
-      _seenFids.clear();
-      _queue
-        ..clear()
-        ..add('0');
-    });
-
-    Future<void> worker() async {
-      while (_queue.isNotEmpty) {
-        final fid = _queue.removeAt(0);
-        try {
-          final files = await AppState.I.quark.listFiles(fid);
-          if (!mounted) return;
-          for (final f in files) {
-            if (f.isDir) {
-              if (_queue.length < _maxFolders) _queue.add(f.fid);
-            } else if (f.isImage && _seenFids.add(f.fid)) {
-              _photos.add(AlbumPhoto.fromQuarkFile(f));
-            }
-          }
-          setState(() {});
-        } catch (e) {
-          _error = e.toString();
-        }
-      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
     }
+  }
 
-    await Future.wait(
-        List.generate(_workerCount, (_) => worker()));
-    if (!mounted) return;
-    setState(() {
-      _scanning = false;
-      _lastScanTime = DateTime.now();
-      _cached = _photos.isNotEmpty;
-    });
-    await _saveCache();
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || _loading) return;
+    _loadingMore = true;
+    try {
+      final list = await AppState.I.quark.listCategoryImages(
+          page: _page + 1, size: _pageSize);
+      if (!mounted) return;
+      setState(() {
+        _page++;
+        _photos.addAll(list);
+        _hasMore = list.length == _pageSize;
+      });
+    } catch (_) {
+      // 加载更多失败静默，滚动可重试
+    } finally {
+      if (mounted) _loadingMore = false;
+    }
   }
 
   @override
@@ -196,9 +117,9 @@ class _AlbumPageState extends State<AlbumPage> {
             tooltip: '搜索照片内容',
           ),
           IconButton(
-            onPressed: _scanning ? null : _startScan,
+            onPressed: _loading ? null : _loadFirst,
             icon: const Icon(Icons.refresh_rounded, color: AppColors.accent),
-            tooltip: '重新扫描',
+            tooltip: '刷新',
           ),
         ],
       ),
@@ -214,31 +135,18 @@ class _AlbumPageState extends State<AlbumPage> {
         subText: '请在「我的」页面登录夸克账号',
       );
     }
+    if (_error != null && _photos.isEmpty) {
+      return EmptyView(
+        icon: Icons.cloud_off_rounded,
+        text: '加载失败',
+        subText: _error,
+        action: OutlinedButton(onPressed: _loadFirst, child: const Text('重试')),
+      );
+    }
+    if (_loading && _photos.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (_photos.isEmpty) {
-      if (_scanning) {
-        return const Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('正在扫描网盘照片…',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-            ],
-          ),
-        );
-      }
-      if (_error != null) {
-        return EmptyView(
-          icon: Icons.cloud_off_rounded,
-          text: '扫描失败',
-          subText: _error,
-          action: OutlinedButton(
-            onPressed: _startScan,
-            child: const Text('重试'),
-          ),
-        );
-      }
       return const EmptyView(
         icon: Icons.photo_library_outlined,
         text: '没有找到照片',
@@ -249,27 +157,10 @@ class _AlbumPageState extends State<AlbumPage> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                _scanning
-                    ? '扫描中… 已找到 ${_photos.length} 张'
-                    : '共 ${_photos.length} 张'
-                        '${_lastScanTime != null ? '  ·  更新于 ${_timeStr(_lastScanTime!)}' : ''}',
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12),
-              ),
-              if (_cached && !_scanning)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: InkWell(
-                    onTap: _startScan,
-                    child: const Text('刷新',
-                        style: TextStyle(color: AppColors.accent, fontSize: 12)),
-                  ),
-                ),
-            ],
+          child: Text(
+            _total > 0 ? '共 $_total 张照片  ·  上滑加载更多' : '加载中…',
+            style:
+                const TextStyle(color: AppColors.textSecondary, fontSize: 12),
           ),
         ),
         Expanded(
@@ -280,23 +171,31 @@ class _AlbumPageState extends State<AlbumPage> {
               mainAxisSpacing: 4,
               crossAxisSpacing: 4,
             ),
-            itemCount: _photos.length,
-            itemBuilder: (_, i) => _buildTile(_photos[i], i),
+            itemCount: _photos.length + (_hasMore ? 1 : 0),
+            itemBuilder: (_, i) {
+              if (i >= _photos.length) {
+                return const Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                );
+              }
+              final photo = _photos[i];
+              if (i > _photos.length - 20) {
+                _loadMore();
+              }
+              return _buildTile(photo, i);
+            },
           ),
         ),
       ],
     );
   }
 
-  String _timeStr(DateTime t) {
-    final now = DateTime.now();
-    if (t.year == now.year && t.month == now.month && t.day == now.day) {
-      return '今天 ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-    }
-    return '${t.month}/${t.day}';
-  }
-
-  Widget _buildTile(AlbumPhoto photo, int index) {
+  Widget _buildTile(QuarkFile photo, int index) {
+    final thumb = photo.thumbnail;
     return InkWell(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
@@ -306,9 +205,9 @@ class _AlbumPageState extends State<AlbumPage> {
           ),
         ),
       ),
-      child: photo.thumbnail.isNotEmpty
+      child: thumb.isNotEmpty
           ? Image.network(
-              photo.thumbnail,
+              thumb,
               fit: BoxFit.cover,
               headers: quarkImageHeaders(),
               loadingBuilder: (_, child, progress) => progress == null
@@ -326,14 +225,14 @@ class _AlbumPageState extends State<AlbumPage> {
               errorBuilder: (_, _, _) => Container(
                 color: AppColors.card,
                 child: Center(
-                  child: FileIcon(isDir: false, name: photo.name, size: 36),
+                  child: FileIcon(isDir: false, name: photo.fileName, size: 36),
                 ),
               ),
             )
           : Container(
               color: AppColors.card,
               child: Center(
-                child: FileIcon(isDir: false, name: photo.name, size: 36),
+                child: FileIcon(isDir: false, name: photo.fileName, size: 36),
               ),
             ),
     );
@@ -342,7 +241,7 @@ class _AlbumPageState extends State<AlbumPage> {
 
 /// 全屏照片查看器
 class PhotoViewerPage extends StatefulWidget {
-  final List<AlbumPhoto> photos;
+  final List<QuarkFile> photos;
   final int index;
 
   const PhotoViewerPage({super.key, required this.photos, required this.index});
@@ -368,12 +267,12 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
     super.dispose();
   }
 
-  Future<void> _download(AlbumPhoto photo) async {
+  Future<void> _download(QuarkFile photo) async {
     final ok = await ensureStoragePermission(context);
     if (!ok) return;
     if (!mounted) return;
-    final err =
-        await DownloadService.downloadQuarkFile(photo.fid, fileName: photo.name);
+    final err = await DownloadService.downloadQuarkFile(photo.fid,
+        fileName: photo.fileName);
     if (!mounted) return;
     if (err != null) {
       toast(context, err);
@@ -410,12 +309,15 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
               onPageChanged: (i) => setState(() => _current = i),
               itemBuilder: (_, i) {
                 final p = widget.photos[i];
+                final thumb = p.bigThumbnail.isNotEmpty
+                    ? p.bigThumbnail
+                    : p.thumbnail;
                 return Center(
-                  child: p.thumbnail.isNotEmpty
+                  child: thumb.isNotEmpty
                       ? InteractiveViewer(
                           maxScale: 5,
                           child: Image.network(
-                            p.thumbnail,
+                            thumb,
                             fit: BoxFit.contain,
                             headers: quarkImageHeaders(),
                             loadingBuilder: (_, child, progress) =>
@@ -440,7 +342,7 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Text(
-                photo.name,
+                photo.fileName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,

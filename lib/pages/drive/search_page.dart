@@ -62,10 +62,14 @@ class _SearchPageState extends State<SearchPage> {
       _error = null;
     });
     try {
-      var results = await AppState.I.quark
-          .searchFiles(keyword, scope: _scope);
+      List<QuarkFile> results;
       if (_scope == 2) {
-        results = results.where((f) => !f.isDir && f.isImage).toList();
+        // 照片内容搜索：夸克 AI 识别标签（仅命中已被 AI 打标的照片）
+        results = await AppState.I.quark
+            .listCategoryImages(page: 1, size: 50, labels: keyword);
+      } else {
+        results =
+            await AppState.I.quark.searchFiles(keyword, scope: _scope);
       }
       if (!mounted || keyword != _keyword) return;
       setState(() {
@@ -115,7 +119,7 @@ class _SearchPageState extends State<SearchPage> {
             style:
                 const TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: const InputDecoration(
-              hintText: '搜索文件名或照片内容（AI 识别）',
+              hintText: '搜索文件名或照片 AI 标签',
               hintStyle:
                   TextStyle(color: AppColors.textSecondary, fontSize: 13),
               border: InputBorder.none,
@@ -196,11 +200,17 @@ class _SearchPageState extends State<SearchPage> {
       return const EmptyView(
         icon: Icons.search_rounded,
         text: '输入关键词搜索',
-        subText: '支持搜索 AI 识别过的照片内容',
+        subText: '「照片」模式按 AI 识别内容搜索（需照片已被夸克识别打标）',
       );
     }
     if (_results.isEmpty) {
-      return const EmptyView(icon: Icons.search_off_rounded, text: '没有找到相关内容');
+      return EmptyView(
+        icon: Icons.search_off_rounded,
+        text: '没有找到相关内容',
+        subText: _scope == 2
+            ? '照片内容搜索仅命中已被夸克 AI 识别打标的照片\n试试用「全部」按文件名搜索，或在相册中浏览'
+            : null,
+      );
     }
     return RefreshIndicator(
       onRefresh: () => _search(_keyword),

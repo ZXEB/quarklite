@@ -41,6 +41,7 @@ class QuarkFile {
   final int category;
   final String objCategory;
   final String thumbnail;
+  final String bigThumbnail;
 
   QuarkFile({
     required this.fid,
@@ -54,6 +55,7 @@ class QuarkFile {
     required this.category,
     required this.objCategory,
     required this.thumbnail,
+    required this.bigThumbnail,
   });
 
   bool get isImage =>
@@ -77,6 +79,7 @@ class QuarkFile {
       objCategory: json['obj_category']?.toString() ?? '',
       thumbnail:
           json['thumbnail']?.toString() ?? json['preview_url']?.toString() ?? json['cover']?.toString() ?? '',
+      bigThumbnail: json['big_thumbnail']?.toString() ?? '',
     );
   }
 }
