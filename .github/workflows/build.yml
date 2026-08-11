@@ -1,0 +1,89 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Cache gopeed source
+        uses: actions/cache@v4
+        with:
+          path: /tmp/gopeed-src
+          key: gopeed-${{ vars.GOPEED_VERSION || 'v1.9.3' }}
+          restore-keys: |
+            gopeed-
+
+      - name: Build libgopeed.aar
+        run: bash scripts/build_libgopeed.sh
+        env:
+          GOPEED_VERSION: ${{ vars.GOPEED_VERSION || 'v1.9.3' }}
+
+      - name: Keystore (generate + cache)
+        id: keystore
+        run: |
+          mkdir -p android/app
+          if [ ! -f android/app/upload-keystore.jks ]; then
+            keytool -genkeypair -v \
+              -keystore android/app/upload-keystore.jks \
+              -alias quarklite -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass quarklite2026 -keypass quarklite2026 \
+              -dname "CN=QuarkLite, OU=Dev, O=QuarkLite, L=Beijing, S=Beijing, C=CN"
+            cat > android/key.properties <<'EOF'
+storeFile=upload-keystore.jks
+storePassword=quarklite2026
+keyAlias=quarklite
+keyPassword=quarklite2026
+EOF
+          fi
+          echo "keystore-exists=$([ -f android/app/upload-keystore.jks ] && echo yes || echo no)"
+        shell: bash
+
+      - name: Cache keystore
+        uses: actions/cache@v4
+        with:
+          path: android/app/upload-keystore.jks
+          key: keystore-${{ github.repository }}
+
+      - name: Build release APK
+        run: |
+          flutter pub get
+          flutter build apk --release
+          flutter build apk --release --split-per-abi
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: quarklite-apk
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            build/app/outputs/flutter-apk/app-x86_64-release.apk
+          if-no-files-found: error
