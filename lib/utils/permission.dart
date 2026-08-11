@@ -1,6 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../api/quark_client.dart';
 import '../state/app_state.dart';
+
+/// 夸克图片/缩略图加载所需的请求头（缩略图 URL 带签名，需携带登录 Cookie）
+Map<String, String> quarkImageHeaders() {
+  return {
+    if (AppState.I.quark.cookie.isNotEmpty) 'Cookie': AppState.I.quark.cookie,
+    'Referer': 'https://pan.quark.cn/',
+    'User-Agent': QuarkClient.uaPc,
+  };
+}
 
 /// 检查存储权限，未授权时弹窗引导去系统设置；返回是否已可用
 Future<bool> ensureStoragePermission(BuildContext context) async {

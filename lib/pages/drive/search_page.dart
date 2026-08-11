@@ -27,6 +27,7 @@ class _SearchPageState extends State<SearchPage> {
   List<QuarkFile> _results = [];
   String? _error;
   String _keyword = '';
+  int _scope = 0; // 0=全部, 2=照片(内容搜索)
 
   @override
   void dispose() {
@@ -51,14 +52,21 @@ class _SearchPageState extends State<SearchPage> {
       });
       return;
     }
-    if (keyword == _keyword && _results.isNotEmpty) return;
+    if (keyword == _keyword && _results.isNotEmpty && !_scopeChanged) {
+      return;
+    }
+    _scopeChanged = false;
     setState(() {
       _keyword = keyword;
       _searching = true;
       _error = null;
     });
     try {
-      final results = await AppState.I.quark.searchFiles(keyword);
+      var results = await AppState.I.quark
+          .searchFiles(keyword, scope: _scope);
+      if (_scope == 2) {
+        results = results.where((f) => !f.isDir && f.isImage).toList();
+      }
       if (!mounted || keyword != _keyword) return;
       setState(() {
         _results = results;
@@ -70,6 +78,19 @@ class _SearchPageState extends State<SearchPage> {
         _searching = false;
         _error = e.toString();
       });
+    }
+  }
+
+  bool _scopeChanged = false;
+
+  void _setScope(int scope) {
+    if (_scope == scope) return;
+    setState(() {
+      _scope = scope;
+      _scopeChanged = true;
+    });
+    if (_keyword.isNotEmpty) {
+      _search(_keyword);
     }
   }
 
@@ -114,8 +135,45 @@ class _SearchPageState extends State<SearchPage> {
             icon: const Icon(Icons.close_rounded, color: AppColors.accent),
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(44),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildScopeChip(0, '全部'),
+                const SizedBox(width: 10),
+                _buildScopeChip(2, '照片'),
+              ],
+            ),
+          ),
+        ),
       ),
       body: _buildBody(),
+    );
+  }
+
+  Widget _buildScopeChip(int scope, String label) {
+    final selected = _scope == scope;
+    return InkWell(
+      onTap: () => _setScope(scope),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : AppColors.card,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: selected ? Colors.white : AppColors.textSecondary,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+      ),
     );
   }
 

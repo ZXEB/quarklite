@@ -76,7 +76,7 @@ class QuarkFile {
       category: toInt(json['category']),
       objCategory: json['obj_category']?.toString() ?? '',
       thumbnail:
-          json['thumbnail']?.toString() ?? json['preview_url']?.toString() ?? '',
+          json['thumbnail']?.toString() ?? json['preview_url']?.toString() ?? json['cover']?.toString() ?? '',
     );
   }
 }

@@ -245,9 +245,9 @@ class QuarkClient {
     return files;
   }
 
-  /// 全局搜索（文件名 + AI 识别内容，如搜索照片内容词）
+  /// 全局搜索。scope: 0=全部(文件名), 2=内容搜索(照片 AI 识别)
   Future<List<QuarkFile>> searchFiles(String keyword,
-      {int page = 1, int size = 50}) async {
+      {int page = 1, int size = 50, int scope = 0}) async {
     final data = await _get('$driveApi/file/search', params: {
       'pr': 'ucpro',
       'fr': 'pc',
@@ -258,6 +258,7 @@ class QuarkClient {
       '_fetch_total': 1,
       '_sort': 'file_type:asc,updated_at:desc',
       '_is_hl': 1,
+      if (scope > 0) 'scope': scope,
     });
     final list = data['list'];
     if (list is! List) return [];
