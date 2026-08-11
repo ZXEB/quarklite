@@ -29,6 +29,26 @@ class DownloadService {
     }
   }
 
+  /// 根据 fid 直接下载网盘文件，返回错误信息（null 表示已加入队列）
+  static Future<String?> downloadQuarkFile(String fid,
+      {String? fileName}) async {
+    try {
+      final app = AppState.I;
+      final (infos, cookie) = await app.quark.getDownloadInfo([fid]);
+      if (infos.isEmpty) return '未获取到下载地址';
+      final info = infos.first;
+      return addDirectUrl(
+        url: info.url,
+        fileName:
+            info.fileName.isNotEmpty ? info.fileName : (fileName ?? ''),
+        cookie: cookie,
+        connections: app.connections,
+      );
+    } catch (e) {
+      return '下载失败: $e';
+    }
+  }
+
   /// 把 magnet 链接加入下载队列
   static Future<String?> addMagnet({
     required String url,

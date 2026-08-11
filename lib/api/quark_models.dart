@@ -39,6 +39,8 @@ class QuarkFile {
   final String fileExt;
   final int updatedAt;
   final int category;
+  final String objCategory;
+  final String thumbnail;
 
   QuarkFile({
     required this.fid,
@@ -50,7 +52,14 @@ class QuarkFile {
     required this.fileExt,
     required this.updatedAt,
     required this.category,
+    required this.objCategory,
+    required this.thumbnail,
   });
+
+  bool get isImage =>
+      objCategory == 'image' ||
+      ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic']
+          .contains(fileExt.toLowerCase());
 
   factory QuarkFile.fromJson(Map<String, dynamic> json) {
     final type = json['file_type']?.toString() ?? '';
@@ -65,6 +74,9 @@ class QuarkFile {
       fileExt: json['file_ext']?.toString() ?? '',
       updatedAt: toInt(json['updated_at']),
       category: toInt(json['category']),
+      objCategory: json['obj_category']?.toString() ?? '',
+      thumbnail:
+          json['thumbnail']?.toString() ?? json['preview_url']?.toString() ?? '',
     );
   }
 }

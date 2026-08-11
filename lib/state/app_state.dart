@@ -49,7 +49,7 @@ class AppState extends ChangeNotifier {
   void _loadSettings() {
     SharedPreferences.getInstance().then((prefs) {
       downloadDir =
-          prefs.getString(_kDownloadDir) ?? '/storage/emulated/0/Download/夸克极速';
+          prefs.getString(_kDownloadDir) ?? '/storage/emulated/0/Download/Quarklite';
       connections = prefs.getInt(_kConnections) ?? 16;
       notifyListeners();
     });

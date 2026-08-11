@@ -209,20 +209,55 @@ class QuarkClient {
 
   // ---------------- own drive ----------------
 
+  /// 列出目录内容（自动翻页拉取全部）
   Future<List<QuarkFile>> listFiles(String pdirFid,
       {int page = 1, int size = 100}) async {
-    final data = await _get('$driveApi/file/sort', params: {
+    final files = <QuarkFile>[];
+    var total = -1;
+    while (total < 0 || files.length < total) {
+      final resp = await _request('GET', '$driveApi/file/sort', params: {
+        'pr': 'ucpro',
+        'fr': 'pc',
+        'uc_param_str': '',
+        'pdir_fid': pdirFid,
+        '_page': page,
+        '_size': size,
+        '_fetch_total': 1,
+        '_fetch_sub_dirs': 0,
+        '_sort': 'file_type:asc,updated_at:desc',
+        'fetch_all_file': 1,
+        'fetch_risk_file_name': 1,
+      });
+      final body = _parseBody(resp);
+      final data = _check(body);
+      if (data is! Map) break;
+      final list = data['list'];
+      if (list is! List) break;
+      files.addAll(list
+          .whereType<Map>()
+          .map((e) => QuarkFile.fromJson(e.cast<String, dynamic>())));
+      total = toInt(body['metadata']?['_total'], fallback: total);
+      if (total < 0 && list.length < size) break;
+      if (list.isEmpty) break;
+      page++;
+      if (page > 500) break;
+    }
+    return files;
+  }
+
+  /// 全局搜索（文件名 + AI 识别内容，如搜索照片内容词）
+  Future<List<QuarkFile>> searchFiles(String keyword,
+      {int page = 1, int size = 50}) async {
+    final data = await _get('$driveApi/file/search', params: {
       'pr': 'ucpro',
       'fr': 'pc',
       'uc_param_str': '',
-      'pdir_fid': pdirFid,
+      'q': keyword,
       '_page': page,
       '_size': size,
       '_fetch_total': 1,
-      '_fetch_sub_dirs': 0,
       '_sort': 'file_type:asc,updated_at:desc',
-      'fetch_all_file': 1,
-      'fetch_risk_file_name': 1,
+      '_is_hl': 1,
     });
     final list = data['list'];
     if (list is! List) return [];
@@ -298,27 +333,41 @@ class QuarkClient {
   Future<List<QuarkShareFile>> listShare(
       QuarkShareSession session, String pdirFid,
       {int page = 1, int size = 50}) async {
-    final data = await _get('$driveApi/share/sharepage/detail', params: {
-      'pr': 'ucpro',
-      'fr': 'pc',
-      'pwd_id': session.pwdId,
-      'stoken': session.stoken,
-      'pdir_fid': pdirFid,
-      'force': 0,
-      '_page': page,
-      '_size': size,
-      '_fetch_banner': 0,
-      '_fetch_share': 0,
-      '_fetch_total': 1,
-      '_sort': 'file_type:asc,updated_at:desc',
-      'ver': 2,
-    });
-    final list = data['list'];
-    if (list is! List) return [];
-    return list
-        .whereType<Map>()
-        .map((e) => QuarkShareFile.fromJson(e.cast<String, dynamic>()))
-        .toList();
+    final files = <QuarkShareFile>[];
+    var total = -1;
+    while (total < 0 || files.length < total) {
+      final resp = await _request(
+          'GET', '$driveApi/share/sharepage/detail',
+          params: {
+            'pr': 'ucpro',
+            'fr': 'pc',
+            'pwd_id': session.pwdId,
+            'stoken': session.stoken,
+            'pdir_fid': pdirFid,
+            'force': 0,
+            '_page': page,
+            '_size': size,
+            '_fetch_banner': 0,
+            '_fetch_share': 0,
+            '_fetch_total': 1,
+            '_sort': 'file_type:asc,updated_at:desc',
+            'ver': 2,
+          });
+      final body = _parseBody(resp);
+      final data = _check(body);
+      if (data is! Map) break;
+      final list = data['list'];
+      if (list is! List) break;
+      files.addAll(list
+          .whereType<Map>()
+          .map((e) => QuarkShareFile.fromJson(e.cast<String, dynamic>())));
+      total = toInt(body['metadata']?['_total'], fallback: total);
+      if (total < 0 && list.length < size) break;
+      if (list.isEmpty) break;
+      page++;
+      if (page > 500) break;
+    }
+    return files;
   }
 
   /// 分享文件直链下载（接口失败时上层降级为转存）

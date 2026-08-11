@@ -8,9 +8,18 @@ import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
+import 'album_page.dart';
+import 'search_page.dart';
 
 class DrivePage extends StatefulWidget {
-  const DrivePage({super.key});
+  final String initialDirFid;
+  final String initialName;
+
+  const DrivePage({
+    super.key,
+    this.initialDirFid = '0',
+    this.initialName = '全部文件',
+  });
 
   @override
   State<DrivePage> createState() => _DrivePageState();
@@ -19,9 +28,11 @@ class DrivePage extends StatefulWidget {
 class _DrivePageState extends State<DrivePage>
     with AutomaticKeepAliveClientMixin {
   List<QuarkFile> _files = [];
-  String _pdirFid = '0';
-  String _currentName = '全部文件';
-  final List<(String, String)> _crumbs = [('0', '全部文件')];
+  late String _pdirFid = widget.initialDirFid;
+  late String _currentName = widget.initialName;
+  late final List<(String, String)> _crumbs = [
+    (widget.initialDirFid, widget.initialName)
+  ];
   bool _loading = false;
   String? _error;
   bool? _lastLoggedIn;
@@ -225,14 +236,22 @@ class _DrivePageState extends State<DrivePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final canBack = Navigator.of(context).canPop();
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            padding: const EdgeInsets.fromLTRB(12, 16, 20, 8),
             child: Row(
               children: [
+                if (canBack)
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                        color: AppColors.accent, size: 20),
+                  ),
+                const SizedBox(width: 4),
                 const Text('网盘',
                     style:
                         TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
@@ -253,6 +272,22 @@ class _DrivePageState extends State<DrivePage>
                     ],
                   )
                 else ...[
+                  IconButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const AlbumPage()),
+                    ),
+                    icon: const Icon(Icons.photo_library_rounded,
+                        color: AppColors.accent),
+                    tooltip: '相册',
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SearchPage()),
+                    ),
+                    icon: const Icon(Icons.search_rounded,
+                        color: AppColors.accent),
+                    tooltip: '搜索',
+                  ),
                   IconButton(
                     onPressed: () {
                       _crumbs

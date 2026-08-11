@@ -1,0 +1,273 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../../api/quark_models.dart';
+import '../../state/app_state.dart';
+import '../../state/download_manager.dart';
+import '../../state/download_service.dart';
+import '../../theme/app_theme.dart';
+import '../../utils/format.dart';
+import '../../utils/permission.dart';
+import '../../widgets/empty_view.dart';
+import '../../widgets/file_icon.dart';
+import 'drive_page.dart';
+
+class SearchPage extends StatefulWidget {
+  const SearchPage({super.key});
+
+  @override
+  State<SearchPage> createState() => _SearchPageState();
+}
+
+class _SearchPageState extends State<SearchPage> {
+  final _controller = TextEditingController();
+  Timer? _debounce;
+  bool _searching = false;
+  List<QuarkFile> _results = [];
+  String? _error;
+  String _keyword = '';
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String text) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () => _search(text));
+  }
+
+  Future<void> _search(String keyword) async {
+    keyword = keyword.trim();
+    if (keyword.isEmpty) {
+      setState(() {
+        _results = [];
+        _searching = false;
+        _error = null;
+        _keyword = '';
+      });
+      return;
+    }
+    if (keyword == _keyword && _results.isNotEmpty) return;
+    setState(() {
+      _keyword = keyword;
+      _searching = true;
+      _error = null;
+    });
+    try {
+      final results = await AppState.I.quark.searchFiles(keyword);
+      if (!mounted || keyword != _keyword) return;
+      setState(() {
+        _results = results;
+        _searching = false;
+      });
+    } catch (e) {
+      if (!mounted || keyword != _keyword) return;
+      setState(() {
+        _searching = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        titleSpacing: 0,
+        title: Container(
+          height: 38,
+          margin: const EdgeInsets.only(right: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: TextField(
+            controller: _controller,
+            autofocus: true,
+            onChanged: _onChanged,
+            onSubmitted: _search,
+            style:
+                const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            decoration: const InputDecoration(
+              hintText: '搜索文件名或照片内容（AI 识别）',
+              hintStyle:
+                  TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ),
+        actions: [
+          IconButton(
+            onPressed: () {
+              _controller.clear();
+              _search('');
+            },
+            icon: const Icon(Icons.close_rounded, color: AppColors.accent),
+          ),
+        ],
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_searching) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return EmptyView(
+        icon: Icons.cloud_off_rounded,
+        text: '搜索失败',
+        subText: _error,
+        action: OutlinedButton(
+          onPressed: () => _search(_controller.text),
+          child: const Text('重试'),
+        ),
+      );
+    }
+    if (_keyword.isEmpty) {
+      return const EmptyView(
+        icon: Icons.search_rounded,
+        text: '输入关键词搜索',
+        subText: '支持搜索 AI 识别过的照片内容',
+      );
+    }
+    if (_results.isEmpty) {
+      return const EmptyView(icon: Icons.search_off_rounded, text: '没有找到相关内容');
+    }
+    return RefreshIndicator(
+      onRefresh: () => _search(_keyword),
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        itemCount: _results.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        itemBuilder: (_, i) => _buildItem(_results[i]),
+      ),
+    );
+  }
+
+  Widget _buildItem(QuarkFile file) {
+    return InkWell(
+      onTap: () {
+        if (file.isDir) {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => DrivePage(
+              initialDirFid: file.fid,
+              initialName: file.fileName,
+            ),
+          ));
+        } else {
+          _showFileActions(file);
+        }
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            FileIcon(isDir: file.isDir, name: file.fileName),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    file.fileName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    file.isDir
+                        ? '文件夹'
+                        : '${formatBytes(file.size)}  ·  ${formatDateTime(file.updatedAt * 1000)}',
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textSecondary, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFileActions(QuarkFile file) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            FileIcon(isDir: false, name: file.fileName, size: 52),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                file.fileName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(formatBytes(file.size),
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12)),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.download_rounded, color: AppColors.accent),
+              title: const Text('立即下载'),
+              subtitle: const Text('提取直链，多线程不限速下载'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _downloadFile(file);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _downloadFile(QuarkFile file) async {
+    final ok = await ensureStoragePermission(context);
+    if (!ok) return;
+    if (!mounted) return;
+    final err =
+        await DownloadService.downloadQuarkFile(file.fid, fileName: file.fileName);
+    if (!mounted) return;
+    if (err != null) {
+      toast(context, err);
+      return;
+    }
+    toast(context, '已加入下载队列');
+    DownloadManager.I.startPolling();
+  }
+}

@@ -214,7 +214,7 @@ class MePage extends StatelessWidget {
         leading: const Icon(Icons.info_outline_rounded,
             color: AppColors.accent),
         title: const Text('关于'),
-        subtitle: const Text('夸克极速 v1.0.0  ·  基于 Gopeed 下载引擎'),
+        subtitle: const Text('Quarklite v1.1.0  ·  基于 Gopeed 下载引擎'),
         onTap: () => _showAbout(context),
       ),
     );
@@ -229,7 +229,7 @@ class MePage extends StatelessWidget {
         content: TextField(
           controller: controller,
           style: const TextStyle(color: AppColors.textPrimary),
-          decoration: const InputDecoration(hintText: '/storage/emulated/0/Download/夸克极速'),
+          decoration: const InputDecoration(hintText: '/storage/emulated/0/Download/Quarklite'),
         ),
         actions: [
           TextButton(
@@ -289,7 +289,7 @@ class MePage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('夸克极速 QuarkLite'),
+        title: const Text('Quarklite'),
         content: const Text(
           '夸克网盘不限速下载工具\n\n'
           '· 内置 Gopeed 多线程下载引擎\n'

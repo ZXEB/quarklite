@@ -58,7 +58,7 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '夸克极速',
+      title: 'Quarklite',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
       home: _ready ? const RootPage() : _BootView(error: _bootError),
