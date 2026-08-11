@@ -42,6 +42,8 @@ class QuarkFile {
   final String objCategory;
   final String thumbnail;
   final String bigThumbnail;
+  final String previewUrl;
+  final int duration;
 
   QuarkFile({
     required this.fid,
@@ -56,12 +58,21 @@ class QuarkFile {
     required this.objCategory,
     required this.thumbnail,
     required this.bigThumbnail,
+    required this.previewUrl,
+    required this.duration,
   });
 
   bool get isImage =>
       objCategory == 'image' ||
       ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic']
           .contains(fileExt.toLowerCase());
+
+  /// 动态照片（手机 live photo，短时长视频片段）
+  bool get isLivePhoto =>
+      !isDir &&
+      (objCategory == 'video' || fileExt.toLowerCase() == 'mp4') &&
+      duration > 0 &&
+      duration <= 15000;
 
   factory QuarkFile.fromJson(Map<String, dynamic> json) {
     final type = json['file_type']?.toString() ?? '';
@@ -80,6 +91,8 @@ class QuarkFile {
       thumbnail:
           json['thumbnail']?.toString() ?? json['preview_url']?.toString() ?? json['cover']?.toString() ?? '',
       bigThumbnail: json['big_thumbnail']?.toString() ?? '',
+      previewUrl: json['preview_url']?.toString() ?? '',
+      duration: toInt(json['duration']),
     );
   }
 }

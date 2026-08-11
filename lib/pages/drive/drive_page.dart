@@ -465,7 +465,7 @@ class _DrivePageState extends State<DrivePage>
                   Text(
                     file.isDir
                         ? '文件夹'
-                        : '${formatBytes(file.size)}  ·  ${formatDateTime(file.updatedAt * 1000)}',
+                        : '${formatBytes(file.size)}  ·  ${formatDateTime(file.updatedAt)}',
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),

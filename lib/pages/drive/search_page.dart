@@ -11,6 +11,7 @@ import '../../utils/format.dart';
 import '../../utils/permission.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
+import 'album_page.dart';
 import 'drive_page.dart';
 
 class SearchPage extends StatefulWidget {
@@ -119,7 +120,7 @@ class _SearchPageState extends State<SearchPage> {
             style:
                 const TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: const InputDecoration(
-              hintText: '搜索文件名或照片 AI 标签',
+              hintText: '搜索文件名或照片内容',
               hintStyle:
                   TextStyle(color: AppColors.textSecondary, fontSize: 13),
               border: InputBorder.none,
@@ -233,6 +234,13 @@ class _SearchPageState extends State<SearchPage> {
               initialName: file.fileName,
             ),
           ));
+        } else if (file.isImage || file.isLivePhoto) {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => PhotoViewerPage(
+              photos: [file],
+              index: 0,
+            ),
+          ));
         } else {
           _showFileActions(file);
         }
@@ -265,7 +273,7 @@ class _SearchPageState extends State<SearchPage> {
                   Text(
                     file.isDir
                         ? '文件夹'
-                        : '${formatBytes(file.size)}  ·  ${formatDateTime(file.updatedAt * 1000)}',
+                        : '${formatBytes(file.size)}  ·  ${formatDateTime(file.updatedAt)}',
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),

@@ -268,14 +268,14 @@ class QuarkClient {
         .toList();
   }
 
-  /// 官方分类接口：图片列表（相册数据源，比递归扫描快百倍）。
+  /// 官方分类接口：按分类分页拉取（相册数据源）。
   /// [labels] 为 AI 识别标签（仅对已被夸克 AI 打标的照片生效）
-  Future<List<QuarkFile>> listCategoryImages(
+  Future<List<QuarkFile>> listCategory(String cat,
       {int page = 1, int size = 100, String labels = ''}) async {
     final data = await _get('$drivePcApi/file/category', params: {
       'pr': 'ucpro',
       'fr': 'pc',
-      'cat': 'image',
+      'cat': cat,
       '_page': page,
       '_size': size,
       '_fetch_total': 1,
@@ -288,6 +288,14 @@ class QuarkClient {
         .map((e) => QuarkFile.fromJson(e.cast<String, dynamic>()))
         .toList();
   }
+
+  Future<List<QuarkFile>> listCategoryImages(
+          {int page = 1, int size = 100, String labels = ''}) =>
+      listCategory('image', page: page, size: size, labels: labels);
+
+  Future<List<QuarkFile>> listCategoryVideos(
+          {int page = 1, int size = 100}) =>
+      listCategory('video', page: page, size: size);
 
   /// 获取下载直链。返回 (下载信息列表, 请求时使用的 cookie 快照)
   Future<(List<QuarkDownloadInfo>, String)> getDownloadInfo(
