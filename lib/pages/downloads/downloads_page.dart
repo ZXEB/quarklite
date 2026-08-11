@@ -24,88 +24,97 @@ class _DownloadsPageState extends State<DownloadsPage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final dm = DownloadManager.I;
-    final all = dm.tasks;
-    final done = dm.countOf(GopeedStatus.done);
-    final failed = dm.countOf(GopeedStatus.error);
-    final active = all.length - done - failed;
+    return ListenableBuilder(
+      listenable: DownloadManager.I,
+      builder: (context, _) {
+        final dm = DownloadManager.I;
+        final all = dm.tasks;
+        final done = dm.countOf(GopeedStatus.done);
+        final failed = dm.countOf(GopeedStatus.error);
+        final active = all.length - done - failed;
 
-    final filtered = switch (_filter) {
-      1 => all.where((t) => t.status != GopeedStatus.done && t.status != GopeedStatus.error).toList(),
-      2 => dm.byStatus(GopeedStatus.done),
-      3 => dm.byStatus(GopeedStatus.error),
-      _ => all,
-    };
+        final filtered = switch (_filter) {
+          1 => all
+              .where((t) =>
+                  t.status != GopeedStatus.done &&
+                  t.status != GopeedStatus.error)
+              .toList(),
+          2 => dm.byStatus(GopeedStatus.done),
+          3 => dm.byStatus(GopeedStatus.error),
+          _ => all,
+        };
 
-    return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
-            child: Row(
-              children: [
-                const Text('下载管理',
-                    style:
-                        TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
-                const Spacer(),
-                if (dm.hasEngineError)
-                  const Icon(Icons.error_outline,
-                      color: AppColors.red, size: 20),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_horiz_rounded,
-                      color: AppColors.accent, size: 26),
-                  onSelected: (v) async {
-                    switch (v) {
-                      case 'pauseAll':
-                        await dm.pauseAllActive();
-                        _toast('已全部暂停');
-                      case 'clearDone':
-                        await dm.clearDone();
-                        _toast('已清除已完成任务');
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'pauseAll', child: Text('全部暂停')),
-                    PopupMenuItem(value: 'clearDone', child: Text('清除已完成')),
+        return SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                child: Row(
+                  children: [
+                    const Text('下载管理',
+                        style: TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.w800)),
+                    const Spacer(),
+                    if (dm.hasEngineError)
+                      const Icon(Icons.error_outline,
+                          color: AppColors.red, size: 20),
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_horiz_rounded,
+                          color: AppColors.accent, size: 26),
+                      onSelected: (v) async {
+                        switch (v) {
+                          case 'pauseAll':
+                            await dm.pauseAllActive();
+                            _toast('已全部暂停');
+                          case 'clearDone':
+                            await dm.clearDone();
+                            _toast('已清除已完成任务');
+                        }
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'pauseAll', child: Text('全部暂停')),
+                        PopupMenuItem(value: 'clearDone', child: Text('清除已完成')),
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Row(
-              children: [
-                _buildFilterChip(0, '全部', all.length),
-                const SizedBox(width: 8),
-                _buildFilterChip(1, '进行中', active),
-                const SizedBox(width: 8),
-                _buildFilterChip(2, '已完成', done),
-                const SizedBox(width: 8),
-                _buildFilterChip(3, '失败', failed),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: all.isEmpty
-                ? const EmptyView(
-                    icon: Icons.inventory_2_outlined,
-                    text: '暂无任务',
-                    subText: '去网盘或解析页添加下载任务吧')
-                : filtered.isEmpty
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Row(
+                  children: [
+                    _buildFilterChip(0, '全部', all.length),
+                    const SizedBox(width: 8),
+                    _buildFilterChip(1, '进行中', active),
+                    const SizedBox(width: 8),
+                    _buildFilterChip(2, '已完成', done),
+                    const SizedBox(width: 8),
+                    _buildFilterChip(3, '失败', failed),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: all.isEmpty
                     ? const EmptyView(
-                        icon: Icons.inbox_outlined, text: '没有符合条件的任务')
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 10),
-                        itemBuilder: (_, i) => _buildTaskCard(filtered[i]),
-                      ),
+                        icon: Icons.inventory_2_outlined,
+                        text: '暂无任务',
+                        subText: '去网盘或解析页添加下载任务吧')
+                    : filtered.isEmpty
+                        ? const EmptyView(
+                            icon: Icons.inbox_outlined, text: '没有符合条件的任务')
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 10),
+                            itemBuilder: (_, i) => _buildTaskCard(filtered[i]),
+                          ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

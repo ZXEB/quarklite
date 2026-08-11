@@ -24,6 +24,11 @@ class _DrivePageState extends State<DrivePage>
   final List<(String, String)> _crumbs = [('0', '全部文件')];
   bool _loading = false;
   String? _error;
+  bool? _lastLoggedIn;
+
+  bool _selectMode = false;
+  final Set<String> _selected = {};
+  bool _downloading = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -31,7 +36,27 @@ class _DrivePageState extends State<DrivePage>
   @override
   void initState() {
     super.initState();
+    AppState.I.addListener(_onLoginChanged);
     _load();
+  }
+
+  @override
+  void dispose() {
+    AppState.I.removeListener(_onLoginChanged);
+    super.dispose();
+  }
+
+  void _onLoginChanged() {
+    final logged = AppState.I.isLoggedIn;
+    if (logged == _lastLoggedIn) return;
+    _lastLoggedIn = logged;
+    if (mounted) {
+      setState(() {
+        _selectMode = false;
+        _selected.clear();
+      });
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -98,8 +123,103 @@ class _DrivePageState extends State<DrivePage>
       _currentName = _crumbs.last.$2;
       _files = [];
       _error = null;
+      _selectMode = false;
+      _selected.clear();
     });
     _load();
+  }
+
+  // ---------------- 多选 ----------------
+
+  void _enterSelectMode(QuarkFile file) {
+    setState(() {
+      _selectMode = true;
+      if (!file.isDir) _selected.add(file.fid);
+    });
+  }
+
+  void _toggleSelect(QuarkFile file) {
+    if (file.isDir) return;
+    setState(() {
+      if (!_selected.remove(file.fid)) {
+        _selected.add(file.fid);
+      }
+    });
+  }
+
+  void _exitSelectMode() {
+    setState(() {
+      _selectMode = false;
+      _selected.clear();
+    });
+  }
+
+  void _selectAllFiles() {
+    final fileIds = _files.where((f) => !f.isDir).map((f) => f.fid).toSet();
+    setState(() {
+      if (_selected.length == fileIds.length) {
+        _selected.clear();
+      } else {
+        _selected
+          ..clear()
+          ..addAll(fileIds);
+      }
+    });
+  }
+
+  Future<void> _batchDownload() async {
+    if (_selected.isEmpty || _downloading) return;
+    final app = AppState.I;
+    final ok = await app.canWriteDownload();
+    if (!ok) {
+      if (!mounted) return;
+      final granted = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('需要存储权限'),
+          content: const Text('下载文件需要「所有文件访问」权限，请授权后继续。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx, true);
+                app.openAllFilesAccess();
+              },
+              child: const Text('去授权'),
+            ),
+          ],
+        ),
+      );
+      if (granted != true) return;
+      _toast('授权完成后请重新下载');
+      return;
+    }
+    setState(() => _downloading = true);
+    try {
+      final (infos, cookie) =
+          await app.quark.getDownloadInfo(_selected.toList());
+      var added = 0;
+      for (final info in infos) {
+        if (info.url.isEmpty) continue;
+        final err = await DownloadService.addDirectUrl(
+          url: info.url,
+          fileName: info.fileName,
+          cookie: cookie,
+          connections: app.connections,
+        );
+        if (err == null) added++;
+      }
+      _toast('已添加 $added 个下载任务');
+      DownloadManager.I.startPolling();
+      _exitSelectMode();
+    } catch (e) {
+      _toast('批量下载失败: $e');
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
   }
 
   @override
@@ -117,23 +237,41 @@ class _DrivePageState extends State<DrivePage>
                     style:
                         TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
                 const Spacer(),
-                IconButton(
-                  onPressed: () {
-                    _crumbs
-                      ..clear()
-                      ..add(('0', '全部文件'));
-                    _pdirFid = '0';
-                    _currentName = '全部文件';
-                    _files = [];
-                    _load();
-                  },
-                  icon: const Icon(Icons.home_rounded, color: AppColors.accent),
-                ),
-                IconButton(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh_rounded,
-                      color: AppColors.accent),
-                ),
+                if (_selectMode)
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: _selectAllFiles,
+                        child: const Text('全选',
+                            style: TextStyle(color: AppColors.accent)),
+                      ),
+                      IconButton(
+                        onPressed: _exitSelectMode,
+                        icon: const Icon(Icons.close_rounded,
+                            color: AppColors.accent),
+                      ),
+                    ],
+                  )
+                else ...[
+                  IconButton(
+                    onPressed: () {
+                      _crumbs
+                        ..clear()
+                        ..add(('0', '全部文件'));
+                      _pdirFid = '0';
+                      _currentName = '全部文件';
+                      _files = [];
+                      _load();
+                    },
+                    icon: const Icon(Icons.home_rounded,
+                        color: AppColors.accent),
+                  ),
+                  IconButton(
+                    onPressed: _load,
+                    icon: const Icon(Icons.refresh_rounded,
+                        color: AppColors.accent),
+                  ),
+                ],
               ],
             ),
           ),
@@ -170,7 +308,49 @@ class _DrivePageState extends State<DrivePage>
               ),
             ),
           Expanded(child: _buildBody()),
+          if (_selectMode) _buildSelectBar(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSelectBar() {
+    final count = _selected.length;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: const BoxDecoration(
+        color: Color(0xFF12121A),
+        border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Text('已选 $count 项',
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 14)),
+            const Spacer(),
+            FilledButton.icon(
+              onPressed: _downloading || count == 0 ? null : _batchDownload,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.accentDeep,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: _downloading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.download_rounded, size: 18),
+              label: Text('下载($count)'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -210,19 +390,23 @@ class _DrivePageState extends State<DrivePage>
   }
 
   Widget _buildItem(QuarkFile file) {
+    final selected = _selected.contains(file.fid);
     return InkWell(
       onTap: () {
-        if (file.isDir) {
+        if (_selectMode) {
+          _toggleSelect(file);
+        } else if (file.isDir) {
           _enterDir(file);
         } else {
           _showFileActions(file);
         }
       },
+      onLongPress: _selectMode ? null : () => _enterSelectMode(file),
       borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: selected ? AppColors.accentDeep : AppColors.card,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
@@ -253,8 +437,17 @@ class _DrivePageState extends State<DrivePage>
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary, size: 20),
+            if (_selectMode)
+              Icon(
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                color: selected ? AppColors.accent : AppColors.textSecondary,
+                size: 22,
+              )
+            else
+              const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textSecondary, size: 20),
           ],
         ),
       ),

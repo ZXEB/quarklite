@@ -54,11 +54,12 @@ class QuarkFile {
 
   factory QuarkFile.fromJson(Map<String, dynamic> json) {
     final type = json['file_type']?.toString() ?? '';
+    final dirFlag = json['dir'] == true;
     return QuarkFile(
       fid: json['fid']?.toString() ?? '',
       fileName: json['file_name']?.toString() ?? '',
       fileType: type,
-      isDir: type == 'folder',
+      isDir: dirFlag || type == 'folder',
       size: toInt(json['size']),
       pdirFid: json['pdir_fid']?.toString() ?? '',
       fileExt: json['file_ext']?.toString() ?? '',
@@ -89,11 +90,12 @@ class QuarkShareFile {
 
   factory QuarkShareFile.fromJson(Map<String, dynamic> json) {
     final type = json['file_type']?.toString() ?? '';
+    final dirFlag = json['dir'] == true;
     return QuarkShareFile(
       fid: json['fid']?.toString() ?? '',
       fileName: json['file_name']?.toString() ?? '',
       fileType: type,
-      isDir: type == 'folder',
+      isDir: dirFlag || type == 'folder',
       size: toInt(json['size']),
       pdirFid: json['pdir_fid']?.toString() ?? '',
       shareFidToken: json['share_fid_token']?.toString() ?? '',

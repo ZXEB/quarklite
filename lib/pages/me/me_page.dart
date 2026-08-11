@@ -9,42 +9,48 @@ class MePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final app = AppState.I;
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 12),
-            child: Text('我的',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
-          ),
-          _buildLoginCard(context, app),
-          const SizedBox(height: 16),
-          _buildSettingsCard(context, app),
-          const SizedBox(height: 16),
-          _buildAboutCard(context),
-          if (app.isLoggedIn) ...[
-            const SizedBox(height: 24),
-            OutlinedButton(
-              onPressed: () async {
-                final ok = await _confirm(context, '退出登录', '确定退出当前账号吗？');
-                if (ok == true) {
-                  await app.logout();
-                }
-              },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.red,
-                side: const BorderSide(color: AppColors.red),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+    return ListenableBuilder(
+      listenable: AppState.I,
+      builder: (context, _) {
+        final app = AppState.I;
+        return SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(left: 4, bottom: 12),
+                child: Text('我的',
+                    style:
+                        TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
               ),
-              child: const Text('退出登录'),
-            ),
-          ],
-        ],
-      ),
+              _buildLoginCard(context, app),
+              const SizedBox(height: 16),
+              _buildSettingsCard(context, app),
+              const SizedBox(height: 16),
+              _buildAboutCard(context),
+              if (app.isLoggedIn) ...[
+                const SizedBox(height: 24),
+                OutlinedButton(
+                  onPressed: () async {
+                    final ok = await _confirm(context, '退出登录', '确定退出当前账号吗？');
+                    if (ok == true) {
+                      await app.logout();
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.red,
+                    side: const BorderSide(color: AppColors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('退出登录'),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 

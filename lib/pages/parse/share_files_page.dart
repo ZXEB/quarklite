@@ -33,6 +33,10 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
   bool _loading = false;
   String? _error;
 
+  bool _selectMode = false;
+  final Set<String> _selected = {};
+  bool _busy = false;
+
   @override
   void initState() {
     super.initState();
@@ -100,23 +104,189 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
     }
   }
 
+  // ---------------- 多选 ----------------
+
+  void _enterSelectMode(QuarkShareFile file) {
+    setState(() {
+      _selectMode = true;
+      if (!file.isDir) _selected.add(file.fid);
+    });
+  }
+
+  void _toggleSelect(QuarkShareFile file) {
+    if (file.isDir) return;
+    setState(() {
+      if (!_selected.remove(file.fid)) {
+        _selected.add(file.fid);
+      }
+    });
+  }
+
+  void _exitSelectMode() {
+    setState(() {
+      _selectMode = false;
+      _selected.clear();
+    });
+  }
+
+  List<QuarkShareFile> _selectedFiles() {
+    return _files.where((f) => _selected.contains(f.fid)).toList();
+  }
+
+  void _selectAllFiles() {
+    final fileIds = _files.where((f) => !f.isDir).map((f) => f.fid).toSet();
+    setState(() {
+      if (_selected.length == fileIds.length) {
+        _selected.clear();
+      } else {
+        _selected
+          ..clear()
+          ..addAll(fileIds);
+      }
+    });
+  }
+
+  Future<void> _batchDownload() async {
+    if (_selected.isEmpty || _busy) return;
+    final msg = await _ensurePermission();
+    if (msg != null) return;
+    setState(() => _busy = true);
+    try {
+      final cookie = AppState.I.quark.downloadCookieSnapshot;
+      final infos = await AppState.I.quark
+          .getShareDownloadInfo(widget.session, _selected.toList());
+      var added = 0;
+      for (final info in infos) {
+        if (info.url.isEmpty) continue;
+        final err = await DownloadService.addDirectUrl(
+          url: info.url,
+          fileName: info.fileName,
+          cookie: cookie,
+          connections: AppState.I.connections,
+        );
+        if (err == null) added++;
+      }
+      _toast('已添加 $added 个下载任务');
+      DownloadManager.I.startPolling();
+      _exitSelectMode();
+    } on QuarkException {
+      _showSaveFallback();
+    } catch (e) {
+      _toast('批量下载失败: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _batchSave() async {
+    if (_selected.isEmpty || _busy) return;
+    if (!AppState.I.isLoggedIn) {
+      _toast('请先登录');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await AppState.I.quark
+          .saveShare(widget.session, _selectedFiles(), '0');
+      _toast('已保存 ${_selected.length} 项到网盘根目录');
+      _exitSelectMode();
+    } catch (e) {
+      _toast('保存失败: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_stack.isEmpty ? widget.initialName : _files.isEmpty ? '文件夹' : ''),
+        title: Text(_selectMode
+            ? '已选 ${_selected.length} 项'
+            : _stack.isEmpty
+                ? widget.initialName
+                : _files.isEmpty
+                    ? '文件夹'
+                    : ''),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () {
-            if (_stack.isNotEmpty) {
+            if (_selectMode) {
+              _exitSelectMode();
+            } else if (_stack.isNotEmpty) {
               _back();
             } else {
               Navigator.pop(context);
             }
           },
         ),
+        actions: [
+          if (_selectMode)
+            TextButton(
+              onPressed: _selectAllFiles,
+              child: const Text('全选',
+                  style: TextStyle(color: AppColors.accent)),
+            ),
+        ],
       ),
-      body: _buildBody(),
+      body: Column(
+        children: [
+          Expanded(child: _buildBody()),
+          if (_selectMode) _buildSelectBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectBar() {
+    final count = _selected.length;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: const BoxDecoration(
+        color: Color(0xFF12121A),
+        border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Text('已选 $count 项',
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 14)),
+            const Spacer(),
+            OutlinedButton(
+              onPressed: _busy || count == 0 ? null : _batchSave,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.green,
+                side: const BorderSide(color: AppColors.green),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('转存'),
+            ),
+            const SizedBox(width: 10),
+            FilledButton.icon(
+              onPressed: _busy || count == 0 ? null : _batchDownload,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.accentDeep,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: _busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.download_rounded, size: 18),
+              label: Text('下载($count)'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -150,19 +320,23 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
   }
 
   Widget _buildItem(QuarkShareFile file) {
+    final selected = _selected.contains(file.fid);
     return InkWell(
       onTap: () {
-        if (file.isDir) {
+        if (_selectMode) {
+          _toggleSelect(file);
+        } else if (file.isDir) {
           _openDir(file);
         } else {
           _showFileActions(file);
         }
       },
+      onLongPress: _selectMode ? null : () => _enterSelectMode(file),
       borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: selected ? AppColors.accentDeep : AppColors.card,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
@@ -191,8 +365,17 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary, size: 20),
+            if (_selectMode)
+              Icon(
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                color: selected ? AppColors.accent : AppColors.textSecondary,
+                size: 22,
+              )
+            else
+              const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textSecondary, size: 20),
           ],
         ),
       ),
@@ -280,12 +463,15 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
   }
 
   /// 直链获取失败时降级：转存到网盘再下载
-  void _showSaveFallback(QuarkShareFile file) {
+  void _showSaveFallback([QuarkShareFile? file]) {
+    final single = file != null;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('直链获取失败'),
-        content: const Text('该文件暂时无法获取直链，可以先保存到自己的网盘，再从网盘中下载。'),
+        content: Text(single
+            ? '该文件暂时无法获取直链，可以先保存到自己的网盘，再从网盘中下载。'
+            : '所选文件暂时无法获取直链，可以先转存到自己的网盘，再从网盘中下载。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -294,9 +480,13 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _saveFile(file);
+              if (single) {
+                _saveFile(file);
+              } else {
+                _batchSave();
+              }
             },
-            child: const Text('保存到网盘'),
+            child: const Text('转存'),
           ),
         ],
       ),
