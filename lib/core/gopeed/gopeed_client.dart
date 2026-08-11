@@ -88,19 +88,21 @@ class GopeedClient {
     await _dio.put('/tasks/pause', queryParameters: {'id': ids});
   }
 
-  /// 全局配置：下载目录 / 并发任务数 / HTTP 连接数
+  /// 全局配置：下载目录 / 并发任务数 / HTTP 连接数（先读取再合并，避免覆盖其他设置）
   Future<void> updateConfig({
     String? downloadDir,
     int? maxRunning,
     int? connections,
   }) async {
-    final data = <String, dynamic>{};
+    var data = await getConfig();
     if (downloadDir != null) data['downloadDir'] = downloadDir;
     if (maxRunning != null) data['maxRunning'] = maxRunning;
     if (connections != null) {
-      data['protocolConfig'] = {
-        'http': {'connections': connections},
-      };
+      final protocol = (data['protocolConfig'] as Map?)?.cast<String, dynamic>() ?? {};
+      final http = (protocol['http'] as Map?)?.cast<String, dynamic>() ?? {};
+      http['connections'] = connections;
+      protocol['http'] = http;
+      data['protocolConfig'] = protocol;
     }
     final resp = await _dio.put('/config', data: data);
     _check(resp);
