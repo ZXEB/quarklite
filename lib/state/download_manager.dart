@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/gopeed/gopeed_boot.dart';
 import '../core/gopeed/gopeed_models.dart';
+import '../core/notify/download_notifier.dart';
 
 class DownloadManager extends ChangeNotifier {
   static DownloadManager? _instance;
@@ -41,6 +42,7 @@ class DownloadManager extends ChangeNotifier {
         ..addAll(list);
       _failed = false;
       notifyListeners();
+      DownloadNotifier.update(list);
     } catch (e) {
       _failed = true;
     }

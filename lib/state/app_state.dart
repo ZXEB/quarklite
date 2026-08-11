@@ -30,7 +30,7 @@ class AppState extends ChangeNotifier {
   bool loading = false;
 
   String downloadDir = '';
-  int connections = 16;
+  int connections = 8;
 
   Timer? _sessionTimer;
 
@@ -50,7 +50,7 @@ class AppState extends ChangeNotifier {
     SharedPreferences.getInstance().then((prefs) {
       downloadDir =
           prefs.getString(_kDownloadDir) ?? '/storage/emulated/0/Download/Quarklite';
-      connections = prefs.getInt(_kConnections) ?? 16;
+      connections = prefs.getInt(_kConnections) ?? 8;
       notifyListeners();
     });
   }

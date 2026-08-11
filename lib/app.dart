@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/gopeed/gopeed_boot.dart';
+import 'core/notify/download_notifier.dart';
 import 'pages/downloads/downloads_page.dart';
 import 'pages/drive/drive_page.dart';
 import 'pages/me/me_page.dart';
@@ -28,6 +29,7 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
 
   Future<void> _bootstrap() async {
     try {
+      await DownloadNotifier.init();
       await AppState.I.init();
       await GopeedEngine.start();
       final client = GopeedEngine.client;
@@ -36,7 +38,7 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
       if (cfg['downloadDir']?.toString().isEmpty ?? true) {
         await client.updateConfig(
           downloadDir: dir,
-          maxRunning: 3,
+          maxRunning: 2,
           connections: AppState.I.connections,
         );
       }

@@ -19,7 +19,7 @@ class DownloadService {
         headers: {
           if (cookie.isNotEmpty) 'Cookie': cookie,
           'Referer': 'https://pan.quark.cn/',
-          'User-Agent': QuarkClient.uaPc,
+          'User-Agent': QuarkClient.uaDesktopClient,
         },
         connections: connections,
       );

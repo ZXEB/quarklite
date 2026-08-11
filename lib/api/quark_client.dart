@@ -298,6 +298,7 @@ class QuarkClient {
       listCategory('video', page: page, size: size);
 
   /// 获取下载直链。返回 (下载信息列表, 请求时使用的 cookie 快照)
+  /// 使用桌面客户端 UA 请求并绑定签名（网页 UA 易触发限速）
   Future<(List<QuarkDownloadInfo>, String)> getDownloadInfo(
       List<String> fids) async {
     final snapshot = downloadCookieSnapshot;
@@ -305,7 +306,8 @@ class QuarkClient {
     try {
       data = await _post('$driveApi/file/download',
           params: {'pr': 'ucpro', 'fr': 'pc', 'uc_param_str': ''},
-          data: {'fids': fids});
+          data: {'fids': fids},
+          userAgent: uaDesktopClient);
     } on QuarkException catch (e) {
       if (e.code == 23018) {
         data = await _post('$driveApi/file/download',

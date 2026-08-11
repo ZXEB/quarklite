@@ -259,6 +259,8 @@ class _AlbumPageState extends State<AlbumPage> {
     while (_imgHasMore && _screenshotCount < 200) {
       await _loadMoreImages();
       if (!mounted) return;
+      // 限速：避免突发大量分页请求触发接口限流
+      await Future.delayed(const Duration(milliseconds: 200));
     }
   }
 
