@@ -79,8 +79,9 @@ open class MainActivity : FlutterActivity() {
                             showLiveUpdate(
                                 title = call.argument<String>("title") ?: "",
                                 text = call.argument<String>("text") ?: "",
-                                done = call.argument<Long>("done") ?: 0L,
-                                total = call.argument<Long>("total") ?: 0L,
+                                // Dart int 小于 2^31 时以 Integer 到达，需用 Number 兼容转换
+                                done = (call.argument<Number>("done") ?: 0L).toLong(),
+                                total = (call.argument<Number>("total") ?: 0L).toLong(),
                                 chip = call.argument<String>("chip") ?: "",
                             )
                             result.success(null)
