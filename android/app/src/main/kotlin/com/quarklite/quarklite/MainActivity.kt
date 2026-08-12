@@ -106,10 +106,15 @@ open class MainActivity : FlutterActivity() {
     private fun ensureLiveChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = getSystemService(NotificationManager::class.java)
+        val existing = nm.getNotificationChannel(LIVE_CHANNEL_ID)
+        if (existing != null && existing.importance != NotificationManager.IMPORTANCE_DEFAULT) {
+            // 旧版本创建的是 LOW 渠道，删除重建以使用 DEFAULT
+            nm.deleteNotificationChannel(LIVE_CHANNEL_ID)
+        }
         val channel = NotificationChannel(
             LIVE_CHANNEL_ID,
             "下载进度",
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
             description = "下载任务实时进度"
             setShowBadge(false)
@@ -126,19 +131,19 @@ open class MainActivity : FlutterActivity() {
         chip: String,
     ): Notification {
         ensureLiveChannel()
-        val builder = NotificationCompat.Builder(this, LIVE_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_notifications)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
         if (Build.VERSION.SDK_INT >= 36) {
-            // Android 16+ 实时动态：主屏 / 锁屏 / 状态栏常驻进度
-            // 注意：系统要求 EXTRA_COLORIZED=true（setColorized）才具备上屏资格
-            builder.setRequestPromotedOngoing(true)
-            builder.setColorized(true)
-            val style = NotificationCompat.ProgressStyle()
+            // Android 16+ 实时动态：直接用框架 Builder，
+            // 确保 ongoing/title/colorized 等原生字段完整写入（兼容层有丢失风险）
+            val builder = Notification.Builder(this, LIVE_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_notifications)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setCategory(Notification.CATEGORY_PROGRESS)
+                // 系统要求 EXTRA_COLORIZED=true 才具备上屏资格
+                .setColorized(true)
+            val style = Notification.ProgressStyle()
             style.setProgressIndeterminate(total <= 0 || done < 0)
             if (total > 0 && done >= 0) {
                 // 用 0..10000 的相对刻度，避免超大文件 int 溢出
@@ -146,7 +151,7 @@ open class MainActivity : FlutterActivity() {
                 val cur = ((done * max) / total).toInt().coerceIn(0, max)
                 style.setProgress(cur)
                 style.addProgressSegment(
-                    NotificationCompat.ProgressStyle.Segment(max)
+                    Notification.ProgressStyle.Segment(max)
                         .setColor(Color.parseColor("#3D7BFE"))
                 )
                 style.setStyledByProgress(true)
@@ -155,14 +160,25 @@ open class MainActivity : FlutterActivity() {
             if (chip.isNotBlank()) {
                 builder.setShortCriticalText(chip)
             }
+            val notification = builder.build()
+            // setRequestPromotedOngoing 是 androidx 专属 API，
+            // 框架侧手动写入等价 extra（值见 androidx.core 源码）
+            notification.extras.putBoolean("android.requestPromotedOngoing", true)
+            return notification
+        }
+        // 低版本回退为常驻进度通知
+        val builder = NotificationCompat.Builder(this, LIVE_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_notifications)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+        if (total > 0) {
+            val progress = (done * 100 / total).toInt().coerceIn(0, 100)
+            builder.setProgress(100, progress, false)
         } else {
-            // 低版本回退为常驻进度通知
-            if (total > 0) {
-                val progress = (done * 100 / total).toInt().coerceIn(0, 100)
-                builder.setProgress(100, progress, false)
-            } else {
-                builder.setProgress(0, 0, true)
-            }
+            builder.setProgress(0, 0, true)
         }
         return builder.build()
     }
@@ -184,7 +200,7 @@ open class MainActivity : FlutterActivity() {
         getSystemService(NotificationManager::class.java).cancel(LIVE_NOTIF_ID)
     }
 
-    /// 诊断实时动态在当前设备/系统上的可用性
+    /// 诊断实时动态在当前设备/系统上的可用性（全部使用公开 API，结果可靠）
     private fun checkLiveUpdate(): Map<String, Any> {
         val nm = getSystemService(NotificationManager::class.java)
         val sdk = Build.VERSION.SDK_INT
@@ -203,14 +219,15 @@ open class MainActivity : FlutterActivity() {
                 5000L, 10000L, ""
             )
             promotable = sample.hasPromotableCharacteristics()
-            if (!promotable) {
-                // 部分内部检查方法为 @hide，用反射读取以便定位原因
-                promoteReason = "notification: ongoing=${boolProp(sample, "isOngoingEvent")} " +
-                    "title=${boolProp(sample, "hasTitle")} " +
-                    "groupSummary=${boolProp(sample, "isGroupSummary")} " +
-                    "customView=${boolProp(sample, "containsCustomViews")} " +
-                    "colorized=" + sample.extras.getBoolean("android.colorized")
-            }
+            val channel = nm.getNotificationChannel(LIVE_CHANNEL_ID)
+            val title = sample.extras.getString(Notification.EXTRA_TITLE)
+            promoteReason = "flags=${sample.flags} " +
+                "ongoingFlag=${(sample.flags and Notification.FLAG_ONGOING_EVENT) != 0} " +
+                "title=[$title] " +
+                "template=${sample.extras.getString(Notification.EXTRA_TEMPLATE)} " +
+                "colorized=${sample.extras.getBoolean(Notification.EXTRA_COLORIZED)} " +
+                "promoExtra=${sample.extras.getBoolean("android.requestPromotedOngoing")} " +
+                "channelImportance=${channel?.importance}"
         }
         return mapOf(
             "sdk" to sdk,
@@ -219,14 +236,6 @@ open class MainActivity : FlutterActivity() {
             "promotable" to promotable,
             "reason" to promoteReason,
         )
-    }
-
-    private fun boolProp(n: Notification, name: String): Boolean {
-        return try {
-            Notification::class.java.getMethod(name).invoke(n) as Boolean
-        } catch (_: Exception) {
-            false
-        }
     }
 
     private fun canWriteDownload(): Boolean {
