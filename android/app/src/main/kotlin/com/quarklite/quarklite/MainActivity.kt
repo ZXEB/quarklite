@@ -140,6 +140,12 @@ open class MainActivity : FlutterActivity() {
             // 设置 colorized 会导致永远无法上屏，故不设置
             val builder = Notification.Builder(this, LIVE_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_notifications)
+                // 大图标用彩色应用图标，卡片左侧显示软件图标
+                .setLargeIcon(
+                    android.graphics.BitmapFactory.decodeResource(
+                        resources, R.mipmap.ic_launcher
+                    )
+                )
                 .setContentTitle(title)
                 .setContentText(text)
                 .setOngoing(true)
@@ -173,6 +179,11 @@ open class MainActivity : FlutterActivity() {
         // 低版本回退为常驻进度通知
         val builder = NotificationCompat.Builder(this, LIVE_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notifications)
+            .setLargeIcon(
+                android.graphics.BitmapFactory.decodeResource(
+                    resources, R.mipmap.ic_launcher
+                )
+            )
             .setContentTitle(title)
             .setContentText(text)
             .setOngoing(true)

@@ -12,6 +12,7 @@ class DownloadNotifier {
       FlutterLocalNotificationsPlugin();
   static bool _init = false;
   static int _lastProgressTs = 0;
+  static int _lastLiveTs = 0;
   static int _notifId = 1000;
   static final Map<String, GopeedStatus> _prevStatus = {};
   static int _doneCount = 0;
@@ -92,8 +93,11 @@ class DownloadNotifier {
       final title = '下载中 ${active.length} 个任务  ·  $pct%';
       final text = '${formatSpeed(speed)}  ·  已下载 ${formatBytes(done)}';
 
-      // 状态栏/岛标签显示进度百分比
-      _updateLive(title, text, done, total, total > 0 ? '$pct%' : '');
+      // 状态栏/岛标签显示进度百分比（3 秒节流，避免高频 notify 卡顿）
+      if (now - _lastLiveTs >= 3000) {
+        _lastLiveTs = now;
+        _updateLive(title, text, done, total, total > 0 ? '$pct%' : '');
+      }
 
       if (isRunning) {
         if (now - _lastProgressTs >= 3000) {

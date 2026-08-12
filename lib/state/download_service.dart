@@ -8,11 +8,12 @@ class DownloadService {
     required String url,
     required String fileName,
     required String cookie,
+    String? path,
     int connections = 16,
   }) async {
     try {
       await GopeedEngine.ensureStarted();
-      final dir = await AppState.I.effectiveDownloadDir();
+      final dir = path ?? await AppState.I.effectiveDownloadDir();
       await GopeedEngine.client.create(
         url: url,
         path: dir,

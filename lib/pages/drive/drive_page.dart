@@ -226,35 +226,42 @@ class _DrivePageState extends State<DrivePage>
     }
   }
 
-  /// 把选中的文件/文件夹展开为文件 fid 列表（文件夹递归收集）
-  Future<List<String>> _expandSelection(Set<String> selected) async {
-    final result = <String>[];
+  /// 把选中的文件/文件夹展开为 (fid, 相对路径) 列表（文件夹递归收集）
+  Future<List<(String, String)>> _expandSelection(Set<String> selected) async {
+    final result = <(String, String)>[];
     for (final f in _files) {
       if (!selected.contains(f.fid)) continue;
       if (f.isDir) {
-        final files = await _collectFiles(f.fid);
-        result.addAll(files.map((x) => x.fid));
+        result.addAll(await _collectFiles(f.fid, '${f.fileName}/'));
       } else {
-        result.add(f.fid);
+        result.add((f.fid, ''));
       }
     }
     return result;
   }
 
-  /// 分批获取直链并加入下载队列（每批 50 个，避免接口超限）
-  Future<int> _downloadFileList(List<String> fids) async {
+  /// 分批获取直链并加入下载队列（每批 50 个，避免接口超限）。
+  /// [files] 为 (fid, 相对路径) 列表，相对路径为空表示下载到根目录。
+  Future<int> _downloadFileList(List<(String, String)> files) async {
     final app = AppState.I;
+    final base = await app.effectiveDownloadDir();
     var added = 0;
     const batchSize = 50;
-    for (var i = 0; i < fids.length; i += batchSize) {
-      final end = (i + batchSize) > fids.length ? fids.length : (i + batchSize);
-      final batch = fids.sublist(i, end);
-      final (infos, cookie) = await app.quark.getDownloadInfo(batch);
+    for (var i = 0; i < files.length; i += batchSize) {
+      final end = (i + batchSize) > files.length ? files.length : (i + batchSize);
+      final batch = files.sublist(i, end);
+      final (infos, cookie) =
+          await app.quark.getDownloadInfo(batch.map((e) => e.$1).toList());
+      final pathByFid = {for (final e in batch) e.$1: e.$2};
       for (final info in infos) {
         if (info.url.isEmpty) continue;
+        final rel = pathByFid[info.fid] ?? '';
+        // 保持网盘目录结构：下载到 根目录/相对路径/
+        final path = rel.isEmpty ? base : '$base/$rel';
         final err = await DownloadService.addDirectUrl(
           url: info.url,
           fileName: info.fileName,
+          path: path,
           cookie: cookie,
           connections: app.connections,
         );
@@ -264,17 +271,20 @@ class _DrivePageState extends State<DrivePage>
     return added;
   }
 
-  /// 递归收集文件夹内所有文件（限制层数与数量，避免超大目录卡死）
-  Future<List<QuarkFile>> _collectFiles(String fid, {int depth = 0}) async {
+  /// 递归收集文件夹内所有文件，返回 (fid, 相对路径)
+  /// （限制层数与数量，避免超大目录卡死）
+  Future<List<(String, String)>> _collectFiles(String fid, String relPath,
+      {int depth = 0}) async {
     if (depth > 8) return [];
     final files = await AppState.I.quark.listFiles(fid);
-    final result = <QuarkFile>[];
+    final result = <(String, String)>[];
     for (final f in files) {
       if (result.length >= 500) break;
       if (f.isDir) {
-        result.addAll(await _collectFiles(f.fid, depth: depth + 1));
+        result.addAll(
+            await _collectFiles(f.fid, '$relPath${f.fileName}/', depth: depth + 1));
       } else {
-        result.add(f);
+        result.add((f.fid, relPath));
       }
     }
     return result;
