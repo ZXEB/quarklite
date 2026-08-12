@@ -1,7 +1,6 @@
 package com.quarklite.quarklite
 
 import android.Manifest
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
@@ -10,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import androidx.annotation.NonNull
+import androidx.core.app.NotificationCompat
 import com.gopeed.libgopeed.Libgopeed
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -109,22 +109,6 @@ open class MainActivity : FlutterActivity() {
         nm.createNotificationChannel(channel)
     }
 
-    private fun buildLiveBase(title: String, text: String): Notification.Builder {
-        val builder = if (Build.VERSION.SDK_INT >= 26) {
-            Notification.Builder(this, LIVE_CHANNEL_ID)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }
-        return builder
-            .setSmallIcon(R.drawable.ic_stat_notifications)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setCategory(Notification.CATEGORY_PROGRESS)
-    }
-
     @Suppress("DEPRECATION")
     private fun showLiveUpdate(
         title: String,
@@ -135,10 +119,17 @@ open class MainActivity : FlutterActivity() {
     ) {
         ensureLiveChannel()
         val nm = getSystemService(NotificationManager::class.java)
-        val builder = buildLiveBase(title, text)
+        val builder = NotificationCompat.Builder(this, LIVE_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_notifications)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
         if (Build.VERSION.SDK_INT >= 36) {
+            // Android 16+ 实时动态：主屏 / 锁屏 / 状态栏常驻进度
             builder.setRequestPromotedOngoing(true)
-            builder.setStyle(Notification.ProgressStyle().apply {
+            builder.setStyle(NotificationCompat.ProgressStyle().apply {
                 setProgressIndeterminate(total <= 0 || done < 0)
                 if (total > 0 && done >= 0) {
                     // 用 0..10000 的相对刻度，避免超大文件 int 溢出
@@ -146,7 +137,7 @@ open class MainActivity : FlutterActivity() {
                     val cur = ((done * max) / total).toInt().coerceIn(0, max)
                     setProgress(cur)
                     addProgressSegment(
-                        Notification.ProgressStyle.Segment(max)
+                        NotificationCompat.ProgressStyle.Segment(max)
                             .setColor(Color.parseColor("#3D7BFE"))
                     )
                     setStyledByProgress(true)
