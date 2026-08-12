@@ -129,20 +129,20 @@ open class MainActivity : FlutterActivity() {
         if (Build.VERSION.SDK_INT >= 36) {
             // Android 16+ 实时动态：主屏 / 锁屏 / 状态栏常驻进度
             builder.setRequestPromotedOngoing(true)
-            builder.setStyle(NotificationCompat.ProgressStyle().apply {
-                setProgressIndeterminate(total <= 0 || done < 0)
-                if (total > 0 && done >= 0) {
-                    // 用 0..10000 的相对刻度，避免超大文件 int 溢出
-                    val max = 10000
-                    val cur = ((done * max) / total).toInt().coerceIn(0, max)
-                    setProgress(cur)
-                    addProgressSegment(
-                        NotificationCompat.ProgressStyle.Segment(max)
-                            .setColor(Color.parseColor("#3D7BFE"))
-                    )
-                    setStyledByProgress(true)
-                }
-            })
+            val style = NotificationCompat.ProgressStyle()
+            style.setProgressIndeterminate(total <= 0 || done < 0)
+            if (total > 0 && done >= 0) {
+                // 用 0..10000 的相对刻度，避免超大文件 int 溢出
+                val max = 10000
+                val cur = ((done * max) / total).toInt().coerceIn(0, max)
+                style.setProgress(cur)
+                style.addProgressSegment(
+                    NotificationCompat.ProgressStyle.Segment(max)
+                        .setColor(Color.parseColor("#3D7BFE"))
+                )
+                style.setStyledByProgress(true)
+            }
+            builder.setStyle(style)
             if (chip.isNotBlank()) {
                 builder.setShortCriticalText(chip)
             }
