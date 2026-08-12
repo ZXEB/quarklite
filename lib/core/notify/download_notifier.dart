@@ -16,6 +16,9 @@ class DownloadNotifier {
   static final Map<String, GopeedStatus> _prevStatus = {};
   static int _doneCount = 0;
 
+  /// 实时动态（Live Updates）在当前设备上的可用性诊断
+  static Map<String, dynamic>? liveUpdateStatus;
+
   static Future<void> init() async {
     if (_init) return;
     _init = true;
@@ -49,6 +52,19 @@ class DownloadNotifier {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
+    _refreshLiveStatus();
+  }
+
+  /// 查询实时动态在当前设备上的可用性（sdk/是否支持/权限/资格）
+  static Future<void> _refreshLiveStatus() async {
+    try {
+      final r = await _liveChannel.invokeMethod('check');
+      if (r is Map) {
+        liveUpdateStatus = r.cast<String, dynamic>();
+      }
+    } catch (_) {
+      // 旧版本无此接口，忽略
+    }
   }
 
   /// 每次轮询任务列表后调用：更新前台服务通知 + 发送完成/失败提醒

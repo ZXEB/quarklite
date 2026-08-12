@@ -1,6 +1,7 @@
 package com.quarklite.quarklite
 
 import android.Manifest
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
@@ -88,6 +89,13 @@ open class MainActivity : FlutterActivity() {
                         cancelLiveUpdate()
                         result.success(null)
                     }
+                    "check" -> {
+                        try {
+                            result.success(checkLiveUpdate())
+                        } catch (e: Exception) {
+                            result.error("ERROR", e.message, null)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -110,15 +118,14 @@ open class MainActivity : FlutterActivity() {
     }
 
     @Suppress("DEPRECATION")
-    private fun showLiveUpdate(
+    private fun buildLiveUpdateNotification(
         title: String,
         text: String,
         done: Long,
         total: Long,
         chip: String,
-    ) {
+    ): Notification {
         ensureLiveChannel()
-        val nm = getSystemService(NotificationManager::class.java)
         val builder = NotificationCompat.Builder(this, LIVE_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notifications)
             .setContentTitle(title)
@@ -128,7 +135,9 @@ open class MainActivity : FlutterActivity() {
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
         if (Build.VERSION.SDK_INT >= 36) {
             // Android 16+ 实时动态：主屏 / 锁屏 / 状态栏常驻进度
+            // 注意：系统要求 EXTRA_COLORIZED=true（setColorized）才具备上屏资格
             builder.setRequestPromotedOngoing(true)
+            builder.setColorized(true)
             val style = NotificationCompat.ProgressStyle()
             style.setProgressIndeterminate(total <= 0 || done < 0)
             if (total > 0 && done >= 0) {
@@ -155,11 +164,69 @@ open class MainActivity : FlutterActivity() {
                 builder.setProgress(0, 0, true)
             }
         }
-        nm.notify(LIVE_NOTIF_ID, builder.build())
+        return builder.build()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun showLiveUpdate(
+        title: String,
+        text: String,
+        done: Long,
+        total: Long,
+        chip: String,
+    ) {
+        ensureLiveChannel()
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.notify(LIVE_NOTIF_ID, buildLiveUpdateNotification(title, text, done, total, chip))
     }
 
     private fun cancelLiveUpdate() {
         getSystemService(NotificationManager::class.java).cancel(LIVE_NOTIF_ID)
+    }
+
+    /// 诊断实时动态在当前设备/系统上的可用性
+    private fun checkLiveUpdate(): Map<String, Any> {
+        val nm = getSystemService(NotificationManager::class.java)
+        val sdk = Build.VERSION.SDK_INT
+        val promotedSupported = sdk >= 36
+        val canPost = if (promotedSupported) {
+            nm.canPostPromotedNotifications()
+        } else {
+            false
+        }
+        var promotable = false
+        var promoteReason = ""
+        if (promotedSupported) {
+            val sample = buildLiveUpdateNotification(
+                "下载中 1 个任务  ·  50%",
+                "1.0 MB/s  ·  已下载 1.0 GB",
+                5000L, 10000L, ""
+            )
+            promotable = sample.hasPromotableCharacteristics()
+            if (!promotable) {
+                // 部分内部检查方法为 @hide，用反射读取以便定位原因
+                promoteReason = "notification: ongoing=${boolProp(sample, "isOngoingEvent")} " +
+                    "title=${boolProp(sample, "hasTitle")} " +
+                    "groupSummary=${boolProp(sample, "isGroupSummary")} " +
+                    "customView=${boolProp(sample, "containsCustomViews")} " +
+                    "colorized=" + sample.extras.getBoolean("android.colorized")
+            }
+        }
+        return mapOf(
+            "sdk" to sdk,
+            "promotedSupported" to promotedSupported,
+            "canPost" to canPost,
+            "promotable" to promotable,
+            "reason" to promoteReason,
+        )
+    }
+
+    private fun boolProp(n: Notification, name: String): Boolean {
+        return try {
+            Notification::class.java.getMethod(name).invoke(n) as Boolean
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun canWriteDownload(): Boolean {

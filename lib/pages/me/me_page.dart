@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/notify/download_notifier.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../login/login_page.dart';
@@ -214,7 +215,7 @@ class MePage extends StatelessWidget {
         leading: const Icon(Icons.info_outline_rounded,
             color: AppColors.accent),
         title: const Text('关于'),
-        subtitle: const Text('Quarklite v1.1.7  ·  基于 Gopeed 下载引擎'),
+        subtitle: const Text('Quarklite v1.1.8  ·  基于 Gopeed 下载引擎'),
         onTap: () => _showAbout(context),
       ),
     );
@@ -286,17 +287,35 @@ class MePage extends StatelessWidget {
   }
 
   void _showAbout(BuildContext context) {
+    final live = DownloadNotifier.liveUpdateStatus;
+    var liveText = '实时动态: 未查询';
+    if (live != null) {
+      final sdk = live['sdk'];
+      final supported = live['promotedSupported'] == true;
+      final canPost = live['canPost'] == true;
+      final promotable = live['promotable'] == true;
+      if (!supported) {
+        liveText = '实时动态: 需要 Android 16+（当前 $sdk）';
+      } else if (!canPost) {
+        liveText = '实时动态: 未启用（请在系统设置中开启）';
+      } else if (promotable) {
+        liveText = '实时动态: 已就绪（Android $sdk）';
+      } else {
+        liveText = '实时动态: 不满足条件（${live['reason'] ?? '未知'}）';
+      }
+    }
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Quarklite'),
-        content: const Text(
+        content: Text(
           '夸克网盘不限速下载工具\n\n'
           '· 内置 Gopeed 多线程下载引擎\n'
           '· 支持分享链接解析 / 网盘直连 / BT 磁力\n'
+          '· $liveText\n'
           '· 本项目基于 GPL-3.0 协议开源\n\n'
           'v1.0.0',
-          style: TextStyle(fontSize: 13, height: 1.7),
+          style: const TextStyle(fontSize: 13, height: 1.7),
         ),
         actions: [
           TextButton(
