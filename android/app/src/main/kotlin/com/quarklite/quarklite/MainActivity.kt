@@ -134,7 +134,10 @@ open class MainActivity : FlutterActivity() {
         ensureLiveChannel()
         if (Build.VERSION.SDK_INT >= 36) {
             // Android 16+ 实时动态：直接用框架 Builder，
-            // 确保 ongoing/title/colorized 等原生字段完整写入（兼容层有丢失风险）
+            // 确保 ongoing/title 等原生字段完整写入（兼容层有丢失风险）
+            // 注意：实测小米 ROM 的 hasPromotableCharacteristics 与 AOSP 相反——
+            // AOSP 要求 EXTRA_COLORIZED=true，小米要求【不能】colorized，
+            // 设置 colorized 会导致永远无法上屏，故不设置
             val builder = Notification.Builder(this, LIVE_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_notifications)
                 .setContentTitle(title)
@@ -142,8 +145,6 @@ open class MainActivity : FlutterActivity() {
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setCategory(Notification.CATEGORY_PROGRESS)
-                // 系统要求 EXTRA_COLORIZED=true 才具备上屏资格
-                .setColorized(true)
             val style = Notification.ProgressStyle()
             style.setProgressIndeterminate(total <= 0 || done < 0)
             if (total > 0 && done >= 0) {
