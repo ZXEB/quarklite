@@ -145,12 +145,11 @@ class _DrivePageState extends State<DrivePage>
   void _enterSelectMode(QuarkFile file) {
     setState(() {
       _selectMode = true;
-      if (!file.isDir) _selected.add(file.fid);
+      _selected.add(file.fid);
     });
   }
 
   void _toggleSelect(QuarkFile file) {
-    if (file.isDir) return;
     setState(() {
       if (!_selected.remove(file.fid)) {
         _selected.add(file.fid);
@@ -166,7 +165,7 @@ class _DrivePageState extends State<DrivePage>
   }
 
   void _selectAllFiles() {
-    final fileIds = _files.where((f) => !f.isDir).map((f) => f.fid).toSet();
+    final fileIds = _files.map((f) => f.fid).toSet();
     setState(() {
       if (_selected.length == fileIds.length) {
         _selected.clear();
@@ -209,8 +208,14 @@ class _DrivePageState extends State<DrivePage>
       return;
     }
     setState(() => _downloading = true);
+    _toast('正在扫描文件夹…');
     try {
-      final added = await _downloadFileList(_selected.toList());
+      final fids = await _expandSelection(_selected);
+      if (fids.isEmpty) {
+        _toast('没有可下载的文件');
+        return;
+      }
+      final added = await _downloadFileList(fids);
       _toast('已添加 $added 个下载任务');
       DownloadManager.I.startPolling();
       _exitSelectMode();
@@ -219,6 +224,21 @@ class _DrivePageState extends State<DrivePage>
     } finally {
       if (mounted) setState(() => _downloading = false);
     }
+  }
+
+  /// 把选中的文件/文件夹展开为文件 fid 列表（文件夹递归收集）
+  Future<List<String>> _expandSelection(Set<String> selected) async {
+    final result = <String>[];
+    for (final f in _files) {
+      if (!selected.contains(f.fid)) continue;
+      if (f.isDir) {
+        final files = await _collectFiles(f.fid);
+        result.addAll(files.map((x) => x.fid));
+      } else {
+        result.add(f.fid);
+      }
+    }
+    return result;
   }
 
   /// 分批获取直链并加入下载队列（每批 50 个，避免接口超限）
@@ -258,54 +278,6 @@ class _DrivePageState extends State<DrivePage>
       }
     }
     return result;
-  }
-
-  Future<void> _downloadFolder(QuarkFile dir) async {
-    if (_downloading) return;
-    final app = AppState.I;
-    final ok = await app.canWriteDownload();
-    if (!ok) {
-      if (!mounted) return;
-      final granted = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('需要存储权限'),
-          content: const Text('下载文件需要「所有文件访问」权限，请授权后继续。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(ctx, true);
-                app.openAllFilesAccess();
-              },
-              child: const Text('去授权'),
-            ),
-          ],
-        ),
-      );
-      if (granted != true) return;
-      _toast('授权完成后请重新下载');
-      return;
-    }
-    setState(() => _downloading = true);
-    _toast('正在扫描文件夹…');
-    try {
-      final files = await _collectFiles(dir.fid);
-      if (files.isEmpty) {
-        _toast('文件夹内没有文件');
-        return;
-      }
-      final added = await _downloadFileList(files.map((f) => f.fid).toList());
-      _toast('已添加 $added 个下载任务');
-      DownloadManager.I.startPolling();
-    } catch (e) {
-      _toast('文件夹下载失败: $e');
-    } finally {
-      if (mounted) setState(() => _downloading = false);
-    }
   }
 
   @override
@@ -511,11 +483,7 @@ class _DrivePageState extends State<DrivePage>
           _showFileActions(file);
         }
       },
-      onLongPress: _selectMode
-          ? null
-          : () => file.isDir
-              ? _showDirActions(file)
-              : _enterSelectMode(file),
+      onLongPress: _selectMode ? null : () => _enterSelectMode(file),
       borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -603,46 +571,6 @@ class _DrivePageState extends State<DrivePage>
               onTap: () {
                 Navigator.pop(ctx);
                 _downloadFile(file);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showDirActions(QuarkFile dir) {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            FileIcon(isDir: true, name: dir.fileName, size: 52),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                dir.fileName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600),
-              ),
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.download_rounded, color: AppColors.accent),
-              title: const Text('下载文件夹'),
-              subtitle: const Text('递归下载文件夹内所有文件（最多 500 个）'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _downloadFolder(dir);
               },
             ),
             const SizedBox(height: 8),
