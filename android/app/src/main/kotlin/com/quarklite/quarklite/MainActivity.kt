@@ -24,7 +24,10 @@ open class MainActivity : FlutterActivity() {
     private val LIVE_CHANNEL = "quarklite.com/live"
 
     private val LIVE_NOTIF_ID = 9001
-    private val LIVE_CHANNEL_ID = "quarklite_live"
+    // 渠道 ID 带版本后缀：系统不会更新已存在渠道的重要性，
+    // 换新 ID 确保 DEFAULT 配置真正生效（部分 ROM 要求 >= DEFAULT 才上屏）
+    private val LIVE_CHANNEL_ID = "quarklite_live_v2"
+    private val LIVE_CHANNEL_LEGACY = "quarklite_live"
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -106,11 +109,8 @@ open class MainActivity : FlutterActivity() {
     private fun ensureLiveChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = getSystemService(NotificationManager::class.java)
-        val existing = nm.getNotificationChannel(LIVE_CHANNEL_ID)
-        if (existing != null && existing.importance != NotificationManager.IMPORTANCE_DEFAULT) {
-            // 旧版本创建的是 LOW 渠道，删除重建以使用 DEFAULT
-            nm.deleteNotificationChannel(LIVE_CHANNEL_ID)
-        }
+        // 清理旧渠道（其重要性为 LOW 且系统不允许更新，只保留通知会占位）
+        nm.deleteNotificationChannel(LIVE_CHANNEL_LEGACY)
         val channel = NotificationChannel(
             LIVE_CHANNEL_ID,
             "下载进度",
@@ -164,6 +164,8 @@ open class MainActivity : FlutterActivity() {
             // setRequestPromotedOngoing 是 androidx 专属 API，
             // 框架侧手动写入等价 extra（值见 androidx.core 源码）
             notification.extras.putBoolean("android.requestPromotedOngoing", true)
+            // 常驻任务不可划掉（部分 ROM 对不可清除的常驻通知才上屏）
+            notification.flags = notification.flags or Notification.FLAG_NO_CLEAR
             return notification
         }
         // 低版本回退为常驻进度通知
@@ -221,12 +223,18 @@ open class MainActivity : FlutterActivity() {
             promotable = sample.hasPromotableCharacteristics()
             val channel = nm.getNotificationChannel(LIVE_CHANNEL_ID)
             val title = sample.extras.getString(Notification.EXTRA_TITLE)
+            val groupSummary =
+                (sample.flags and Notification.FLAG_GROUP_SUMMARY) != 0
+            val customView = sample.contentView != null ||
+                sample.bigContentView != null ||
+                sample.headsUpContentView != null
             promoteReason = "flags=${sample.flags} " +
                 "ongoingFlag=${(sample.flags and Notification.FLAG_ONGOING_EVENT) != 0} " +
                 "title=[$title] " +
                 "template=${sample.extras.getString(Notification.EXTRA_TEMPLATE)} " +
                 "colorized=${sample.extras.getBoolean(Notification.EXTRA_COLORIZED)} " +
                 "promoExtra=${sample.extras.getBoolean("android.requestPromotedOngoing")} " +
+                "groupSummary=$groupSummary customView=$customView " +
                 "channelImportance=${channel?.importance}"
         }
         return mapOf(

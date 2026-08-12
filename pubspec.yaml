@@ -2,7 +2,7 @@ name: quarklite
 description: "Quarklite - 夸克网盘不限速下载工具"
 publish_to: 'none'
 
-version: 1.1.9+11
+version: 1.2.0+12
 
 environment:
   sdk: ^3.12.2
