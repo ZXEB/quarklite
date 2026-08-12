@@ -92,7 +92,8 @@ class DownloadNotifier {
       final title = '下载中 ${active.length} 个任务  ·  $pct%';
       final text = '${formatSpeed(speed)}  ·  已下载 ${formatBytes(done)}';
 
-      _updateLive(title, text, done, total, speed);
+      // 状态栏/岛标签显示进度百分比
+      _updateLive(title, text, done, total, total > 0 ? '$pct%' : '');
 
       if (isRunning) {
         if (now - _lastProgressTs >= 3000) {
@@ -118,14 +119,14 @@ class DownloadNotifier {
 
   /// Android 16+ 实时动态（主屏 / 锁屏 / 状态栏常驻进度），低版本自动回退为普通常驻通知
   static void _updateLive(
-      String title, String text, int done, int total, int speed) {
+      String title, String text, int done, int total, String chip) {
     _liveChannel
         .invokeMethod('show', {
           'title': title,
           'text': text,
           'done': done,
           'total': total,
-          'chip': _chipText(speed),
+          'chip': chip,
         })
         .catchError((_) {
           // 实时动态不可用时忽略
@@ -134,13 +135,6 @@ class DownloadNotifier {
 
   static void _cancelLive() {
     _liveChannel.invokeMethod('cancel').catchError((_) {});
-  }
-
-  /// 状态栏小标签（尽量简短，超宽自动退化为仅图标）
-  static String _chipText(int speed) {
-    if (speed <= 0) return '';
-    final s = formatSpeed(speed);
-    return s.length <= 7 ? s : s.replaceAll(' /s', '').replaceAll('/s', '');
   }
 
   static void _checkCompletions(List<GopeedTask> tasks) {
