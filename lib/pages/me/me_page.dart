@@ -214,7 +214,7 @@ class MePage extends StatelessWidget {
         leading: const Icon(Icons.info_outline_rounded,
             color: AppColors.accent),
         title: const Text('关于'),
-        subtitle: const Text('Quarklite v1.1.6  ·  基于 Gopeed 下载引擎'),
+        subtitle: const Text('Quarklite v1.1.7  ·  基于 Gopeed 下载引擎'),
         onTap: () => _showAbout(context),
       ),
     );
@@ -252,7 +252,7 @@ class MePage extends StatelessWidget {
   }
 
   void _editConnections(BuildContext context, AppState app) {
-    final options = [4, 8, 16, 32];
+    final options = [8, 16, 32, 64, 128, 256, 512];
     showDialog(
       context: context,
       builder: (ctx) => SimpleDialog(

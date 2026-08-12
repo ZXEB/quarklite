@@ -1,11 +1,13 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../../utils/format.dart';
 import '../gopeed/gopeed_models.dart';
 
-/// 下载通知：前台服务（后台保活 + 实时进度）+ 完成/失败提醒
+/// 下载通知：前台服务（后台保活 + 实时进度）+ Android 16 实时动态 + 完成/失败提醒
 class DownloadNotifier {
+  static const _liveChannel = MethodChannel('quarklite.com/live');
   static final FlutterLocalNotificationsPlugin _local =
       FlutterLocalNotificationsPlugin();
   static bool _init = false;
@@ -74,6 +76,8 @@ class DownloadNotifier {
       final title = '下载中 ${active.length} 个任务  ·  $pct%';
       final text = '${formatSpeed(speed)}  ·  已下载 ${formatBytes(done)}';
 
+      _updateLive(title, text, done, total, speed);
+
       if (isRunning) {
         if (now - _lastProgressTs >= 3000) {
           _lastProgressTs = now;
@@ -89,10 +93,40 @@ class DownloadNotifier {
         );
       }
     } else {
+      _cancelLive();
       if (isRunning) {
         FlutterForegroundTask.stopService();
       }
     }
+  }
+
+  /// Android 16+ 实时动态（主屏 / 锁屏 / 状态栏常驻进度），低版本自动回退为普通常驻通知
+  static void _updateLive(
+      String title, String text, int done, int total, int speed) {
+    try {
+      _liveChannel.invokeMethod('show', {
+        'title': title,
+        'text': text,
+        'done': done,
+        'total': total,
+        'chip': _chipText(speed),
+      });
+    } catch (_) {
+      // 实时动态不可用时忽略
+    }
+  }
+
+  static void _cancelLive() {
+    try {
+      _liveChannel.invokeMethod('cancel');
+    } catch (_) {}
+  }
+
+  /// 状态栏小标签（尽量简短，超宽自动退化为仅图标）
+  static String _chipText(int speed) {
+    if (speed <= 0) return '';
+    final s = formatSpeed(speed);
+    return s.length <= 7 ? s : s.replaceAll(' /s', '').replaceAll('/s', '');
   }
 
   static void _checkCompletions(List<GopeedTask> tasks) {
