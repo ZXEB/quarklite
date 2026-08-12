@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/gopeed/gopeed_boot.dart';
 import '../../core/gopeed/gopeed_models.dart';
 import '../../state/download_manager.dart';
 import '../../theme/app_theme.dart';
@@ -57,8 +58,12 @@ class _DownloadsPageState extends State<DownloadsPage>
                             fontSize: 24, fontWeight: FontWeight.w800)),
                     const Spacer(),
                     if (dm.hasEngineError)
-                      const Icon(Icons.error_outline,
-                          color: AppColors.red, size: 20),
+                      IconButton(
+                        onPressed: _retryEngine,
+                        tooltip: '重新启动下载引擎',
+                        icon: const Icon(Icons.error_outline,
+                            color: AppColors.red, size: 20),
+                      ),
                     PopupMenuButton<String>(
                       icon: const Icon(Icons.more_horiz_rounded,
                           color: AppColors.accent, size: 26),
@@ -298,6 +303,16 @@ class _DownloadsPageState extends State<DownloadsPage>
     );
     if (ok == true) {
       await DownloadManager.I.removeTask(task, deleteFile: deleteFile);
+    }
+  }
+
+  Future<void> _retryEngine() async {
+    try {
+      await GopeedEngine.start();
+      await DownloadManager.I.refresh();
+      _toast('下载引擎已启动');
+    } catch (e) {
+      _toast('启动失败: $e');
     }
   }
 

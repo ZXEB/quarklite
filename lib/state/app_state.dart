@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +13,8 @@ import '../api/quark_models.dart';
 class AppState extends ChangeNotifier {
   static const _sysChannel = MethodChannel('quarklite.com/system');
   static const _kCookie = 'quark_cookie';
+  static const _kCookieBackup = 'quark_cookie_backup';
+  static const _kUserCache = 'quark_user_cache';
   static const _kDownloadDir = 'download_dir';
   static const _kConnections = 'connections';
 
@@ -38,11 +41,81 @@ class AppState extends ChangeNotifier {
 
   Future<void> init() async {
     _loadSettings();
-    final cookie = await _secure.read(key: _kCookie);
-    if (cookie != null && cookie.isNotEmpty) {
-      quark.setCookie(cookie);
-      quark.startSessionRefresher();
-      await refreshUser();
+    final cookie = await _loadCookie();
+    if (cookie == null || cookie.isEmpty) return;
+    quark.setCookie(cookie);
+    _startSessionRefresher();
+    user = await _readCachedUser();
+    await refreshUser();
+  }
+
+  /// 读取持久化 cookie：优先安全存储，读取失败时回退到普通存储
+  Future<String?> _loadCookie() async {
+    try {
+      final cookie = await _secure.read(key: _kCookie);
+      if (cookie != null && cookie.isNotEmpty) return cookie;
+    } catch (_) {
+      // 部分设备 Keystore 异常导致安全存储不可读，走兜底存储
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_kCookieBackup);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 双写持久化：安全存储 + 普通存储兜底
+  Future<void> _saveCookie() async {
+    final cookie = quark.cookie;
+    if (cookie.isEmpty) return;
+    try {
+      await _secure.write(key: _kCookie, value: cookie);
+    } catch (_) {}
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kCookieBackup, cookie);
+    } catch (_) {}
+  }
+
+  Future<void> _clearCookie() async {
+    try {
+      await _secure.delete(key: _kCookie);
+    } catch (_) {}
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kCookieBackup);
+      await prefs.remove(_kUserCache);
+    } catch (_) {}
+  }
+
+  Future<void> _cacheUser(QuarkUserInfo info) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _kUserCache,
+        jsonEncode({
+          'nickname': info.nickname,
+          'avatar': info.avatar,
+          'user_id': info.userId,
+        }),
+      );
+    } catch (_) {}
+  }
+
+  Future<QuarkUserInfo?> _readCachedUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kUserCache);
+      if (raw == null || raw.isEmpty) return null;
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      return QuarkUserInfo(
+        nickname: map['nickname']?.toString() ?? '',
+        avatar: map['avatar']?.toString() ?? '',
+        userId: map['user_id']?.toString() ?? '',
+      );
+    } catch (_) {
+      return null;
     }
   }
 
@@ -61,8 +134,11 @@ class AppState extends ChangeNotifier {
     try {
       user = await quark.getUserInfo();
       loginError = null;
+      await _cacheUser(user!);
+      await _saveCookie();
     } catch (e) {
-      loginError = e.toString();
+      // 网络等临时错误不登出：保留已登录状态，避免每次启动都被迫重新登录
+      if (user == null) loginError = e.toString();
     }
     loading = false;
     notifyListeners();
@@ -75,8 +151,9 @@ class AppState extends ChangeNotifier {
       final info = await quark.getUserInfo();
       user = info;
       loginError = null;
-      quark.startSessionRefresher();
-      await _secure.write(key: _kCookie, value: quark.cookie);
+      _startSessionRefresher();
+      await _saveCookie();
+      await _cacheUser(info);
       notifyListeners();
       return null;
     } catch (e) {
@@ -88,7 +165,7 @@ class AppState extends ChangeNotifier {
   Future<void> logout() async {
     quark.setCookie('');
     user = null;
-    await _secure.delete(key: _kCookie);
+    await _clearCookie();
     notifyListeners();
   }
 
@@ -104,6 +181,15 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kConnections, n);
     notifyListeners();
+  }
+
+  /// 每 100 分钟刷新一次会话并持久化最新 cookie
+  void _startSessionRefresher() {
+    _sessionTimer?.cancel();
+    _sessionTimer = Timer.periodic(const Duration(minutes: 100), (_) async {
+      await quark.refreshSession();
+      await _saveCookie();
+    });
   }
 
   /// 当前可用的下载目录（无存储权限时回退到应用专属目录）

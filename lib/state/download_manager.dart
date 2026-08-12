@@ -14,6 +14,7 @@ class DownloadManager extends ChangeNotifier {
   Timer? _timer;
   bool _polling = false;
   bool _failed = false;
+  DateTime? _lastStartAttempt;
 
   DownloadManager._();
 
@@ -31,10 +32,27 @@ class DownloadManager extends ChangeNotifier {
     _timer = null;
   }
 
+  /// 立即刷新一次任务列表（引擎重启后调用）
+  Future<void> refresh() => _poll();
+
   bool get hasEngineError => _failed;
 
   Future<void> _poll() async {
-    if (!GopeedEngine.started) return;
+    if (!GopeedEngine.started) {
+      final now = DateTime.now();
+      if (_lastStartAttempt != null &&
+          now.difference(_lastStartAttempt!) < const Duration(seconds: 10)) {
+        return;
+      }
+      _lastStartAttempt = now;
+      try {
+        await GopeedEngine.start();
+      } catch (_) {
+        _failed = true;
+        notifyListeners();
+        return;
+      }
+    }
     try {
       final list = await GopeedEngine.client.list();
       tasks

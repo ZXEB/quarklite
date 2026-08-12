@@ -11,6 +11,7 @@ class DownloadService {
     int connections = 16,
   }) async {
     try {
+      await GopeedEngine.ensureStarted();
       final dir = await AppState.I.effectiveDownloadDir();
       await GopeedEngine.client.create(
         url: url,
@@ -55,6 +56,7 @@ class DownloadService {
     String? name,
   }) async {
     try {
+      await GopeedEngine.ensureStarted();
       final dir = await AppState.I.effectiveDownloadDir();
       await GopeedEngine.client.create(
         url: url,

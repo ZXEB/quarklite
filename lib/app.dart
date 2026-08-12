@@ -30,7 +30,15 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
   Future<void> _bootstrap() async {
     try {
       await DownloadNotifier.init();
+    } catch (_) {
+      // 通知初始化失败不影响主流程
+    }
+    try {
       await AppState.I.init();
+    } catch (e) {
+      _bootError = e.toString();
+    }
+    try {
       await GopeedEngine.start();
       final client = GopeedEngine.client;
       final cfg = await client.getConfig();
@@ -42,10 +50,10 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
           connections: AppState.I.connections,
         );
       }
-      DownloadManager.I.startPolling();
-    } catch (e) {
-      _bootError = e.toString();
+    } catch (_) {
+      // 引擎启动失败不阻塞应用：下载页可手动重试，添加任务时也会自动拉起
     }
+    DownloadManager.I.startPolling();
     if (mounted) {
       setState(() => _ready = true);
     }
