@@ -74,8 +74,16 @@ class XunleiState extends ChangeNotifier {
 
   /// 账号密码登录
   Future<String?> login(String account, String password) async {
+    // 确保设备 ID 已初始化：签名/请求头都依赖它，为空会导致服务端拒绝
+    if (client.deviceId.isEmpty) {
+      client.deviceId = XunleiClient.randomDeviceId();
+      await _write(_kDevice, client.deviceId);
+    }
     final err = await client.signin(account, password);
-    if (err != null) return err;
+    if (err != null) {
+      AppLogger.I.e('xunlei', '登录失败: $err (device=${client.deviceId})');
+      return err;
+    }
     username = account;
     await _persist();
     _startRefresher();

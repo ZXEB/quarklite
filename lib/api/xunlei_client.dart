@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -59,7 +60,11 @@ class XunleiClient {
   static const packageName = 'com.xunlei.downloadprovider';
 
   static const _authBase = 'https://xluser-ssl.xunlei.com/v1';
+  static const _coreLoginBase = 'https://xluser-ssl.xunlei.com/xluser.core.login/v3';
   static const _driveBase = 'https://api-pan.xunlei.com/drive/v1';
+
+  static const appId = '40';
+  static const appKey = '34a062aaa22f906fca4fefe9fb3a3021';
 
   static const requestUa =
       'ANDROID-com.xunlei.downloadprovider/8.31.0.9726 netWorkType/5G appid/40 '
@@ -70,19 +75,6 @@ class XunleiClient {
   /// 下载直链必须使用客户端下载 UA（影响限速档位）
   static const downloadUa =
       'Dalvik/2.1.0 (Linux; U; Android 12; M2004J7AC Build/SP1A.210812.016)';
-
-  static const _algorithms = [
-    '9uJNVj/wLmdwKrJaVj/omlQ',
-    'Oz64Lp0GigmChHMf/6TNfxx7O9PyopcczMsnf',
-    'Eb+L7Ce+Ej48u',
-    'jKY0',
-    'ASr0zCl6v8W4aidjPK5KHd1Lq3t+vBFf41dqv5+fnOd',
-    'wQlozdg6r1qxh0eRmt3QgNXOvSZO6q/GXK',
-    'gmirk+ciAvIgA/cxUUCema47jr/YToixTT+Q6O',
-    '5IiCoM9B1/788ntB',
-    'P07JH0h6qoM6TSUAK2aL9T5s2QBVeY9JWvalf',
-    '+oK0AN',
-  ];
 
   final Dio _dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 15),
@@ -109,25 +101,18 @@ class XunleiClient {
 
   static String _md5(String s) => md5.convert(utf8.encode(s)).toString();
 
+  static String _sha1Hex(String s) => sha1.convert(utf8.encode(s)).toString();
+
   /// 生成随机 32 位 hex device_id
   static String randomDeviceId() {
-    final rnd = DateTime.now().microsecondsSinceEpoch;
-    final bytes = List<int>.generate(16, (i) => (rnd >> (i % 8)) & 0xff);
-    // 掺入随机源
-    for (var i = 0; i < 16; i++) {
-      bytes[i] = (bytes[i] + i * 31) & 0xff;
-    }
+    final rnd = Random();
+    final bytes = List<int>.generate(16, (_) => rnd.nextInt(256));
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
-  /// captcha_sign：MD5 链签名
-  String _captchaSign(String timestamp) {
-    var str = '$clientId$clientVersion$packageName$deviceId$timestamp';
-    for (final alg in _algorithms) {
-      str = _md5(str + alg);
-    }
-    return '1.$str';
-  }
+  /// 设备签名：md5(sha1hex(deviceID + packageName + APPID + APPKey))
+  static String generateDeviceSign(String deviceId, String packageName) =>
+      _md5(_sha1Hex('$deviceId$packageName$appId$appKey'));
 
   Map<String, dynamic> _authHeaders() => {
         'user-agent': requestUa,
@@ -140,10 +125,13 @@ class XunleiClient {
       };
 
   Future<Map<String, dynamic>> _post(
-      String url, Map<String, dynamic> body) async {
+      String url, Map<String, dynamic> body,
+      {Map<String, dynamic>? headers}) async {
     final resp = await _dio.post<dynamic>(url,
         data: body,
-        options: Options(headers: _authHeaders(), validateStatus: (_) => true));
+        options: Options(
+            headers: {..._authHeaders(), ...?headers},
+            validateStatus: (_) => true));
     return _parse(resp);
   }
 
@@ -173,53 +161,94 @@ class XunleiClient {
 
   // ---------------- 认证 ----------------
 
-  /// 第一步：获取验证码 token
+  /// 第一步：CoreLogin（v3），返回 sessionID
+  Future<String> coreLogin(String username, String password) async {
+    final map = await _post('$_coreLoginBase/login', {
+      'protocolVersion': '301',
+      'sequenceNo': '1000012',
+      'platformVersion': '10',
+      'isCompressed': '0',
+      'appid': appId,
+      'clientVersion': clientVersion,
+      'peerID': '00000000000000000000000000000000',
+      'appName': packageName,
+      'sdkVersion': '512000',
+      'devicesign': generateDeviceSign(deviceId, packageName),
+      'netWorkType': 'WIFI',
+      'providerName': 'NONE',
+      'deviceModel': 'M2004J7AC',
+      'deviceName': 'Xiaomi_M2004j7ac',
+      'OSVersion': '12',
+      'creditkey': '',
+      'hl': 'zh-CN',
+      'userName': username,
+      'passWord': password,
+      'verifyKey': '',
+      'verifyCode': '',
+      'isMd5Pwd': '0',
+    }, headers: {
+      'user-agent': 'android-ok-http-client/xl-acc-sdk/version-5.0.12.512000',
+    });
+    final sessionId = toStr(map['sessionID']);
+    if (sessionId.isEmpty) {
+      throw XunleiException(
+          -1, '登录失败: ${toStr(map['error_description'], fallback: toStr(map['error']))}');
+    }
+    return sessionId;
+  }
+
+  /// 第二步：获取验证码 token（登录时 meta 只放账号字段，不带签名）
   Future<void> initCaptcha(String username) async {
-    final ts = DateTime.now().millisecondsSinceEpoch.toString();
-    final meta = <String, dynamic>{
-      'timestamp': ts,
-      'captcha_sign': _captchaSign(ts),
-      if (username.contains('@')) 'email': username else 'phone_number': username,
-    };
+    final meta = <String, dynamic>{};
+    if (username.contains('@')) {
+      meta['email'] = username;
+    } else if (username.length >= 11 && username.length <= 18) {
+      meta['phone_number'] = username;
+    } else {
+      meta['username'] = username;
+    }
     final map = await _post('$_authBase/shield/captcha/init', {
-      'action': 'POST:/v1/auth/signin',
+      'action': 'POST:/v1/auth/signin/token',
       'captcha_token': '',
       'client_id': clientId,
       'device_id': deviceId,
       'meta': meta,
       'redirect_uri': 'xlaccsdk01://xunlei.com/callback?state=harbor',
     });
-    final token = toStr(map['captcha_token']);
-    if (map.containsKey('url') && toStr(map['url']).isNotEmpty) {
-      throw XunleiException(
-          -1, '触发风控，需要人工验证（review_panel）');
+    final url = toStr(map['url']);
+    if (url.isNotEmpty) {
+      throw XunleiException(-1, '触发风控，需要人工验证');
     }
-    captchaToken = token;
+    captchaToken = toStr(map['captcha_token']);
   }
 
-  /// 第二步：账号密码登录，返回 null 表示成功
+  /// 第三步：用 sessionID 换取 access_token
+  Future<void> signinWithSession(String sessionId) async {
+    final map = await _post('$_authBase/auth/signin/token', {
+      'client_id': clientId,
+      'client_secret': clientSecret,
+      'provider': 'access_end_point_token',
+      'signin_token': sessionId,
+    });
+    final access = toStr(map['access_token']);
+    if (access.isEmpty) {
+      throw XunleiException(
+          -1, '登录失败: ${toStr(map['error_description'], fallback: toStr(map['error']))}');
+    }
+    accessToken = access;
+    refreshToken = toStr(map['refresh_token']);
+    userId = toStr(map['user_id'], fallback: toStr(map['sub']));
+  }
+
+  /// 完整登录流程，返回 null 表示成功
   Future<String?> signin(String username, String password) async {
     try {
+      final sessionId = await coreLogin(username, password);
       await initCaptcha(username);
-      final map = await _post('$_authBase/auth/signin', {
-        'captcha_token': captchaToken,
-        'client_id': clientId,
-        'client_secret': clientSecret,
-        'username': username,
-        'password': password,
-      });
-      final access = toStr(map['access_token']);
-      if (access.isEmpty) {
-        final err = toStr(map['error']);
-        if (err == 'review_panel') {
-          return '登录触发风控，请稍后重试或更换账号';
-        }
-        return '登录失败: ${toStr(map['error_description'], fallback: err)}';
-      }
-      accessToken = access;
-      refreshToken = toStr(map['refresh_token']);
-      userId = toStr(map['user_id'], fallback: toStr(map['sub']));
+      await signinWithSession(sessionId);
       return null;
+    } on XunleiException catch (e) {
+      return e.message;
     } catch (e) {
       return e.toString();
     }
