@@ -181,9 +181,11 @@ class GopeedEngine {
         _winServerReady = true;
         AppLogger.I.i('engine', '引擎启动成功 port=$port pid=${process.pid}');
         // 进程异常退出时标记引擎失效并自动重启；只清理当前进程的引用，避免误清新实例
+        // （闭包内 process 无法做空类型提升，先取出 pid 供回调使用）
+        final pid = process.pid;
         process.exitCode.then((code) {
           _winDiag = '引擎进程退出 code=$code';
-          AppLogger.I.w('engine', '引擎进程退出 code=$code pid=${process.pid}');
+          AppLogger.I.w('engine', '引擎进程退出 code=$code pid=$pid');
           if (!identical(process, _winProcess)) return;
           _winProcess = null;
           _winServerReady = false;
