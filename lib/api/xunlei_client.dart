@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -25,6 +24,7 @@ class XunleiFile {
   final int size;
   final bool isDir;
   final String webContentLink;
+  final String space;
   final String? updatedAt;
 
   const XunleiFile({
@@ -34,6 +34,7 @@ class XunleiFile {
     required this.size,
     required this.isDir,
     this.webContentLink = '',
+    this.space = '',
     this.updatedAt,
   });
 
@@ -45,36 +46,32 @@ class XunleiFile {
       size: toInt(json['size']),
       isDir: toStr(json['kind']) == 'drive#folder',
       webContentLink: toStr(json['web_content_link']),
+      space: toStr(json['space']),
       updatedAt: json['modified_time']?.toString(),
     );
   }
 }
 
-/// 迅雷云盘客户端（逆向接口，见 docs/xunlei_api.md）。
-/// 凭据使用「迅雷 App」客户端（文档推荐，UA 完整）。
+/// 迅雷云盘客户端（按 AList thunder_browser 驱动实现，2026-08 现行可用流程）：
+/// captcha init（meta 只放账号字段）→ /v1/auth/signin（账号密码）→ refresh_token 续期。
 class XunleiClient {
-  // ---------------- 客户端凭据（迅雷 App） ----------------
-  static const clientId = 'Xp6vsxz_7IYVw2BB';
-  static const clientSecret = 'Xp6vsy4tN9toTVdMSpomVdXpRmES';
-  static const clientVersion = '8.31.0.9726';
-  static const packageName = 'com.xunlei.downloadprovider';
+  // ---------------- 客户端凭据（迅雷浏览器） ----------------
+  static const clientId = 'ZUBzD9J_XPXfn7f7';
+  static const clientSecret = 'yESVmHecEe6F0aou69vl-g';
+  static const clientVersion = '1.10.0.2633';
+  static const packageName = 'com.xunlei.browser';
+  static const sdkVersion = '233100';
+  static const appId = '22062';
 
   static const _authBase = 'https://xluser-ssl.xunlei.com/v1';
-  static const _coreLoginBase = 'https://xluser-ssl.xunlei.com/xluser.core.login/v3';
-  static const _driveBase = 'https://api-pan.xunlei.com/drive/v1';
+  static const _driveBase = 'https://x-api-pan.xunlei.com/drive/v1';
 
-  static const appId = '40';
-  static const appKey = '34a062aaa22f906fca4fefe9fb3a3021';
-
-  static const requestUa =
-      'ANDROID-com.xunlei.downloadprovider/8.31.0.9726 netWorkType/5G appid/40 '
-      'deviceName/Xiaomi_M2004j7ac deviceModel/M2004J7AC OSVersion/12 '
-      'protocolVersion/301 platformVersion/10 sdkVersion/512000 Oauth2Client/0.9 '
-      '(Linux 4_14_186-perf-gddfs8vbb238b) (JAVA 0)';
+  /// 浏览器网盘根目录 space
+  static const rootSpace = 'SPACE_BROWSER';
 
   /// 下载直链必须使用客户端下载 UA（影响限速档位）
   static const downloadUa =
-      'Dalvik/2.1.0 (Linux; U; Android 12; M2004J7AC Build/SP1A.210812.016)';
+      'AndroidDownloadManager/13 (Linux; U; Android 13; M2004J7AC Build/SP1A.210812.016)';
 
   final Dio _dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 15),
@@ -101,21 +98,18 @@ class XunleiClient {
 
   static String _md5(String s) => md5.convert(utf8.encode(s)).toString();
 
-  static String _sha1Hex(String s) => sha1.convert(utf8.encode(s)).toString();
+  /// 设备 ID：与登录凭据绑定（md5(账号+密码) / md5(refresh_token)），对照 AList 实现
+  static String deviceIdFor(String seed) => _md5(seed);
 
-  /// 生成随机 32 位 hex device_id
-  static String randomDeviceId() {
-    final rnd = Random();
-    final bytes = List<int>.generate(16, (_) => rnd.nextInt(256));
-    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-  }
-
-  /// 设备签名：md5(sha1hex(deviceID + packageName + APPID + APPKey))
-  static String generateDeviceSign(String deviceId, String packageName) =>
-      _md5(_sha1Hex('$deviceId$packageName$appId$appKey'));
+  /// 请求 UA（与设备 ID 绑定，格式对照 AList BuildCustomUserAgent）
+  static String buildUserAgent(String deviceId) =>
+      'ANDROID-com.xunlei.browser/$clientVersion networkType/WIFI appid/$appId '
+      'deviceName/Xiaomi_M2004j7ac deviceModel/M2004J7AC OSVersion/13 '
+      'protocolVersion/301 platformversion/10 sdkVersion/$sdkVersion '
+      'Oauth2Client/0.9 (Linux 4_9_337-perf-sn-uotan-gd9d488809c3d) (JAVA 0)';
 
   Map<String, dynamic> _authHeaders() => {
-        'user-agent': requestUa,
+        'user-agent': buildUserAgent(deviceId),
         'accept': 'application/json;charset=UTF-8',
         'x-device-id': deviceId,
         'x-client-id': clientId,
@@ -125,13 +119,10 @@ class XunleiClient {
       };
 
   Future<Map<String, dynamic>> _post(
-      String url, Map<String, dynamic> body,
-      {Map<String, dynamic>? headers}) async {
+      String url, Map<String, dynamic> body) async {
     final resp = await _dio.post<dynamic>(url,
         data: body,
-        options: Options(
-            headers: {..._authHeaders(), ...?headers},
-            validateStatus: (_) => true));
+        options: Options(headers: _authHeaders(), validateStatus: (_) => true));
     return _parse(resp);
   }
 
@@ -161,43 +152,7 @@ class XunleiClient {
 
   // ---------------- 认证 ----------------
 
-  /// 第一步：CoreLogin（v3），返回 sessionID
-  Future<String> coreLogin(String username, String password) async {
-    final map = await _post('$_coreLoginBase/login', {
-      'protocolVersion': '301',
-      'sequenceNo': '1000012',
-      'platformVersion': '10',
-      'isCompressed': '0',
-      'appid': appId,
-      'clientVersion': clientVersion,
-      'peerID': '00000000000000000000000000000000',
-      'appName': packageName,
-      'sdkVersion': '512000',
-      'devicesign': generateDeviceSign(deviceId, packageName),
-      'netWorkType': 'WIFI',
-      'providerName': 'NONE',
-      'deviceModel': 'M2004J7AC',
-      'deviceName': 'Xiaomi_M2004j7ac',
-      'OSVersion': '12',
-      'creditkey': '',
-      'hl': 'zh-CN',
-      'userName': username,
-      'passWord': password,
-      'verifyKey': '',
-      'verifyCode': '',
-      'isMd5Pwd': '0',
-    }, headers: {
-      'user-agent': 'android-ok-http-client/xl-acc-sdk/version-5.0.12.512000',
-    });
-    final sessionId = toStr(map['sessionID']);
-    if (sessionId.isEmpty) {
-      throw XunleiException(
-          -1, '登录失败: ${toStr(map['error_description'], fallback: toStr(map['error']))}');
-    }
-    return sessionId;
-  }
-
-  /// 第二步：获取验证码 token（登录时 meta 只放账号字段，不带签名）
+  /// 第一步：获取验证码 token（meta 只放账号字段，不带签名）
   Future<void> initCaptcha(String username) async {
     final meta = <String, dynamic>{};
     if (username.contains('@')) {
@@ -208,7 +163,7 @@ class XunleiClient {
       meta['username'] = username;
     }
     final map = await _post('$_authBase/shield/captcha/init', {
-      'action': 'POST:/v1/auth/signin/token',
+      'action': 'POST:/v1/auth/signin',
       'captcha_token': '',
       'client_id': clientId,
       'device_id': deviceId,
@@ -222,33 +177,29 @@ class XunleiClient {
     captchaToken = toStr(map['captcha_token']);
   }
 
-  /// 第三步：用 sessionID 换取 access_token
-  Future<void> signinWithSession(String sessionId) async {
-    final map = await _post('$_authBase/auth/signin/token', {
-      'client_id': clientId,
-      'client_secret': clientSecret,
-      'provider': 'access_end_point_token',
-      'signin_token': sessionId,
-    });
-    final access = toStr(map['access_token']);
-    if (access.isEmpty) {
-      throw XunleiException(
-          -1, '登录失败: ${toStr(map['error_description'], fallback: toStr(map['error']))}');
-    }
-    accessToken = access;
-    refreshToken = toStr(map['refresh_token']);
-    userId = toStr(map['user_id'], fallback: toStr(map['sub']));
-  }
-
-  /// 完整登录流程，返回 null 表示成功
+  /// 第二步：账号密码登录，返回 null 表示成功
   Future<String?> signin(String username, String password) async {
     try {
-      final sessionId = await coreLogin(username, password);
       await initCaptcha(username);
-      await signinWithSession(sessionId);
+      final map = await _post('$_authBase/auth/signin', {
+        'captcha_token': captchaToken,
+        'client_id': clientId,
+        'client_secret': clientSecret,
+        'username': username,
+        'password': password,
+      });
+      final access = toStr(map['access_token']);
+      if (access.isEmpty) {
+        final err = toStr(map['error']);
+        if (err == 'review_panel') {
+          return '登录触发风控，需要短信/人工验证，请稍后重试';
+        }
+        return '登录失败: ${toStr(map['error_description'], fallback: err)}';
+      }
+      accessToken = access;
+      refreshToken = toStr(map['refresh_token']);
+      userId = toStr(map['user_id'], fallback: toStr(map['sub']));
       return null;
-    } on XunleiException catch (e) {
-      return e.message;
     } catch (e) {
       return e.toString();
     }
@@ -292,27 +243,22 @@ class XunleiClient {
 
   // ---------------- 云盘 ----------------
 
-  /// 文件列表（自动翻页）
+  /// 文件列表（自动翻页）。根目录 space 为 SPACE_BROWSER，子目录沿用文件自身的 space。
   Future<List<XunleiFile>> listFiles(String parentId,
-      {int limit = 100}) async {
+      {String space = rootSpace}) async {
     final files = <XunleiFile>[];
     var pageToken = '';
     for (var page = 0; page < 100; page++) {
       final map = await _authGet('$_driveBase/files', params: {
-        'space': '',
-        '__type': 'drive',
-        'refresh': true,
-        '__sync': true,
         'parent_id': parentId,
         'page_token': pageToken,
-        'with_audit': true,
-        'limit': limit,
-        'with': 'url',
-        'thumbnail_size': 'SIZE_LARGE',
+        'space': space,
         'filters': jsonEncode({
-          'phase': {'eq': 'PHASE_TYPE_COMPLETE'},
           'trashed': {'eq': false},
         }),
+        'with': 'url',
+        'with_audit': true,
+        'thumbnail_size': 'SIZE_LARGE',
       });
       final list = map['files'];
       if (list is! List) break;
@@ -327,10 +273,10 @@ class XunleiClient {
   }
 
   /// 获取文件详情（含高速下载直链）
-  Future<XunleiFile> getFileDetail(String id) async {
+  Future<XunleiFile> getFileDetail(String id, {String space = ''}) async {
     final map = await _authGet('$_driveBase/files/$id', params: {
       '_magic': '2021',
-      'space': '',
+      'space': space,
       'thumbnail_size': 'SIZE_LARGE',
       'with': 'url',
     });
@@ -338,11 +284,12 @@ class XunleiClient {
   }
 
   /// 批量获取直链（逐文件请求，失败项跳过）
-  Future<Map<String, String>> getDownloadLinks(List<String> ids) async {
+  Future<Map<String, String>> getDownloadLinks(
+      List<(String, String)> idAndSpace) async {
     final result = <String, String>{};
-    for (final id in ids) {
+    for (final (id, space) in idAndSpace) {
       try {
-        final f = await getFileDetail(id);
+        final f = await getFileDetail(id, space: space);
         if (f.webContentLink.isNotEmpty) {
           result[id] = f.webContentLink;
         }

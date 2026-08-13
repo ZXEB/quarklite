@@ -12,7 +12,7 @@ class XunleiState extends ChangeNotifier {
   static const _kAccess = 'xunlei_access_token';
   static const _kRefresh = 'xunlei_refresh_token';
   static const _kUser = 'xunlei_user_id';
-  static const _kDevice = 'xunlei_device_id';
+  static const _kUsername = 'xunlei_username';
 
   static XunleiState? _instance;
   static XunleiState get I => _instance ??= XunleiState._();
@@ -38,13 +38,15 @@ class XunleiState extends ChangeNotifier {
       final access = await _read(_kAccess);
       final refresh = await _read(_kRefresh);
       final user = await _read(_kUser);
-      var device = await _read(_kDevice);
-      if (device.isEmpty) {
-        device = XunleiClient.randomDeviceId();
-        await _write(_kDevice, device);
-      }
+      username = await _read(_kUsername);
+      // 设备 ID 与登录凭据绑定（对照 AList）：恢复登录态时用 refresh_token 派生
       client.setTokens(
-          access: access, refresh: refresh, user: user, device: device);
+          access: access,
+          refresh: refresh,
+          user: user,
+          device: refresh.isNotEmpty
+              ? XunleiClient.deviceIdFor(refresh)
+              : XunleiClient.deviceIdFor('$access$user'));
       AppLogger.I.i('xunlei', '恢复登录态 access=${access.isNotEmpty} refresh=${refresh.isNotEmpty}');
       if (access.isNotEmpty && refresh.isNotEmpty) {
         // 后台续期验证
@@ -74,11 +76,8 @@ class XunleiState extends ChangeNotifier {
 
   /// 账号密码登录
   Future<String?> login(String account, String password) async {
-    // 确保设备 ID 已初始化：签名/请求头都依赖它，为空会导致服务端拒绝
-    if (client.deviceId.isEmpty) {
-      client.deviceId = XunleiClient.randomDeviceId();
-      await _write(_kDevice, client.deviceId);
-    }
+    // 设备 ID 与登录凭据绑定（md5(账号+密码)），签名与请求头都依赖它
+    client.deviceId = XunleiClient.deviceIdFor('$account$password');
     final err = await client.signin(account, password);
     if (err != null) {
       AppLogger.I.e('xunlei', '登录失败: $err (device=${client.deviceId})');
@@ -97,7 +96,7 @@ class XunleiState extends ChangeNotifier {
     username = null;
     _refreshTimer?.cancel();
     _refreshTimer = null;
-    for (final k in [_kAccess, _kRefresh, _kUser]) {
+    for (final k in [_kAccess, _kRefresh, _kUser, _kUsername]) {
       try {
         await _secure.delete(key: k);
       } catch (_) {}
@@ -122,6 +121,7 @@ class XunleiState extends ChangeNotifier {
     await _write(_kAccess, client.accessToken);
     await _write(_kRefresh, client.refreshToken);
     await _write(_kUser, client.userId);
+    if (username != null) await _write(_kUsername, username!);
   }
 
   Future<String> _read(String key) async {

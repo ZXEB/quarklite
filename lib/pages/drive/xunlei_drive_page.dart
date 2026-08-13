@@ -22,8 +22,9 @@ class XunleiDrivePage extends StatefulWidget {
 class _XunleiDrivePageState extends State<XunleiDrivePage> {
   List<XunleiFile> _files = [];
   String _parentId = '0';
+  String _space = XunleiClient.rootSpace;
   String _currentName = '全部文件';
-  final List<(String, String)> _crumbs = [('0', '全部文件')];
+  final List<(String, String, String)> _crumbs = [('0', XunleiClient.rootSpace, '全部文件')];
   bool _loading = false;
   String? _error;
 
@@ -52,7 +53,7 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
       _error = null;
     });
     try {
-      final files = await _client.listFiles(_parentId);
+      final files = await _client.listFiles(_parentId, space: _space);
       if (mounted) {
         setState(() {
           _files = files;
@@ -72,8 +73,9 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
 
   void _enterDir(XunleiFile dir) {
     setState(() {
-      _crumbs.add((_parentId, _currentName));
+      _crumbs.add((_parentId, _space, _currentName));
       _parentId = dir.id;
+      _space = dir.space;
       _currentName = dir.name;
       _files = [];
       _loading = true;
@@ -86,7 +88,8 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
     setState(() {
       _crumbs.removeRange(index + 1, _crumbs.length);
       _parentId = _crumbs.last.$1;
-      _currentName = _crumbs.last.$2;
+      _space = _crumbs.last.$2;
+      _currentName = _crumbs.last.$3;
       _files = [];
       _error = null;
       _selectMode = false;
@@ -140,39 +143,42 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
     }
   }
 
-  /// 展开选中项为 (id, 相对路径) 列表
-  Future<List<(String, String)>> _expandSelection(Set<String> selected) async {
-    final result = <(String, String)>[];
+  /// 展开选中项为 (id, space, 相对路径) 列表
+  Future<List<(String, String, String)>> _expandSelection(
+      Set<String> selected) async {
+    final result = <(String, String, String)>[];
     for (final f in _files) {
       if (!selected.contains(f.id)) continue;
       if (f.isDir) {
-        result.addAll(await _collectFiles(f.id, '${f.name}/'));
+        result.addAll(await _collectFiles(f.id, f.space, '${f.name}/'));
       } else {
-        result.add((f.id, ''));
+        result.add((f.id, f.space, ''));
       }
     }
     return result;
   }
 
-  Future<List<(String, String)>> _collectFiles(String id, String relPath,
+  Future<List<(String, String, String)>> _collectFiles(
+      String id, String space, String relPath,
       {int depth = 0}) async {
     if (depth > 8) return [];
-    final files = await _client.listFiles(id);
-    final result = <(String, String)>[];
+    final files = await _client.listFiles(id, space: space);
+    final result = <(String, String, String)>[];
     for (final f in files) {
       if (result.length >= 500) break;
       if (f.isDir) {
-        result.addAll(
-            await _collectFiles(f.id, '$relPath${f.name}/', depth: depth + 1));
+        result.addAll(await _collectFiles(
+            f.id, f.space, '$relPath${f.name}/',
+            depth: depth + 1));
       } else {
-        result.add((f.id, relPath));
+        result.add((f.id, f.space, relPath));
       }
     }
     return result;
   }
 
   /// 分批取直链并加入下载队列
-  Future<int> _downloadFileList(List<(String, String)> items) async {
+  Future<int> _downloadFileList(List<(String, String, String)> items) async {
     final app = AppState.I;
     final base = await app.effectiveDownloadDir();
     var added = 0;
@@ -180,8 +186,9 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
     for (var i = 0; i < items.length; i += batchSize) {
       final end = (i + batchSize) > items.length ? items.length : (i + batchSize);
       final batch = items.sublist(i, end);
-      final links = await _client.getDownloadLinks(batch.map((e) => e.$1).toList());
-      for (final (id, rel) in batch) {
+      final links = await _client.getDownloadLinks(
+          batch.map((e) => (e.$1, e.$2)).toList());
+      for (final (id, _, rel) in batch) {
         final url = links[id];
         if (url == null || url.isEmpty) continue;
         final name = _nameOf(id) ?? 'file_$id';
@@ -243,7 +250,7 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 4, vertical: 4),
                           child: Text(
-                            _crumbs[i].$2,
+                            _crumbs[i].$3,
                             style: TextStyle(
                               fontSize: 13,
                               color: i == _crumbs.length - 1
@@ -451,7 +458,7 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
 
   Future<void> _downloadFile(XunleiFile file) async {
     try {
-      final detail = await _client.getFileDetail(file.id);
+      final detail = await _client.getFileDetail(file.id, space: file.space);
       if (detail.webContentLink.isEmpty) {
         throw Exception('未获取到下载地址');
       }
