@@ -132,3 +132,25 @@ jobs:
           name: quarklite-windows
           path: quarklite-win.zip
           if-no-files-found: error
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9.]+)').Matches[0].Groups[1].Value
+          Write-Host "App version: $version"
+          $iscc = Get-ChildItem "C:\Program Files (x86)\Inno Setup*" -Recurse -Filter ISCC.exe | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe not found" }
+          & $iscc.FullName "scripts\quarklite.iss" "/DAppVersion=$version"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem build\installer | Select-Object Name, Length
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: quarklite-setup
+          path: build/installer/quarklite-*-setup.exe
+          if-no-files-found: error
