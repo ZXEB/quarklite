@@ -121,11 +121,15 @@ class GopeedEngine {
     String lastError_ = '';
     final attempts = retry ? 3 : 1;
     for (var attempt = 0; attempt < attempts; attempt++) {
+      Process? process;
       try {
         await _stopWindowsProcess();
+        // 清掉所有残留 gopeed 实例：残留进程持有 bolt 数据库文件锁，
+        // 会让新引擎卡在初始化阶段（打印 banner 后无输出）
+        await _killAllGopeed();
         await Future.delayed(const Duration(milliseconds: 200));
         // 端口 0 表示随机分配，解析 stdout 中的监听地址
-        final process = await Process.start(exe, [
+        process = await Process.start(exe, [
           '-A', '127.0.0.1',
           '-P', '0',
           '-T', '',
@@ -164,6 +168,10 @@ class GopeedEngine {
         return;
       } catch (e) {
         lastError_ = e.toString();
+        // 失败时立即杀掉本次启动的进程，避免残留实例堆积
+        try {
+          process?.kill();
+        } catch (_) {}
         // 前两次失败后清理损坏的任务数据库再重试
         if (attempt == 1) {
           try {
@@ -227,9 +235,12 @@ class GopeedEngine {
     // 首启被杀毒软件扫描会慢，但交互等待不可过久：15 秒超时
     Future.delayed(const Duration(seconds: 15), () {
       if (!completer.isCompleted) {
-        final tail = buffer.toString().trim();
+        final lines = buffer.toString().trim().split('\n');
+        final tail = lines.length > 3
+            ? lines.sublist(lines.length - 3).join(' | ')
+            : lines.join(' | ');
         final err = stderrBuf.toString().trim();
-        _winDiag = tail.isNotEmpty ? '输出: ${tail.split('\n').last}' : '';
+        _winDiag = tail.isNotEmpty ? '输出: $tail' : '';
         if (err.isNotEmpty) {
           _winDiag = '$_winDiag 错误输出: ${err.split('\n').last}';
         }
@@ -237,6 +248,15 @@ class GopeedEngine {
       }
     });
     return completer.future;
+  }
+
+  /// 杀掉所有 gopeed.exe 进程（含其他实例残留，释放数据库文件锁）
+  static Future<void> _killAllGopeed() async {
+    try {
+      await Process.run('taskkill', ['/IM', 'gopeed.exe', '/F']);
+    } catch (_) {
+      // 无残留实例时 taskkill 会报错，忽略
+    }
   }
 
   static Future<void> _stopWindowsProcess() async {
@@ -252,6 +272,7 @@ class GopeedEngine {
         // 忽略停止失败
       }
     }
+    await _killAllGopeed();
   }
 
   static Future<void> stop() async {

@@ -43,6 +43,28 @@ jobs:
           if (Test-Path $err) { Get-Content $err }
           if (-not $alive) { exit 1 } else { exit 0 }
 
+      - name: Reproduce storage lock (2nd instance while 1st alive)
+        shell: pwsh
+        run: |
+          $out1 = Join-Path $env:TEMP 'gopeed-lock1.log'
+          $err1 = Join-Path $env:TEMP 'gopeed-lock1-err.log'
+          $p1 = Start-Process -FilePath $env:GOPEED_EXE `
+            -ArgumentList @('-A','127.0.0.1','-P','0','-T','','-d',(Join-Path $env:TEMP 'gopeed-lock')) `
+            -RedirectStandardOutput $out1 -RedirectStandardError $err1 -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 5
+          $out2 = Join-Path $env:TEMP 'gopeed-lock2.log'
+          $err2 = Join-Path $env:TEMP 'gopeed-lock2-err.log'
+          $p2 = Start-Process -FilePath $env:GOPEED_EXE `
+            -ArgumentList @('-A','127.0.0.1','-P','0','-T','','-d',(Join-Path $env:TEMP 'gopeed-lock')) `
+            -RedirectStandardOutput $out2 -RedirectStandardError $err2 -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 8
+          Write-Host "p1 alive=$(-not $p1.HasExited)  p2 alive=$(-not $p2.HasExited)"
+          Write-Host "=== p2 STDOUT (lock test) ==="
+          if (Test-Path $out2) { Get-Content $out2 }
+          Stop-Process -Id $p1.Id -Force -ErrorAction SilentlyContinue
+          Stop-Process -Id $p2.Id -Force -ErrorAction SilentlyContinue
+          exit 0
+
       - name: Start engine without -T argument
         shell: pwsh
         run: |
