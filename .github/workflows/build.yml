@@ -110,9 +110,14 @@ jobs:
           Get-Item windows/resources/gopeed.exe | Select-Object Name, Length
 
       - name: Build Windows release
+        shell: pwsh
         run: |
           flutter pub get
-          flutter build windows --release
+          flutter build windows --release --verbose 2>&1 | Tee-Object -FilePath build_verbose.log
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content build_verbose.log -Tail 120
+            exit $LASTEXITCODE
+          }
 
       - name: Package
         shell: pwsh
