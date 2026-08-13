@@ -27,7 +27,17 @@ class AppTheme {
         onSurface: AppColors.textPrimary,
         onPrimary: Colors.white,
       ),
-      fontFamily: 'MiSans',
+      fontFamily: 'MiSansPro',
+      // 全局路由转场：Material 3 淡入前进动画（fade + 轻微水平滑动 + 缩放）
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.macOS: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+        },
+      ),
     );
     return base.copyWith(
       cardTheme: const CardThemeData(

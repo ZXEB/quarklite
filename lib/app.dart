@@ -142,11 +142,46 @@ class _RootPageState extends State<RootPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _index, children: _pages),
+      body: _AnimatedPageView(index: _index, children: _pages),
       bottomNavigationBar: _BottomBar(
         index: _index,
         onTap: (i) => setState(() => _index = i),
       ),
+    );
+  }
+}
+
+/// 保留页面状态的 Tab 切换动画（淡入淡出 + 轻微位移动效）
+class _AnimatedPageView extends StatelessWidget {
+  final int index;
+  final List<Widget> children;
+
+  const _AnimatedPageView({required this.index, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (var i = 0; i < children.length; i++)
+          AnimatedOpacity(
+            opacity: i == index ? 1 : 0,
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+            child: AnimatedSlide(
+              offset: i == index ? Offset.zero : const Offset(0, 0.04),
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              child: IgnorePointer(
+                ignoring: i != index,
+                child: TickerMode(
+                  enabled: i == index,
+                  child: children[i],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -184,19 +219,34 @@ class _BottomBar extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (selected)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.accentDeep,
-                            borderRadius: BorderRadius.circular(20),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 240),
+                        curve: Curves.easeOutCubic,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: selected ? 14 : 0,
+                          vertical: selected ? 3 : 0,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              selected ? AppColors.accentDeep : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          transitionBuilder: (child, anim) => ScaleTransition(
+                            scale: anim,
+                            child: child,
                           ),
-                          child: Icon(items[i].$1,
-                              size: 22, color: AppColors.accent),
-                        )
-                      else
-                        Icon(items[i].$1, size: 22, color: color),
+                          child: Icon(
+                            items[i].$1,
+                            key: ValueKey(selected),
+                            size: 22,
+                            color: selected
+                                ? AppColors.accent
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 3),
                       Text(
                         items[i].$2,

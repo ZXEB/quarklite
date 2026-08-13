@@ -33,11 +33,11 @@ flutter:
   uses-material-design: true
 
   fonts:
-    - family: MiSans
+    - family: MiSansPro
       fonts:
-        - asset: assets/fonts/MiSans-Regular.ttf
+        - asset: assets/fonts/MiSansPro-Regular.ttf
           weight: 400
-        - asset: assets/fonts/MiSans-Medium.ttf
+        - asset: assets/fonts/MiSansPro-Medium.ttf
           weight: 500
-        - asset: assets/fonts/MiSans-Bold.ttf
+        - asset: assets/fonts/MiSansPro-Bold.ttf
           weight: 700
