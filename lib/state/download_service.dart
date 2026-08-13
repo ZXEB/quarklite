@@ -4,16 +4,21 @@ import '../state/app_state.dart';
 
 class DownloadService {
   /// 把直链加入 Gopeed 下载队列，返回错误信息（null 表示成功）
+  /// [batchTotal] 为本次批量下载的任务总数，用于按预算分摊连接数（默认单任务）。
   static Future<String?> addDirectUrl({
     required String url,
     required String fileName,
     required String cookie,
     String? path,
-    int connections = 16,
+    int? connections,
+    int batchTotal = 1,
   }) async {
     try {
       await GopeedEngine.ensureStarted();
       final dir = path ?? await AppState.I.effectiveDownloadDir();
+      final app = AppState.I;
+      final actualConnections =
+          connections ?? app.effectiveConnections(batchTotal);
       await GopeedEngine.client.create(
         url: url,
         path: dir,
@@ -23,7 +28,7 @@ class DownloadService {
           'Referer': 'https://pan.quark.cn/',
           'User-Agent': QuarkClient.uaDesktopClient,
         },
-        connections: connections,
+        connections: actualConnections,
       );
       return null;
     } catch (e) {
@@ -44,7 +49,7 @@ class DownloadService {
         fileName:
             info.fileName.isNotEmpty ? info.fileName : (fileName ?? ''),
         cookie: cookie,
-        connections: app.connections,
+        batchTotal: 1,
       );
     } catch (e) {
       return '下载失败: $e';

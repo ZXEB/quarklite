@@ -186,10 +186,29 @@ class MePage extends StatelessWidget {
             leading:
                 const Icon(Icons.speed_rounded, color: AppColors.accent),
             title: const Text('下载连接数'),
-            subtitle: Text('每个任务 ${app.connections} 线程并发下载'),
+            subtitle: Text('单任务最大 ${app.connections} 线程'),
             trailing: const Icon(Icons.chevron_right_rounded,
                 color: AppColors.textSecondary),
             onTap: () => _editConnections(context, app),
+          ),
+          const Divider(height: 1, indent: 56),
+          ListTile(
+            leading: const Icon(Icons.low_priority_rounded,
+                color: AppColors.accent),
+            title: const Text('同时下载任务数'),
+            subtitle: Text('最多 ${app.maxRunning} 个任务并发，其余排队'),
+            trailing: const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textSecondary),
+            onTap: () => _editMaxRunning(context, app),
+          ),
+          const Divider(height: 1, indent: 56),
+          ListTile(
+            leading: const Icon(Icons.tune_rounded, color: AppColors.accent),
+            title: const Text('连接预算'),
+            subtitle: Text('所有任务总连接数上限 ${app.connectionBudget}，防系统卡顿'),
+            trailing: const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textSecondary),
+            onTap: () => _editConnectionBudget(context, app),
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
@@ -278,6 +297,74 @@ class MePage extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Text('$n 线程', style: const TextStyle(fontSize: 14)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _editMaxRunning(BuildContext context, AppState app) {
+    final options = [1, 2, 3, 4, 6, 8];
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('同时下载任务数'),
+        children: [
+          for (final n in options)
+            SimpleDialogOption(
+              onPressed: () async {
+                await app.setMaxRunning(n);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: Row(
+                children: [
+                  Icon(
+                    n == app.maxRunning
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded,
+                    color: n == app.maxRunning
+                        ? AppColors.accent
+                        : AppColors.textSecondary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text('$n 个任务', style: const TextStyle(fontSize: 14)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _editConnectionBudget(BuildContext context, AppState app) {
+    final options = [32, 64, 128, 256, 512];
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('连接预算'),
+        children: [
+          for (final n in options)
+            SimpleDialogOption(
+              onPressed: () async {
+                await app.setConnectionBudget(n);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: Row(
+                children: [
+                  Icon(
+                    n == app.connectionBudget
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded,
+                    color: n == app.connectionBudget
+                        ? AppColors.accent
+                        : AppColors.textSecondary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text('$n 连接', style: const TextStyle(fontSize: 14)),
                 ],
               ),
             ),

@@ -43,13 +43,12 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
       final client = GopeedEngine.client;
       final cfg = await client.getConfig();
       final dir = await AppState.I.effectiveDownloadDir();
-      if (cfg['downloadDir']?.toString().isEmpty ?? true) {
-        await client.updateConfig(
-          downloadDir: dir,
-          maxRunning: 2,
-          connections: AppState.I.connections,
-        );
-      }
+      final firstBoot = cfg['downloadDir']?.toString().isEmpty ?? true;
+      await client.updateConfig(
+        downloadDir: firstBoot ? dir : null,
+        maxRunning: AppState.I.maxRunning,
+        connections: AppState.I.connectionBudget,
+      );
     } catch (_) {
       // 引擎启动失败不阻塞应用：下载页可手动重试，添加任务时也会自动拉起
     }

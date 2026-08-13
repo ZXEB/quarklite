@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/quark_client.dart';
 import '../api/quark_models.dart';
+import '../core/gopeed/gopeed_boot.dart';
 
 class AppState extends ChangeNotifier {
   static const _sysChannel = MethodChannel('quarklite.com/system');
@@ -18,6 +19,8 @@ class AppState extends ChangeNotifier {
   static const _kUserCache = 'quark_user_cache';
   static const _kDownloadDir = 'download_dir';
   static const _kConnections = 'connections';
+  static const _kMaxRunning = 'max_running';
+  static const _kConnectionBudget = 'connection_budget';
 
   static AppState? _instance;
   static AppState get I => _instance ??= AppState._();
@@ -35,6 +38,13 @@ class AppState extends ChangeNotifier {
 
   String downloadDir = '';
   int connections = 8;
+
+  /// 全局同时运行的任务数上限（Gopeed maxRunning），超出的任务排队等待
+  int maxRunning = 4;
+
+  /// 全局活动连接预算：所有任务的总连接数不超过该值。
+  /// 单任务时可拿到接近全部预算保证速度，批量任务自动分摊避免打爆网络中断。
+  int connectionBudget = 128;
 
   Timer? _sessionTimer;
 
@@ -125,6 +135,8 @@ class AppState extends ChangeNotifier {
       downloadDir =
           prefs.getString(_kDownloadDir) ?? '/storage/emulated/0/Download/Quarklite';
       connections = prefs.getInt(_kConnections) ?? 8;
+      maxRunning = prefs.getInt(_kMaxRunning) ?? 4;
+      connectionBudget = prefs.getInt(_kConnectionBudget) ?? 128;
       notifyListeners();
     });
   }
@@ -182,6 +194,46 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kConnections, n);
     notifyListeners();
+  }
+
+  Future<void> setMaxRunning(int n) async {
+    maxRunning = n;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kMaxRunning, n);
+    await _applyEngineConfig(maxRunning: n);
+    notifyListeners();
+  }
+
+  Future<void> setConnectionBudget(int n) async {
+    connectionBudget = n;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kConnectionBudget, n);
+    await _applyEngineConfig(connections: n);
+    notifyListeners();
+  }
+
+  /// 把并发配置同步到 Gopeed 引擎（引擎未启动时忽略，启动时由 app.dart 应用）
+  Future<void> _applyEngineConfig({int? maxRunning, int? connections}) async {
+    try {
+      if (!GopeedEngine.started) return;
+      await GopeedEngine.client.updateConfig(
+        maxRunning: maxRunning,
+        connections: connections,
+      );
+    } catch (_) {
+      // 引擎暂不可用时不阻塞设置
+    }
+  }
+
+  /// 根据批量任务数计算每个任务应分配的实际连接数：
+  /// 预算按「同时运行的任务数」均摊（受 maxRunning 限制），
+  /// 保证总活跃连接数 ≤ budget（避免收包软中断打爆核心）。
+  /// 单任务时拿满预算保证速度，批量时自动收敛避免连接风暴。
+  int effectiveConnections(int batchTotal) {
+    final total = batchTotal <= 0 ? 1 : batchTotal;
+    final concurrent = total < maxRunning ? total : maxRunning;
+    final share = (connectionBudget / concurrent).ceil();
+    return share.clamp(1, connections);
   }
 
   /// 每 100 分钟刷新一次会话并持久化最新 cookie

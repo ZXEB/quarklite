@@ -156,13 +156,14 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
       final infos = await AppState.I.quark
           .getShareDownloadInfo(widget.session, _selected.toList());
       var added = 0;
+      final total = infos.length;
       for (final info in infos) {
         if (info.url.isEmpty) continue;
         final err = await DownloadService.addDirectUrl(
           url: info.url,
           fileName: info.fileName,
           cookie: cookie,
-          connections: AppState.I.connections,
+          batchTotal: total,
         );
         if (err == null) added++;
       }
@@ -450,7 +451,6 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
         url: info.url,
         fileName: info.fileName.isNotEmpty ? info.fileName : file.fileName,
         cookie: cookie,
-        connections: AppState.I.connections,
       );
       if (err != null) throw Exception(err);
       _toast('已加入下载队列');

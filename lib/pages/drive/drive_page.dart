@@ -247,6 +247,7 @@ class _DrivePageState extends State<DrivePage>
     final base = await app.effectiveDownloadDir();
     var added = 0;
     const batchSize = 50;
+    final total = files.length;
     for (var i = 0; i < files.length; i += batchSize) {
       final end = (i + batchSize) > files.length ? files.length : (i + batchSize);
       final batch = files.sublist(i, end);
@@ -263,7 +264,7 @@ class _DrivePageState extends State<DrivePage>
           fileName: info.fileName,
           path: path,
           cookie: cookie,
-          connections: app.connections,
+          batchTotal: total,
         );
         if (err == null) added++;
       }
@@ -630,7 +631,6 @@ class _DrivePageState extends State<DrivePage>
         url: info.url,
         fileName: info.fileName,
         cookie: cookie,
-        connections: app.connections,
       );
       if (err != null) throw Exception(err);
       _toast('已加入下载队列');
