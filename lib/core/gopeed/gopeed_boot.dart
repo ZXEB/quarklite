@@ -15,6 +15,7 @@ class GopeedEngine {
   static bool _started = false;
   static Process? _winProcess;
   static bool _winServerReady = false;
+  static String _winDiag = '';
 
   static GopeedClient get client {
     final c = _client;
@@ -108,6 +109,7 @@ class GopeedEngine {
     if (exe == null) {
       throw Exception('未找到 gopeed.exe，请确认程序目录完整');
     }
+    _winDiag = '';
     String lastError = '';
     for (var attempt = 0; attempt < 3; attempt++) {
       try {
@@ -121,15 +123,28 @@ class GopeedEngine {
           '-d', storageDir,
         ]);
         _winProcess = process;
+        // 确认进程存活：部分环境（杀软扫描等）进程启动后立即退出
+        final exited = await Future.any([
+          process.exitCode.then((code) {
+            _winDiag = '引擎进程退出 code=$code';
+            return true;
+          }),
+          Future.delayed(const Duration(milliseconds: 300), () => false),
+        ]);
+        if (exited) {
+          throw Exception('引擎启动后立即退出');
+        }
         final port = await _readServerPort(process);
         if (port == null || port <= 0) {
-          throw Exception('引擎未正常启动');
+          throw Exception('引擎未正常启动: $_winDiag');
         }
         _client = GopeedClient('http://127.0.0.1:$port');
         _started = true;
         _winServerReady = true;
-        // 进程异常退出时标记引擎失效，便于下次自动重启
-        process.exitCode.then((_) {
+        // 进程异常退出时标记引擎失效；只清理当前进程的引用，避免误清新实例
+        process.exitCode.then((code) {
+          _winDiag = '引擎进程退出 code=$code';
+          if (!identical(process, _winProcess)) return;
           _winServerReady = false;
           _started = false;
           _client = null;
@@ -153,7 +168,7 @@ class GopeedEngine {
     }
     _client = null;
     _started = false;
-    throw Exception('下载引擎启动失败: $lastError');
+    throw Exception('下载引擎启动失败: $lastError$_winDiag');
   }
 
   /// 查找 gopeed.exe：优先程序目录（打包产物目录），其次应用文档目录
@@ -175,9 +190,15 @@ class GopeedEngine {
   /// 读取子进程 stdout 中的 "Server start success on http://127.0.0.1:port"
   static Future<int?> _readServerPort(Process process) async {
     final buffer = StringBuffer();
+    final stderrBuf = StringBuffer();
     final completer = Completer<int?>();
     process.stdout.transform(utf8.decoder).listen((chunk) {
       buffer.write(chunk);
+      if (buffer.length > 4096) {
+        final tail = buffer.toString().substring(buffer.length - 2048);
+        buffer.clear();
+        buffer.write(tail);
+      }
       final text = buffer.toString();
       final match =
           RegExp(r'Server start success on http://[^:]+:(\d+)').firstMatch(text);
@@ -185,9 +206,23 @@ class GopeedEngine {
         completer.complete(int.tryParse(match.group(1)!));
       }
     });
-    // 15 秒超时
-    Future.delayed(const Duration(seconds: 15), () {
+    process.stderr.transform(utf8.decoder).listen((chunk) {
+      stderrBuf.write(chunk);
+      if (stderrBuf.length > 4096) {
+        final tail = stderrBuf.toString().substring(stderrBuf.length - 2048);
+        stderrBuf.clear();
+        stderrBuf.write(tail);
+      }
+    });
+    // 首次启动可能被杀毒软件扫描，超时放宽到 30 秒
+    Future.delayed(const Duration(seconds: 30), () {
       if (!completer.isCompleted) {
+        final tail = buffer.toString().trim();
+        final err = stderrBuf.toString().trim();
+        _winDiag = tail.isNotEmpty ? '输出: ${tail.split('\n').last}' : '';
+        if (err.isNotEmpty) {
+          _winDiag = '$_winDiag 错误输出: ${err.split('\n').last}';
+        }
         completer.complete(null);
       }
     });
