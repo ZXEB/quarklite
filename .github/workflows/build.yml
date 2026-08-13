@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build
 
 on:
   push:
@@ -84,4 +84,46 @@ jobs:
             build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
             build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
             build/app/outputs/flutter-apk/app-x86_64-release.apk
+          if-no-files-found: error
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Download gopeed engine
+        shell: pwsh
+        run: |
+          $url = "https://github.com/GopeedLab/gopeed/releases/download/v1.9.3/Gopeed-v1.9.3-windows-amd64.zip"
+          Invoke-WebRequest -Uri $url -OutFile gopeed.zip
+          Expand-Archive gopeed.zip -DestinationPath gopeed
+          New-Item -ItemType Directory -Force -Path windows/resources | Out-Null
+          $exe = Get-ChildItem -Path gopeed -Recurse -Filter "gopeed*.exe" | Select-Object -First 1
+          if (-not $exe) { throw "gopeed.exe not found in archive" }
+          Copy-Item $exe.FullName windows/resources/gopeed.exe
+          Get-Item windows/resources/gopeed.exe | Select-Object Name, Length
+
+      - name: Build Windows release
+        run: |
+          flutter pub get
+          flutter build windows --release
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $dir = "build/windows/x64/runner/Release"
+          if (-not (Test-Path "$dir/gopeed.exe")) { throw "gopeed.exe missing from output" }
+          Compress-Archive -Path "$dir/*" -DestinationPath quarklite-win.zip
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: quarklite-windows
+          path: quarklite-win.zip
           if-no-files-found: error

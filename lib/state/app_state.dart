@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -194,6 +195,14 @@ class AppState extends ChangeNotifier {
 
   /// 当前可用的下载目录（无存储权限时回退到应用专属目录）
   Future<String> effectiveDownloadDir() async {
+    if (!kIsWeb && Platform.isWindows) {
+      // Windows：无权限概念，默认用户下载目录
+      if (downloadDir.isNotEmpty) return downloadDir;
+      final dir = await getDownloadsDirectory();
+      if (dir != null) return dir.path;
+      final ext = await getApplicationDocumentsDirectory();
+      return '${ext.path}/downloads';
+    }
     final canWrite = await canWriteDownload();
     if (canWrite && downloadDir.isNotEmpty) return downloadDir;
     final ext = await getExternalStorageDirectory();
@@ -201,6 +210,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<bool> canWriteDownload() async {
+    if (!kIsWeb && Platform.isWindows) return true;
     try {
       return await _sysChannel.invokeMethod<bool>('canWriteDownload') ?? false;
     } catch (_) {
@@ -209,6 +219,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> openAllFilesAccess() async {
+    if (!kIsWeb && Platform.isWindows) return;
     try {
       await _sysChannel.invokeMethod('openAllFilesAccess');
     } catch (_) {}

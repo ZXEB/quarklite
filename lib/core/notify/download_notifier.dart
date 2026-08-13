@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -5,7 +8,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../../utils/format.dart';
 import '../gopeed/gopeed_models.dart';
 
-/// 下载通知：前台服务（后台保活 + 实时进度）+ Android 16 实时动态 + 完成/失败提醒
+/// 下载通知：前台服务（后台保活 + 实时进度）+ Android 16 实时动态 + 完成/失败提醒。
+/// 前台服务与实时动态为 Android 特性，Windows 仅使用完成/失败系统通知。
 class DownloadNotifier {
   static const _liveChannel = MethodChannel('quarklite.com/live');
   static final FlutterLocalNotificationsPlugin _local =
@@ -20,40 +24,53 @@ class DownloadNotifier {
   /// 实时动态（Live Updates）在当前设备上的可用性诊断
   static Map<String, dynamic>? liveUpdateStatus;
 
+  static bool get _isAndroid => !kIsWeb && Platform.isAndroid;
+
   static Future<void> init() async {
     if (_init) return;
     _init = true;
 
-    FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'quarklite_service',
-        channelName: 'Quarklite 后台下载服务',
-        channelImportance: NotificationChannelImportance.LOW,
-        showWhen: true,
-        priority: NotificationPriority.LOW,
-      ),
-      iosNotificationOptions: const IOSNotificationOptions(
-        showNotification: true,
-        playSound: false,
-      ),
-      foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.repeat(5000),
-        autoRunOnBoot: false,
-        allowWakeLock: true,
-        allowWifiLock: true,
-      ),
-    );
+    if (_isAndroid) {
+      FlutterForegroundTask.init(
+        androidNotificationOptions: AndroidNotificationOptions(
+          channelId: 'quarklite_service',
+          channelName: 'Quarklite 后台下载服务',
+          channelImportance: NotificationChannelImportance.LOW,
+          showWhen: true,
+          priority: NotificationPriority.LOW,
+        ),
+        iosNotificationOptions: const IOSNotificationOptions(
+          showNotification: true,
+          playSound: false,
+        ),
+        foregroundTaskOptions: ForegroundTaskOptions(
+          eventAction: ForegroundTaskEventAction.repeat(5000),
+          autoRunOnBoot: false,
+          allowWakeLock: true,
+          allowWifiLock: true,
+        ),
+      );
+    }
 
     await _local.initialize(
       settings: const InitializationSettings(
         android: AndroidInitializationSettings('ic_stat_notifications'),
+        windows: WindowsInitializationSettings(
+          appName: 'Quarklite',
+          appUserModelId: 'com.quarklite.quarklite',
+          guid: 'com.quarklite.quarklite',
+        ),
       ),
     );
-    await _local
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
-    _refreshLiveStatus();
+    if (_isAndroid) {
+      await _local
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+    }
+    if (_isAndroid) {
+      _refreshLiveStatus();
+    }
   }
 
   /// 查询实时动态在当前设备上的可用性（sdk/是否支持/权限/资格）
@@ -82,7 +99,8 @@ class DownloadNotifier {
   static Future<void> _updateProgress(List<GopeedTask> tasks) async {
     final active = tasks.where((t) => t.status.isActive).toList();
     final now = DateTime.now().millisecondsSinceEpoch;
-    final isRunning = await FlutterForegroundTask.isRunningService;
+    final isRunning =
+        _isAndroid ? await FlutterForegroundTask.isRunningService : false;
 
     if (active.isNotEmpty) {
       final total = active.fold<int>(0, (s, t) => s + t.size);
@@ -93,30 +111,34 @@ class DownloadNotifier {
       final title = '下载中 ${active.length} 个任务  ·  $pct%';
       final text = '${formatSpeed(speed)}  ·  已下载 ${formatBytes(done)}';
 
-      // 状态栏/岛标签显示进度百分比（3 秒节流，避免高频 notify 卡顿）
-      if (now - _lastLiveTs >= 3000) {
-        _lastLiveTs = now;
-        _updateLive(title, text, done, total, total > 0 ? '$pct%' : '');
-      }
+      if (_isAndroid) {
+        // 状态栏/岛标签显示进度百分比（3 秒节流，避免高频 notify 卡顿）
+        if (now - _lastLiveTs >= 3000) {
+          _lastLiveTs = now;
+          _updateLive(title, text, done, total, total > 0 ? '$pct%' : '');
+        }
 
-      if (isRunning) {
-        if (now - _lastProgressTs >= 3000) {
-          _lastProgressTs = now;
-          await FlutterForegroundTask.updateService(
+        if (isRunning) {
+          if (now - _lastProgressTs >= 3000) {
+            _lastProgressTs = now;
+            await FlutterForegroundTask.updateService(
+              notificationTitle: title,
+              notificationText: text,
+            );
+          }
+        } else {
+          await FlutterForegroundTask.startService(
             notificationTitle: title,
             notificationText: text,
           );
         }
-      } else {
-        await FlutterForegroundTask.startService(
-          notificationTitle: title,
-          notificationText: text,
-        );
       }
     } else {
-      _cancelLive();
-      if (isRunning) {
-        FlutterForegroundTask.stopService();
+      if (_isAndroid) {
+        _cancelLive();
+        if (isRunning) {
+          FlutterForegroundTask.stopService();
+        }
       }
     }
   }
