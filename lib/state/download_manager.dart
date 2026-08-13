@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../core/gopeed/gopeed_boot.dart';
 import '../core/gopeed/gopeed_models.dart';
 import '../core/notify/download_notifier.dart';
+import '../utils/app_logger.dart';
 
 class DownloadManager extends ChangeNotifier {
   static DownloadManager? _instance;
@@ -53,6 +54,7 @@ class DownloadManager extends ChangeNotifier {
       } catch (e) {
         _failed = true;
         engineError = GopeedEngine.lastError ?? e.toString();
+        AppLogger.I.e('download', '轮询启动引擎失败: $engineError');
         notifyListeners();
         return;
       }
@@ -69,6 +71,7 @@ class DownloadManager extends ChangeNotifier {
     } catch (e) {
       _failed = true;
       engineError = e.toString();
+      AppLogger.I.e('download', '轮询任务列表失败: $e');
     }
   }
 

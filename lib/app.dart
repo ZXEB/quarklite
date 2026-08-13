@@ -11,6 +11,7 @@ import 'pages/parse/parse_page.dart';
 import 'state/app_state.dart';
 import 'state/download_manager.dart';
 import 'theme/app_theme.dart';
+import 'utils/app_logger.dart';
 
 class QuarkLiteApp extends StatefulWidget {
   const QuarkLiteApp({super.key});
@@ -30,6 +31,8 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
   }
 
   Future<void> _bootstrap() async {
+    await AppLogger.I.init();
+    AppLogger.I.i('app', '应用启动 bootstrap 开始');
     try {
       await DownloadNotifier.init().timeout(const Duration(seconds: 10));
     } catch (_) {
@@ -39,6 +42,7 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
       await AppState.I.init().timeout(const Duration(seconds: 10));
     } catch (e) {
       _bootError = e.toString();
+      AppLogger.I.e('app', 'AppState 初始化失败: $e');
     }
     // 引擎后台异步启动，不阻塞界面（失败时下载页可重试/查看原因）
     unawaited(_bootEngine());
@@ -60,7 +64,8 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
         maxRunning: AppState.I.maxRunning,
         connections: AppState.I.connectionBudget,
       );
-    } catch (_) {
+    } catch (e) {
+      AppLogger.I.e('app', '后台启动引擎失败: $e');
       // 引擎启动失败不阻塞应用：下载页可手动重试，添加任务时也会自动拉起
     }
   }

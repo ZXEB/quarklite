@@ -2,6 +2,7 @@ import '../api/quark_client.dart';
 import '../core/gopeed/gopeed_boot.dart';
 import '../core/gopeed/gopeed_client.dart';
 import '../state/app_state.dart';
+import '../utils/app_logger.dart';
 
 class DownloadService {
   /// 把直链加入 Gopeed 下载队列，返回错误信息（null 表示成功）
@@ -20,6 +21,8 @@ class DownloadService {
       final app = AppState.I;
       final actualConnections =
           connections ?? app.effectiveConnections(batchTotal);
+      AppLogger.I.i('download',
+          '创建任务 name=$fileName connections=$actualConnections batch=$batchTotal dir=$dir url=${_briefUrl(url)}');
       try {
         await _createTask(client,
             url: url,
@@ -27,10 +30,12 @@ class DownloadService {
             name: fileName,
             cookie: cookie,
             connections: actualConnections);
+        AppLogger.I.i('download', '创建任务成功 name=$fileName');
       } catch (e) {
         // 引擎进程可能在等待目录等异步操作期间退出（如被杀软终止），
         // 导致引擎状态被清空：重启引擎并重试一次，而不是直接报“引擎尚未启动”
         if (e.toString().contains('下载引擎尚未启动') || !GopeedEngine.started) {
+          AppLogger.I.w('download', '引擎失效（$e），重启引擎并重试创建任务 name=$fileName');
           client = await GopeedEngine.ensureStarted();
           await _createTask(client,
               url: url,
@@ -38,15 +43,21 @@ class DownloadService {
               name: fileName,
               cookie: cookie,
               connections: actualConnections);
+          AppLogger.I.i('download', '重试创建任务成功 name=$fileName');
         } else {
           rethrow;
         }
       }
       return null;
     } catch (e) {
+      AppLogger.I.e('download', '创建任务最终失败 name=$fileName: $e');
       return '创建下载任务失败: $e';
     }
   }
+
+  /// 日志脱敏：URL 只保留前 120 字符，避免直链签名参数刷屏
+  static String _briefUrl(String url) =>
+      url.length <= 120 ? url : '${url.substring(0, 120)}…(${url.length})';
 
   /// 创建 Gopeed 下载任务（附带夸克直链所需的请求头）
   static Future<void> _createTask(
@@ -98,26 +109,31 @@ class DownloadService {
     try {
       var client = await GopeedEngine.ensureStarted();
       final dir = await AppState.I.effectiveDownloadDir();
+      AppLogger.I.i('download', '创建 BT 任务 name=${name ?? ''} dir=$dir');
       try {
         await client.create(
           url: url,
           path: dir,
           name: name ?? '',
         );
+        AppLogger.I.i('download', '创建 BT 任务成功 name=${name ?? ''}');
       } catch (e) {
         if (e.toString().contains('下载引擎尚未启动') || !GopeedEngine.started) {
+          AppLogger.I.w('download', '引擎失效（$e），重启引擎并重试 BT 任务 name=${name ?? ''}');
           client = await GopeedEngine.ensureStarted();
           await client.create(
             url: url,
             path: dir,
             name: name ?? '',
           );
+          AppLogger.I.i('download', '重试 BT 任务成功 name=${name ?? ''}');
         } else {
           rethrow;
         }
       }
       return null;
     } catch (e) {
+      AppLogger.I.e('download', '创建 BT 任务失败 name=${name ?? ''}: $e');
       return '创建 BT 任务失败: $e';
     }
   }

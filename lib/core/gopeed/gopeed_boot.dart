@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../utils/app_logger.dart';
 import 'gopeed_client.dart';
 
 class GopeedEngine {
@@ -51,6 +52,8 @@ class GopeedEngine {
   /// [retry] 为 false 时只尝试一次（保证快速失败，用于交互等待场景）
   /// 并发调用共享同一次启动，避免多个启动流程互相 taskkill 对方刚拉起的引擎进程。
   static Future<void> start({bool retry = true}) async {
+    AppLogger.I.i('engine',
+        'start 请求 retry=$retry started=$_started inFlight=${_startInFlight != null}');
     if (_started) return;
     final inFlight = _startInFlight;
     if (inFlight != null) return inFlight;
@@ -134,8 +137,10 @@ class GopeedEngine {
     final exe = _findGopeedExe();
     if (exe == null) {
       lastError = '未找到 gopeed.exe，请确认程序目录完整';
+      AppLogger.I.e('engine', 'Windows 启动失败: $lastError');
       throw Exception(lastError!);
     }
+    AppLogger.I.i('engine', 'Windows 引擎启动 exe=$exe storage=$storageDir retry=$retry');
     _winDiag = '';
     String lastError_ = '';
     final attempts = retry ? 3 : 1;
@@ -155,6 +160,7 @@ class GopeedEngine {
           '-d', storageDir,
         ]);
         _winProcess = process;
+        AppLogger.I.i('engine', '引擎进程已拉起 pid=${process.pid} attempt=${attempt + 1}/$attempts');
         // 确认进程存活：部分环境（杀软扫描等）进程启动后立即退出
         final exited = await Future.any([
           process.exitCode.then((code) {
@@ -173,9 +179,11 @@ class GopeedEngine {
         _client = GopeedClient('http://127.0.0.1:$port');
         _started = true;
         _winServerReady = true;
+        AppLogger.I.i('engine', '引擎启动成功 port=$port pid=${process.pid}');
         // 进程异常退出时标记引擎失效并自动重启；只清理当前进程的引用，避免误清新实例
         process.exitCode.then((code) {
           _winDiag = '引擎进程退出 code=$code';
+          AppLogger.I.w('engine', '引擎进程退出 code=$code pid=${process.pid}');
           if (!identical(process, _winProcess)) return;
           _winProcess = null;
           _winServerReady = false;
@@ -184,12 +192,13 @@ class GopeedEngine {
           // 引擎被杀软终止/崩溃后立即自愈，避免用户操作踩中引擎失效窗口
           unawaited(_autoRestart());
         });
-        // 持续消费输出，防止缓冲填满导致进程阻塞
-        process.stdout.listen((_) {});
-        process.stderr.listen((_) {});
+        // 注意：stdout/stderr 已由 _readServerPort 的监听器持续消费
+        // （防止缓冲填满导致进程阻塞），这里绝不能再次 listen——
+        // 单订阅流重复监听会抛 "Bad state: Stream has already been listened to."
         return;
       } catch (e) {
         lastError_ = e.toString();
+        AppLogger.I.e('engine', '引擎启动尝试失败 attempt=${attempt + 1}/$attempts: $e');
         // 失败时立即杀掉本次启动的进程，避免残留实例堆积
         try {
           process?.kill();
@@ -212,6 +221,7 @@ class GopeedEngine {
     _client = null;
     _started = false;
     lastError = '下载引擎启动失败: $lastError_$_winDiag';
+    AppLogger.I.e('engine', 'Windows 引擎启动最终失败: $lastError');
     throw Exception(lastError!);
   }
 
@@ -251,7 +261,7 @@ class GopeedEngine {
       if (match != null && !completer.isCompleted) {
         completer.complete(int.tryParse(match.group(1)!));
       }
-    });
+    }, onError: (Object _) {});
     process.stderr
         .transform(const Utf8Decoder(allowMalformed: true))
         .listen((chunk) {
@@ -261,7 +271,7 @@ class GopeedEngine {
         stderrBuf.clear();
         stderrBuf.write(tail);
       }
-    });
+    }, onError: (Object _) {});
     // 首次启动被杀毒软件深度扫描会明显变慢，超时放宽到 30 秒
     // （引擎为后台异步启动，不阻塞界面）
     Future.delayed(const Duration(seconds: 30), () {
@@ -307,6 +317,7 @@ class GopeedEngine {
   }
 
   static Future<void> stop() async {
+    AppLogger.I.i('engine', 'stop 请求 started=$_started');
     if (!_started) return;
     if (!kIsWeb && Platform.isWindows) {
       await _stopWindowsProcess();
@@ -323,6 +334,7 @@ class GopeedEngine {
 
   /// 引擎进程意外退出后的自动重启（防抖；失败时留给 DownloadManager 周期重试）
   static Future<void> _autoRestart() async {
+    AppLogger.I.i('engine', '引擎退出触发自动重启 _autoRestarting=$_autoRestarting');
     if (_autoRestarting) return;
     _autoRestarting = true;
     try {
@@ -331,7 +343,8 @@ class GopeedEngine {
       if (_started) return;
       try {
         await start();
-      } catch (_) {
+      } catch (e) {
+        AppLogger.I.e('engine', '自动重启失败: $e');
         // 自动重启失败不抛给调用方，界面由 DownloadManager 呈现引擎错误
       }
     } finally {
