@@ -232,8 +232,9 @@ class GopeedEngine {
         stderrBuf.write(tail);
       }
     });
-    // 首启被杀毒软件扫描会慢，但交互等待不可过久：15 秒超时
-    Future.delayed(const Duration(seconds: 15), () {
+    // 首次启动被杀毒软件深度扫描会明显变慢，超时放宽到 30 秒
+    // （引擎为后台异步启动，不阻塞界面）
+    Future.delayed(const Duration(seconds: 30), () {
       if (!completer.isCompleted) {
         final lines = buffer.toString().trim().split('\n');
         final tail = lines.length > 3
