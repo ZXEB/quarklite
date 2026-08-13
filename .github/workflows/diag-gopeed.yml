@@ -1,0 +1,63 @@
+name: Diag Gopeed Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diag-gopeed.yml']
+
+jobs:
+  diag:
+    runs-on: windows-latest
+    steps:
+      - name: Download gopeed-web
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/GopeedLab/gopeed/releases/download/v1.9.3/gopeed-web-v1.9.3-windows-amd64.zip" -OutFile gopeed.zip
+          Expand-Archive gopeed.zip -DestinationPath gopeed
+          $exe = Get-ChildItem -Path gopeed -Recurse -Filter "gopeed*.exe" | Select-Object -First 1
+          New-Item -ItemType Directory -Force -Path "$env:TEMP\gopeed-storage" | Out-Null
+          "GOPEED_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Get-Item $exe.FullName | Select-Object Name, Length
+
+      - name: Start engine like quarklite does
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:TEMP 'gopeed-out.log'
+          $err = Join-Path $env:TEMP 'gopeed-err.log'
+          $p = Start-Process -FilePath $env:GOPEED_EXE `
+            -ArgumentList @('-A','127.0.0.1','-P','0','-T','','-d',(Join-Path $env:TEMP 'gopeed-storage')) `
+            -RedirectStandardOutput $out -RedirectStandardError $err -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) {
+            Write-Host "EXITED code=$($p.ExitCode)"
+          } else {
+            Write-Host "ALIVE pid=$($p.Id)"
+            Stop-Process -Id $p.Id -Force
+          }
+          Write-Host "=== STDOUT ==="
+          if (Test-Path $out) { Get-Content $out }
+          Write-Host "=== STDERR ==="
+          if (Test-Path $err) { Get-Content $err }
+          if ($p.HasExited -and $p.ExitCode -ne 0) { exit 1 }
+
+      - name: Start engine without -T argument
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:TEMP 'gopeed-out2.log'
+          $err = Join-Path $env:TEMP 'gopeed-err2.log'
+          $p = Start-Process -FilePath $env:GOPEED_EXE `
+            -ArgumentList @('-A','127.0.0.1','-P','0','-d',(Join-Path $env:TEMP 'gopeed-storage2')) `
+            -RedirectStandardOutput $out -RedirectStandardError $err -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) {
+            Write-Host "EXITED code=$($p.ExitCode)"
+          } else {
+            Write-Host "ALIVE pid=$($p.Id)"
+            Stop-Process -Id $p.Id -Force
+          }
+          Write-Host "=== STDOUT ==="
+          if (Test-Path $out) { Get-Content $out }
+          Write-Host "=== STDERR ==="
+          if (Test-Path $err) { Get-Content $err }
+          if ($p.HasExited -and $p.ExitCode -ne 0) { exit 1 }
