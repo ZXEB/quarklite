@@ -5,11 +5,12 @@ import 'package:flutter/material.dart';
 import 'core/gopeed/gopeed_boot.dart';
 import 'core/notify/download_notifier.dart';
 import 'pages/downloads/downloads_page.dart';
-import 'pages/drive/drive_page.dart';
+import 'pages/drive/drive_hub_page.dart';
 import 'pages/me/me_page.dart';
 import 'pages/parse/parse_page.dart';
 import 'state/app_state.dart';
 import 'state/download_manager.dart';
+import 'state/xunlei_state.dart';
 import 'theme/app_theme.dart';
 import 'utils/app_logger.dart';
 
@@ -44,6 +45,7 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
       _bootError = e.toString();
       AppLogger.I.e('app', 'AppState 初始化失败: $e');
     }
+    unawaited(XunleiState.I.init());
     // 引擎后台异步启动，不阻塞界面（失败时下载页可重试/查看原因）
     unawaited(_bootEngine());
     DownloadManager.I.startPolling();
@@ -134,7 +136,7 @@ class _RootPageState extends State<RootPage> {
 
   static const _pages = [
     ParsePage(),
-    DrivePage(),
+    DriveHubPage(),
     DownloadsPage(),
     MePage(),
   ];

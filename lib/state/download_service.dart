@@ -7,20 +7,25 @@ import '../utils/app_logger.dart';
 class DownloadService {
   /// 把直链加入 Gopeed 下载队列，返回错误信息（null 表示成功）
   /// [batchTotal] 为本次批量下载的任务总数，用于按预算分摊连接数（默认单任务）。
+  /// [maxConnections] 为该网盘的单任务线程上限（夸克默认 512，迅雷 64）。
+  /// [referer]/[userAgent] 自定义下载请求头（默认夸克网盘）。
   static Future<String?> addDirectUrl({
     required String url,
     required String fileName,
     required String cookie,
     String? path,
     int? connections,
+    int? maxConnections,
     int batchTotal = 1,
+    String? referer,
+    String? userAgent,
   }) async {
     try {
       var client = await GopeedEngine.ensureStarted();
       final dir = path ?? await AppState.I.effectiveDownloadDir();
       final app = AppState.I;
       final actualConnections =
-          connections ?? app.effectiveConnections(batchTotal);
+          connections ?? app.effectiveConnections(batchTotal, maxPerTask: maxConnections);
       AppLogger.I.i('download',
           '创建任务 name=$fileName connections=$actualConnections batch=$batchTotal dir=$dir url=${_briefUrl(url)}');
       try {
@@ -29,7 +34,9 @@ class DownloadService {
             path: dir,
             name: fileName,
             cookie: cookie,
-            connections: actualConnections);
+            connections: actualConnections,
+            referer: referer,
+            userAgent: userAgent);
         AppLogger.I.i('download', '创建任务成功 name=$fileName');
       } catch (e) {
         // 引擎进程可能在等待目录等异步操作期间退出（如被杀软终止），
@@ -42,7 +49,9 @@ class DownloadService {
               path: dir,
               name: fileName,
               cookie: cookie,
-              connections: actualConnections);
+              connections: actualConnections,
+              referer: referer,
+              userAgent: userAgent);
           AppLogger.I.i('download', '重试创建任务成功 name=$fileName');
         } else {
           rethrow;
@@ -59,7 +68,7 @@ class DownloadService {
   static String _briefUrl(String url) =>
       url.length <= 120 ? url : '${url.substring(0, 120)}…(${url.length})';
 
-  /// 创建 Gopeed 下载任务（附带夸克直链所需的请求头）
+  /// 创建 Gopeed 下载任务（附带下载请求头）
   static Future<void> _createTask(
     GopeedClient client, {
     required String url,
@@ -67,6 +76,8 @@ class DownloadService {
     required String name,
     required String cookie,
     required int connections,
+    String? referer,
+    String? userAgent,
   }) {
     return client.create(
       url: url,
@@ -74,8 +85,8 @@ class DownloadService {
       name: name,
       headers: {
         if (cookie.isNotEmpty) 'Cookie': cookie,
-        'Referer': 'https://pan.quark.cn/',
-        'User-Agent': QuarkClient.uaDesktopClient,
+        'Referer': referer ?? 'https://pan.quark.cn/',
+        'User-Agent': userAgent ?? QuarkClient.uaDesktopClient,
       },
       connections: connections,
     );

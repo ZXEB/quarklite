@@ -19,6 +19,7 @@ class AppState extends ChangeNotifier {
   static const _kUserCache = 'quark_user_cache';
   static const _kDownloadDir = 'download_dir';
   static const _kConnections = 'connections';
+  static const _kXunleiConnections = 'xunlei_connections';
   static const _kMaxRunning = 'max_running';
   static const _kConnectionBudget = 'connection_budget';
 
@@ -37,14 +38,19 @@ class AppState extends ChangeNotifier {
   bool loading = false;
 
   String downloadDir = '';
-  int connections = 8;
+
+  /// 夸克网盘单任务最大线程数（默认 512）
+  int connections = 512;
+
+  /// 迅雷云盘单任务最大线程数（默认 64，迅雷直链单连接限速档位更高，64 线程足够拉满）
+  int xunleiConnections = 64;
 
   /// 全局同时运行的任务数上限（Gopeed maxRunning），超出的任务排队等待
   int maxRunning = 4;
 
   /// 全局活动连接预算：所有任务的总连接数不超过该值。
   /// 单任务时可拿到接近全部预算保证速度，批量任务自动分摊避免打爆网络中断。
-  int connectionBudget = 128;
+  int connectionBudget = 256;
 
   Timer? _sessionTimer;
 
@@ -134,9 +140,10 @@ class AppState extends ChangeNotifier {
     SharedPreferences.getInstance().then((prefs) {
       downloadDir =
           prefs.getString(_kDownloadDir) ?? '/storage/emulated/0/Download/Quarklite';
-      connections = prefs.getInt(_kConnections) ?? 8;
+      connections = prefs.getInt(_kConnections) ?? 512;
+      xunleiConnections = prefs.getInt(_kXunleiConnections) ?? 64;
       maxRunning = prefs.getInt(_kMaxRunning) ?? 4;
-      connectionBudget = prefs.getInt(_kConnectionBudget) ?? 128;
+      connectionBudget = prefs.getInt(_kConnectionBudget) ?? 256;
       notifyListeners();
     });
   }
@@ -196,6 +203,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setXunleiConnections(int n) async {
+    xunleiConnections = n;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kXunleiConnections, n);
+    notifyListeners();
+  }
+
   Future<void> setMaxRunning(int n) async {
     maxRunning = n;
     final prefs = await SharedPreferences.getInstance();
@@ -229,11 +243,13 @@ class AppState extends ChangeNotifier {
   /// 预算按「同时运行的任务数」均摊（受 maxRunning 限制），
   /// 保证总活跃连接数 ≤ budget（避免收包软中断打爆核心）。
   /// 单任务时拿满预算保证速度，批量时自动收敛避免连接风暴。
-  int effectiveConnections(int batchTotal) {
+  /// [maxPerTask] 为该网盘的单任务线程上限（夸克默认 512，迅雷默认 64）。
+  int effectiveConnections(int batchTotal, {int? maxPerTask}) {
+    final cap = maxPerTask ?? connections;
     final total = batchTotal <= 0 ? 1 : batchTotal;
     final concurrent = total < maxRunning ? total : maxRunning;
     final share = (connectionBudget / concurrent).ceil();
-    return share.clamp(1, connections);
+    return share.clamp(1, cap);
   }
 
   /// 每 100 分钟刷新一次会话并持久化最新 cookie

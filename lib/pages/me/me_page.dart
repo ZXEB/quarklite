@@ -190,11 +190,20 @@ class MePage extends StatelessWidget {
           ListTile(
             leading:
                 const Icon(Icons.speed_rounded, color: AppColors.accent),
-            title: const Text('下载连接数'),
+            title: const Text('夸克下载线程'),
             subtitle: Text('单任务最大 ${app.connections} 线程'),
             trailing: const Icon(Icons.chevron_right_rounded,
                 color: AppColors.textSecondary),
             onTap: () => _editConnections(context, app),
+          ),
+          const Divider(height: 1, indent: 56),
+          ListTile(
+            leading: const Icon(Icons.bolt_rounded, color: AppColors.accent),
+            title: const Text('迅雷下载线程'),
+            subtitle: Text('单任务最大 ${app.xunleiConnections} 线程'),
+            trailing: const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textSecondary),
+            onTap: () => _editXunleiConnections(context, app),
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
@@ -365,31 +374,71 @@ class MePage extends StatelessWidget {
   }
 
   void _editConnections(BuildContext context, AppState app) {
-    final options = [8, 16, 32, 64, 128, 256, 512];
+    final options = [64, 128, 256, 512, 1024];
+    _showThreadPicker(
+      context: context,
+      title: '夸克下载线程',
+      options: options,
+      current: app.connections,
+      unit: '线程',
+      onPick: (n) => app.setConnections(n),
+    );
+  }
+
+  void _editXunleiConnections(BuildContext context, AppState app) {
+    final options = [16, 32, 64, 128, 256];
+    _showThreadPicker(
+      context: context,
+      title: '迅雷下载线程',
+      options: options,
+      current: app.xunleiConnections,
+      unit: '线程',
+      onPick: (n) => app.setXunleiConnections(n),
+    );
+  }
+
+  /// 线程数选择弹窗：附性能提醒，让用户自行取舍
+  void _showThreadPicker(
+    BuildContext context, {
+    required String title,
+    required List<int> options,
+    required int current,
+    required String unit,
+    required ValueChanged<int> onPick,
+  }) {
     showDialog(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('下载连接数'),
+        title: Text(title),
         children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              '线程数越高下载越快，但过高可能让性能较弱的设备卡顿；\n过低则速度偏慢。请按设备性能自行取舍。',
+              style: TextStyle(
+                  color: AppColors.orange, fontSize: 12, height: 1.6),
+            ),
+          ),
+          const SizedBox(height: 8),
           for (final n in options)
             SimpleDialogOption(
               onPressed: () async {
-                await app.setConnections(n);
+                await onPick(n);
                 if (ctx.mounted) Navigator.pop(ctx);
               },
               child: Row(
                 children: [
                   Icon(
-                    n == app.connections
+                    n == current
                         ? Icons.radio_button_checked_rounded
                         : Icons.radio_button_off_rounded,
-                    color: n == app.connections
+                    color: n == current
                         ? AppColors.accent
                         : AppColors.textSecondary,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
-                  Text('$n 线程', style: const TextStyle(fontSize: 14)),
+                  Text('$n $unit', style: const TextStyle(fontSize: 14)),
                 ],
               ),
             ),

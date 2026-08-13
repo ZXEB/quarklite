@@ -1,0 +1,147 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../api/xunlei_client.dart';
+import '../utils/app_logger.dart';
+
+/// 迅雷云盘登录态管理（token 持久化 + refresh 续期）
+class XunleiState extends ChangeNotifier {
+  static const _kAccess = 'xunlei_access_token';
+  static const _kRefresh = 'xunlei_refresh_token';
+  static const _kUser = 'xunlei_user_id';
+  static const _kDevice = 'xunlei_device_id';
+
+  static XunleiState? _instance;
+  static XunleiState get I => _instance ??= XunleiState._();
+
+  final XunleiClient client = XunleiClient();
+  final _secure = const FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
+  String? username; // 登录账号（手机号/邮箱），仅本机展示
+  bool _ready = false;
+  Timer? _refreshTimer;
+
+  XunleiState._();
+
+  bool get isLoggedIn => client.hasLogin;
+
+  /// 应用启动时恢复登录态；refresh_token 有效时自动续期
+  Future<void> init() async {
+    if (_ready) return;
+    _ready = true;
+    try {
+      final access = await _read(_kAccess);
+      final refresh = await _read(_kRefresh);
+      final user = await _read(_kUser);
+      var device = await _read(_kDevice);
+      if (device.isEmpty) {
+        device = XunleiClient.randomDeviceId();
+        await _write(_kDevice, device);
+      }
+      client.setTokens(
+          access: access, refresh: refresh, user: user, device: device);
+      AppLogger.I.i('xunlei', '恢复登录态 access=${access.isNotEmpty} refresh=${refresh.isNotEmpty}');
+      if (access.isNotEmpty && refresh.isNotEmpty) {
+        // 后台续期验证
+        unawaited(_autoRefresh());
+      } else if (refresh.isNotEmpty) {
+        final err = await client.refresh();
+        if (err == null) {
+          await _persist();
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      AppLogger.I.e('xunlei', '恢复登录态失败: $e');
+    }
+  }
+
+  Future<String?> _autoRefresh() async {
+    final err = await client.refresh();
+    if (err != null) {
+      AppLogger.I.w('xunlei', '自动续期失败: $err');
+      return err;
+    }
+    await _persist();
+    notifyListeners();
+    return null;
+  }
+
+  /// 账号密码登录
+  Future<String?> login(String account, String password) async {
+    final err = await client.signin(account, password);
+    if (err != null) return err;
+    username = account;
+    await _persist();
+    _startRefresher();
+    AppLogger.I.i('xunlei', '登录成功 user=${client.userId}');
+    notifyListeners();
+    return null;
+  }
+
+  Future<void> logout() async {
+    client.setTokens();
+    username = null;
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    for (final k in [_kAccess, _kRefresh, _kUser]) {
+      try {
+        await _secure.delete(key: k);
+      } catch (_) {}
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(k);
+      } catch (_) {}
+    }
+    AppLogger.I.i('xunlei', '已退出登录');
+    notifyListeners();
+  }
+
+  /// access_token 有效期约 7 天，提前续期保持登录态
+  void _startRefresher() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(hours: 12), (_) {
+      unawaited(_autoRefresh());
+    });
+  }
+
+  Future<void> _persist() async {
+    await _write(_kAccess, client.accessToken);
+    await _write(_kRefresh, client.refreshToken);
+    await _write(_kUser, client.userId);
+  }
+
+  Future<String> _read(String key) async {
+    try {
+      final v = await _secure.read(key: key);
+      if (v != null && v.isNotEmpty) return v;
+    } catch (_) {}
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(key) ?? '';
+    } catch (_) {}
+    return '';
+  }
+
+  Future<void> _write(String key, String value) async {
+    if (value.isEmpty) return;
+    try {
+      await _secure.write(key: key, value: value);
+    } catch (_) {}
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(key, value);
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+}

@@ -22,6 +22,7 @@ dependencies:
   flutter_foreground_task: ^8.2.0
   flutter_local_notifications: ^22.3.0
   ffi: ^2.2.0
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:
