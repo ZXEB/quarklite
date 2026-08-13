@@ -62,6 +62,7 @@ class DownloadNotifier {
         ),
       ),
     );
+    await _local.getNotificationAppLaunchDetails();
     if (_isAndroid) {
       await _local
           .resolvePlatformSpecificImplementation<
@@ -195,6 +196,9 @@ class DownloadNotifier {
           category: done
               ? AndroidNotificationCategory.status
               : AndroidNotificationCategory.error,
+        ),
+        windows: const WindowsNotificationDetails(
+          duration: WindowsNotificationDuration.long,
         ),
       ),
     );
