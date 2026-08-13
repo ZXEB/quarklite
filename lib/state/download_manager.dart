@@ -16,6 +16,9 @@ class DownloadManager extends ChangeNotifier {
   bool _failed = false;
   DateTime? _lastStartAttempt;
 
+  /// 最近一次引擎错误详情（供界面展示）
+  String? engineError;
+
   DownloadManager._();
 
   void startPolling() {
@@ -47,8 +50,9 @@ class DownloadManager extends ChangeNotifier {
       _lastStartAttempt = now;
       try {
         await GopeedEngine.start();
-      } catch (_) {
+      } catch (e) {
         _failed = true;
+        engineError = GopeedEngine.lastError ?? e.toString();
         notifyListeners();
         return;
       }
@@ -59,10 +63,12 @@ class DownloadManager extends ChangeNotifier {
         ..clear()
         ..addAll(list);
       _failed = false;
+      engineError = null;
       notifyListeners();
       DownloadNotifier.update(list);
     } catch (e) {
       _failed = true;
+      engineError = e.toString();
     }
   }
 

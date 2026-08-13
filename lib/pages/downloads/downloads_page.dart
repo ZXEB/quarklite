@@ -309,10 +309,28 @@ class _DownloadsPageState extends State<DownloadsPage>
   Future<void> _retryEngine() async {
     try {
       await GopeedEngine.start();
+      DownloadManager.I.engineError = null;
       await DownloadManager.I.refresh();
       _toast('下载引擎已启动');
     } catch (e) {
-      _toast('启动失败: $e');
+      final detail = GopeedEngine.lastError ?? e.toString();
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('下载引擎启动失败'),
+          content: Text(
+            detail,
+            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('知道了'),
+            ),
+          ],
+        ),
+      );
     }
   }
 

@@ -17,6 +17,9 @@ class GopeedEngine {
   static bool _winServerReady = false;
   static String _winDiag = '';
 
+  /// 最近一次引擎启动失败的详细原因（供界面展示）
+  static String? lastError;
+
   static GopeedClient get client {
     final c = _client;
     if (c == null) {
@@ -28,9 +31,11 @@ class GopeedEngine {
   static bool get started => _started;
 
   /// 确保引擎已启动（未启动时自动拉起），供添加下载任务前调用
-  static Future<GopeedClient> ensureStarted() async {
+  /// [wait] 为 true 时等待一次完整启动尝试（最多约 16 秒），失败立即报错；
+  /// 为 false 时交给后台重试逻辑，调用方不等待
+  static Future<GopeedClient> ensureStarted({bool wait = true}) async {
     if (!_started) {
-      await start();
+      await start(retry: !wait);
     }
     return client;
   }
@@ -38,10 +43,11 @@ class GopeedEngine {
   /// 启动引擎。带自愈重试：
   /// 1. 先停掉可能残留的旧实例（Dart 隔离区重建后旧引擎仍持有数据库锁）
   /// 2. 失败时清理可能损坏的数据库目录再重试
-  static Future<void> start() async {
+  /// [retry] 为 false 时只尝试一次（保证快速失败，用于交互等待场景）
+  static Future<void> start({bool retry = true}) async {
     if (_started) return;
     if (!kIsWeb && Platform.isWindows) {
-      await _startWindows();
+      await _startWindows(retry: retry);
       return;
     }
     await _startAndroid();
@@ -60,7 +66,7 @@ class GopeedEngine {
       'refreshInterval': 350,
       'apiToken': '',
     };
-    String lastError = '';
+    String lastError_ = '';
     for (var attempt = 0; attempt < 3; attempt++) {
       try {
         try {
@@ -79,7 +85,7 @@ class GopeedEngine {
         _started = true;
         return;
       } catch (e) {
-        lastError = e.toString();
+        lastError_ = e.toString();
         // 前两次失败后清理损坏的任务数据库再重试（会丢失任务记录但保证引擎可用）
         if (attempt == 1) {
           try {
@@ -93,12 +99,13 @@ class GopeedEngine {
     }
     _client = null;
     _started = false;
-    throw Exception('下载引擎启动失败: $lastError');
+    lastError = '下载引擎启动失败: $lastError_';
+    throw Exception(lastError!);
   }
 
   // ---------------- Windows：gopeed.exe 子进程 + REST API ----------------
 
-  static Future<void> _startWindows() async {
+  static Future<void> _startWindows({bool retry = true}) async {
     if (_winProcess != null && _winServerReady) {
       _started = true;
       return;
@@ -107,11 +114,13 @@ class GopeedEngine {
     final storageDir = '${docs.path}/gopeed';
     final exe = _findGopeedExe();
     if (exe == null) {
-      throw Exception('未找到 gopeed.exe，请确认程序目录完整');
+      lastError = '未找到 gopeed.exe，请确认程序目录完整';
+      throw Exception(lastError!);
     }
     _winDiag = '';
-    String lastError = '';
-    for (var attempt = 0; attempt < 3; attempt++) {
+    String lastError_ = '';
+    final attempts = retry ? 3 : 1;
+    for (var attempt = 0; attempt < attempts; attempt++) {
       try {
         await _stopWindowsProcess();
         await Future.delayed(const Duration(milliseconds: 200));
@@ -154,7 +163,7 @@ class GopeedEngine {
         process.stderr.listen((_) {});
         return;
       } catch (e) {
-        lastError = e.toString();
+        lastError_ = e.toString();
         // 前两次失败后清理损坏的任务数据库再重试
         if (attempt == 1) {
           try {
@@ -168,7 +177,8 @@ class GopeedEngine {
     }
     _client = null;
     _started = false;
-    throw Exception('下载引擎启动失败: $lastError$_winDiag');
+    lastError = '下载引擎启动失败: $lastError_$_winDiag';
+    throw Exception(lastError!);
   }
 
   /// 查找 gopeed.exe：优先程序目录（打包产物目录），其次应用文档目录
@@ -214,8 +224,8 @@ class GopeedEngine {
         stderrBuf.write(tail);
       }
     });
-    // 首次启动可能被杀毒软件扫描，超时放宽到 30 秒
-    Future.delayed(const Duration(seconds: 30), () {
+    // 首启被杀毒软件扫描会慢，但交互等待不可过久：15 秒超时
+    Future.delayed(const Duration(seconds: 15), () {
       if (!completer.isCompleted) {
         final tail = buffer.toString().trim();
         final err = stderrBuf.toString().trim();

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'core/gopeed/gopeed_boot.dart';
@@ -29,15 +31,24 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
 
   Future<void> _bootstrap() async {
     try {
-      await DownloadNotifier.init();
+      await DownloadNotifier.init().timeout(const Duration(seconds: 10));
     } catch (_) {
       // 通知初始化失败不影响主流程
     }
     try {
-      await AppState.I.init();
+      await AppState.I.init().timeout(const Duration(seconds: 10));
     } catch (e) {
       _bootError = e.toString();
     }
+    // 引擎后台异步启动，不阻塞界面（失败时下载页可重试/查看原因）
+    unawaited(_bootEngine());
+    DownloadManager.I.startPolling();
+    if (mounted) {
+      setState(() => _ready = true);
+    }
+  }
+
+  Future<void> _bootEngine() async {
     try {
       await GopeedEngine.start();
       final client = GopeedEngine.client;
@@ -51,10 +62,6 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
       );
     } catch (_) {
       // 引擎启动失败不阻塞应用：下载页可手动重试，添加任务时也会自动拉起
-    }
-    DownloadManager.I.startPolling();
-    if (mounted) {
-      setState(() => _ready = true);
     }
   }
 
