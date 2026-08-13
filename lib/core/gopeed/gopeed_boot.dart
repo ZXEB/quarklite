@@ -22,6 +22,10 @@ class GopeedEngine {
   static Future<void>? _startInFlight;
   /// 引擎进程意外退出后的自动重启防抖标志
   static bool _autoRestarting = false;
+  /// 连续快速退出计数（启动后 10 秒内退出算一次，防止被杀软反复拦截时无限重启）
+  static int _rapidExitCount = 0;
+  /// 最近一次引擎启动成功的时间
+  static DateTime? _lastStartTime;
 
   /// 最近一次引擎启动失败的详细原因（供界面展示）
   static String? lastError;
@@ -128,7 +132,10 @@ class GopeedEngine {
   // ---------------- Windows：gopeed.exe 子进程 + REST API ----------------
 
   static Future<void> _startWindows({bool retry = true}) async {
-    if (_winProcess != null && _winServerReady) {
+    // 已就绪判定必须同时满足进程存活标记与 client 非空：
+    // 进程刚退出、退出回调尚未执行时 _winServerReady 仍为 true，
+    // 若此时直接返回会让调用方拿到空的 client，报『下载引擎尚未启动』
+    if (_winProcess != null && _winServerReady && _client != null) {
       _started = true;
       return;
     }
@@ -179,6 +186,7 @@ class GopeedEngine {
         _client = GopeedClient('http://127.0.0.1:$port');
         _started = true;
         _winServerReady = true;
+        _lastStartTime = DateTime.now();
         AppLogger.I.i('engine', '引擎启动成功 port=$port pid=${process.pid}');
         // 进程异常退出时标记引擎失效并自动重启；只清理当前进程的引用，避免误清新实例
         // （闭包内 process 无法做空类型提升，先取出 pid 供回调使用）
@@ -191,6 +199,20 @@ class GopeedEngine {
           _winServerReady = false;
           _started = false;
           _client = null;
+          // 连续快速退出（启动后 10 秒内被杀）计数：防止引擎被持续拦截时无限重启
+          final t = _lastStartTime;
+          if (t != null &&
+              DateTime.now().difference(t) < const Duration(seconds: 10)) {
+            _rapidExitCount++;
+          } else {
+            _rapidExitCount = 0;
+          }
+          if (_rapidExitCount >= 5) {
+            AppLogger.I.w('engine',
+                '引擎连续快速退出 $_rapidExitCount 次，暂停自动重启（等待周期轮询重试）');
+            _rapidExitCount = 0;
+            return;
+          }
           // 引擎被杀软终止/崩溃后立即自愈，避免用户操作踩中引擎失效窗口
           unawaited(_autoRestart());
         });
