@@ -1,5 +1,6 @@
 import '../api/quark_client.dart';
 import '../core/gopeed/gopeed_boot.dart';
+import '../core/gopeed/gopeed_client.dart';
 import '../state/app_state.dart';
 
 class DownloadService {
