@@ -278,14 +278,11 @@ class GopeedEngine {
     // （引擎为后台异步启动，不阻塞界面）
     Future.delayed(const Duration(seconds: 30), () {
       if (!completer.isCompleted) {
-        final lines = buffer.toString().trim().split('\n');
-        final tail = lines.length > 3
-            ? lines.sublist(lines.length - 3).join(' | ')
-            : lines.join(' | ');
+        final text = buffer.toString().trim();
         final err = stderrBuf.toString().trim();
-        _winDiag = tail.isNotEmpty ? '输出: $tail' : '';
+        _winDiag = text.isNotEmpty ? '输出: ${_clip(text)}' : '';
         if (err.isNotEmpty) {
-          _winDiag = '$_winDiag 错误输出: ${err.split('\n').last}';
+          _winDiag = '$_winDiag 错误输出: ${_clip(err)}';
         }
         completer.complete(null);
       }
@@ -293,10 +290,22 @@ class GopeedEngine {
     return completer.future;
   }
 
+  /// 诊断文本截断：保留头部与尾部，避免超长输出刷屏
+  static String _clip(String s, [int limit = 6000]) {
+    if (s.length <= limit) return s;
+    final head = s.substring(0, limit ~/ 2);
+    final tail = s.substring(s.length - limit ~/ 2);
+    return '$head …[中间省略 ${s.length - limit} 字符]… $tail';
+  }
+
   /// 杀掉所有 gopeed.exe 进程（含其他实例残留，释放数据库文件锁）
   static Future<void> _killAllGopeed() async {
     try {
-      await Process.run('taskkill', ['/IM', 'gopeed.exe', '/F']);
+      final r = await Process.run('taskkill', ['/IM', 'gopeed.exe', '/F']);
+      if (r.exitCode == 0) {
+        AppLogger.I.w('engine',
+            'taskkill 清除了残留 gopeed 进程: ${r.stdout.toString().trim()}');
+      }
     } catch (_) {
       // 无残留实例时 taskkill 会报错，忽略
     }
