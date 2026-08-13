@@ -40,10 +40,11 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 add_dependencies(${BINARY_NAME} flutter_assemble)
 
 # 打包 Gopeed 下载引擎：若 windows/resources/gopeed.exe 存在则拷贝到产物目录
-if(EXISTS "${PROJECT_SOURCE_DIR}/resources/gopeed.exe")
+set(GOPEED_BIN "${CMAKE_CURRENT_LIST_DIR}/../resources/gopeed.exe")
+if(EXISTS "${GOPEED_BIN}")
   add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "${PROJECT_SOURCE_DIR}/resources/gopeed.exe"
+      "${GOPEED_BIN}"
       "$<TARGET_FILE_DIR:${BINARY_NAME}>/gopeed.exe"
     COMMENT "Copying gopeed.exe")
 endif()
