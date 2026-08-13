@@ -14,26 +14,59 @@ class DownloadService {
     int batchTotal = 1,
   }) async {
     try {
-      await GopeedEngine.ensureStarted();
+      var client = await GopeedEngine.ensureStarted();
       final dir = path ?? await AppState.I.effectiveDownloadDir();
       final app = AppState.I;
       final actualConnections =
           connections ?? app.effectiveConnections(batchTotal);
-      await GopeedEngine.client.create(
-        url: url,
-        path: dir,
-        name: fileName,
-        headers: {
-          if (cookie.isNotEmpty) 'Cookie': cookie,
-          'Referer': 'https://pan.quark.cn/',
-          'User-Agent': QuarkClient.uaDesktopClient,
-        },
-        connections: actualConnections,
-      );
+      try {
+        await _createTask(client,
+            url: url,
+            path: dir,
+            name: fileName,
+            cookie: cookie,
+            connections: actualConnections);
+      } catch (e) {
+        // 引擎进程可能在等待目录等异步操作期间退出（如被杀软终止），
+        // 导致引擎状态被清空：重启引擎并重试一次，而不是直接报“引擎尚未启动”
+        if (e.toString().contains('下载引擎尚未启动') || !GopeedEngine.started) {
+          client = await GopeedEngine.ensureStarted();
+          await _createTask(client,
+              url: url,
+              path: dir,
+              name: fileName,
+              cookie: cookie,
+              connections: actualConnections);
+        } else {
+          rethrow;
+        }
+      }
       return null;
     } catch (e) {
       return '创建下载任务失败: $e';
     }
+  }
+
+  /// 创建 Gopeed 下载任务（附带夸克直链所需的请求头）
+  static Future<void> _createTask(
+    GopeedClient client, {
+    required String url,
+    required String path,
+    required String name,
+    required String cookie,
+    required int connections,
+  }) {
+    return client.create(
+      url: url,
+      path: path,
+      name: name,
+      headers: {
+        if (cookie.isNotEmpty) 'Cookie': cookie,
+        'Referer': 'https://pan.quark.cn/',
+        'User-Agent': QuarkClient.uaDesktopClient,
+      },
+      connections: connections,
+    );
   }
 
   /// 根据 fid 直接下载网盘文件，返回错误信息（null 表示已加入队列）
@@ -62,13 +95,26 @@ class DownloadService {
     String? name,
   }) async {
     try {
-      await GopeedEngine.ensureStarted();
+      var client = await GopeedEngine.ensureStarted();
       final dir = await AppState.I.effectiveDownloadDir();
-      await GopeedEngine.client.create(
-        url: url,
-        path: dir,
-        name: name ?? '',
-      );
+      try {
+        await client.create(
+          url: url,
+          path: dir,
+          name: name ?? '',
+        );
+      } catch (e) {
+        if (e.toString().contains('下载引擎尚未启动') || !GopeedEngine.started) {
+          client = await GopeedEngine.ensureStarted();
+          await client.create(
+            url: url,
+            path: dir,
+            name: name ?? '',
+          );
+        } else {
+          rethrow;
+        }
+      }
       return null;
     } catch (e) {
       return '创建 BT 任务失败: $e';

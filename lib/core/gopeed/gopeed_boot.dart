@@ -17,6 +17,11 @@ class GopeedEngine {
   static bool _winServerReady = false;
   static String _winDiag = '';
 
+  /// 进行中的启动流程（并发调用共享同一次启动，避免互相杀掉对方刚拉起的引擎进程）
+  static Future<void>? _startInFlight;
+  /// 引擎进程意外退出后的自动重启防抖标志
+  static bool _autoRestarting = false;
+
   /// 最近一次引擎启动失败的详细原因（供界面展示）
   static String? lastError;
 
@@ -44,7 +49,21 @@ class GopeedEngine {
   /// 1. 先停掉可能残留的旧实例（Dart 隔离区重建后旧引擎仍持有数据库锁）
   /// 2. 失败时清理可能损坏的数据库目录再重试
   /// [retry] 为 false 时只尝试一次（保证快速失败，用于交互等待场景）
+  /// 并发调用共享同一次启动，避免多个启动流程互相 taskkill 对方刚拉起的引擎进程。
   static Future<void> start({bool retry = true}) async {
+    if (_started) return;
+    final inFlight = _startInFlight;
+    if (inFlight != null) return inFlight;
+    final future = _doStart(retry: retry);
+    _startInFlight = future;
+    try {
+      await future;
+    } finally {
+      _startInFlight = null;
+    }
+  }
+
+  static Future<void> _doStart({required bool retry}) async {
     if (_started) return;
     if (!kIsWeb && Platform.isWindows) {
       await _startWindows(retry: retry);
@@ -154,13 +173,16 @@ class GopeedEngine {
         _client = GopeedClient('http://127.0.0.1:$port');
         _started = true;
         _winServerReady = true;
-        // 进程异常退出时标记引擎失效；只清理当前进程的引用，避免误清新实例
+        // 进程异常退出时标记引擎失效并自动重启；只清理当前进程的引用，避免误清新实例
         process.exitCode.then((code) {
           _winDiag = '引擎进程退出 code=$code';
           if (!identical(process, _winProcess)) return;
+          _winProcess = null;
           _winServerReady = false;
           _started = false;
           _client = null;
+          // 引擎被杀软终止/崩溃后立即自愈，避免用户操作踩中引擎失效窗口
+          unawaited(_autoRestart());
         });
         // 持续消费输出，防止缓冲填满导致进程阻塞
         process.stdout.listen((_) {});
@@ -172,6 +194,10 @@ class GopeedEngine {
         try {
           process?.kill();
         } catch (_) {}
+        if (identical(process, _winProcess)) {
+          _winProcess = null;
+          _winServerReady = false;
+        }
         // 前两次失败后清理损坏的任务数据库再重试
         if (attempt == 1) {
           try {
@@ -210,7 +236,9 @@ class GopeedEngine {
     final buffer = StringBuffer();
     final stderrBuf = StringBuffer();
     final completer = Completer<int?>();
-    process.stdout.transform(utf8.decoder).listen((chunk) {
+    process.stdout
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .listen((chunk) {
       buffer.write(chunk);
       if (buffer.length > 4096) {
         final tail = buffer.toString().substring(buffer.length - 2048);
@@ -224,7 +252,9 @@ class GopeedEngine {
         completer.complete(int.tryParse(match.group(1)!));
       }
     });
-    process.stderr.transform(utf8.decoder).listen((chunk) {
+    process.stderr
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .listen((chunk) {
       stderrBuf.write(chunk);
       if (stderrBuf.length > 4096) {
         final tail = stderrBuf.toString().substring(stderrBuf.length - 2048);
@@ -289,5 +319,23 @@ class GopeedEngine {
     }
     _client = null;
     _started = false;
+  }
+
+  /// 引擎进程意外退出后的自动重启（防抖；失败时留给 DownloadManager 周期重试）
+  static Future<void> _autoRestart() async {
+    if (_autoRestarting) return;
+    _autoRestarting = true;
+    try {
+      // 先等系统清理完退出的进程，再拉起新实例
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (_started) return;
+      try {
+        await start();
+      } catch (_) {
+        // 自动重启失败不抛给调用方，界面由 DownloadManager 呈现引擎错误
+      }
+    } finally {
+      _autoRestarting = false;
+    }
   }
 }
