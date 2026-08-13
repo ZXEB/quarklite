@@ -29,9 +29,11 @@ jobs:
             -ArgumentList @('-A','127.0.0.1','-P','0','-T','','-d',(Join-Path $env:TEMP 'gopeed-storage')) `
             -RedirectStandardOutput $out -RedirectStandardError $err -PassThru -WindowStyle Hidden
           Start-Sleep -Seconds 10
+          $alive = $false
           if ($p.HasExited) {
             Write-Host "EXITED code=$($p.ExitCode)"
           } else {
+            $alive = $true
             Write-Host "ALIVE pid=$($p.Id)"
             Stop-Process -Id $p.Id -Force
           }
@@ -39,7 +41,7 @@ jobs:
           if (Test-Path $out) { Get-Content $out }
           Write-Host "=== STDERR ==="
           if (Test-Path $err) { Get-Content $err }
-          if ($p.HasExited) { exit 1 } else { exit 0 }
+          if (-not $alive) { exit 1 } else { exit 0 }
 
       - name: Start engine without -T argument
         shell: pwsh
@@ -50,9 +52,11 @@ jobs:
             -ArgumentList @('-A','127.0.0.1','-P','0','-d',(Join-Path $env:TEMP 'gopeed-storage2')) `
             -RedirectStandardOutput $out -RedirectStandardError $err -PassThru -WindowStyle Hidden
           Start-Sleep -Seconds 10
+          $alive = $false
           if ($p.HasExited) {
             Write-Host "EXITED code=$($p.ExitCode)"
           } else {
+            $alive = $true
             Write-Host "ALIVE pid=$($p.Id)"
             Stop-Process -Id $p.Id -Force
           }
@@ -60,4 +64,4 @@ jobs:
           if (Test-Path $out) { Get-Content $out }
           Write-Host "=== STDERR ==="
           if (Test-Path $err) { Get-Content $err }
-          if ($p.HasExited) { exit 1 } else { exit 0 }
+          if (-not $alive) { exit 1 } else { exit 0 }
