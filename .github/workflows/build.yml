@@ -100,7 +100,8 @@ jobs:
       - name: Download gopeed engine
         shell: pwsh
         run: |
-          $url = "https://github.com/GopeedLab/gopeed/releases/download/v1.9.3/Gopeed-v1.9.3-windows-amd64.zip"
+          $ver = "${{ vars.GOPEED_VERSION || 'v1.9.3' }}"
+          $url = "https://github.com/GopeedLab/gopeed/releases/download/$ver/gopeed-web-$ver-windows-amd64.zip"
           Invoke-WebRequest -Uri $url -OutFile gopeed.zip
           Expand-Archive gopeed.zip -DestinationPath gopeed
           New-Item -ItemType Directory -Force -Path windows/resources | Out-Null
