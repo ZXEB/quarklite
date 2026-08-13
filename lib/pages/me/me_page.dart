@@ -376,7 +376,7 @@ class MePage extends StatelessWidget {
   void _editConnections(BuildContext context, AppState app) {
     final options = [64, 128, 256, 512, 1024];
     _showThreadPicker(
-      context: context,
+      context,
       title: '夸克下载线程',
       options: options,
       current: app.connections,
@@ -388,7 +388,7 @@ class MePage extends StatelessWidget {
   void _editXunleiConnections(BuildContext context, AppState app) {
     final options = [16, 32, 64, 128, 256];
     _showThreadPicker(
-      context: context,
+      context,
       title: '迅雷下载线程',
       options: options,
       current: app.xunleiConnections,
@@ -404,7 +404,7 @@ class MePage extends StatelessWidget {
     required List<int> options,
     required int current,
     required String unit,
-    required ValueChanged<int> onPick,
+    required Future<void> Function(int) onPick,
   }) {
     showDialog(
       context: context,
