@@ -21,6 +21,7 @@ dependencies:
   video_player: ^2.10.0
   flutter_foreground_task: ^8.2.0
   flutter_local_notifications: ^22.3.0
+  ffi: ^2.2.0
 
 dev_dependencies:
   flutter_test:
