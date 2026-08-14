@@ -28,6 +28,9 @@ class XunleiFile {
   final int size;
   final bool isDir;
   final String webContentLink;
+
+  /// 媒体流 CDN 链接（视频文件专用，限速策略与下载 CDN 不同）
+  final String mediaUrl;
   final String space;
   final String? updatedAt;
 
@@ -38,11 +41,26 @@ class XunleiFile {
     required this.size,
     required this.isDir,
     this.webContentLink = '',
+    this.mediaUrl = '',
     this.space = '',
     this.updatedAt,
   });
 
   factory XunleiFile.fromJson(Map<String, dynamic> json) {
+    var mediaUrl = '';
+    final medias = json['medias'];
+    if (medias is List) {
+      for (final m in medias.whereType<Map>()) {
+        final link = m['link'];
+        if (link is Map) {
+          final u = toStr(link['url']);
+          if (u.isNotEmpty) {
+            mediaUrl = u;
+            break;
+          }
+        }
+      }
+    }
     return XunleiFile(
       id: toStr(json['id']),
       parentId: toStr(json['parent_id']),
@@ -50,10 +68,27 @@ class XunleiFile {
       size: toInt(json['size']),
       isDir: toStr(json['kind']) == 'drive#folder',
       webContentLink: toStr(json['web_content_link']),
+      mediaUrl: mediaUrl,
       space: toStr(json['space']),
       updatedAt: json['modified_time']?.toString(),
     );
   }
+
+  /// 视频文件优先使用媒体 CDN 链接（限速策略不同，可能更快）
+  String get bestDownloadUrl => mediaUrl.isNotEmpty ? mediaUrl : webContentLink;
+
+  static const _videoExts = {
+    'mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'm4v', 'ts', 'rmvb', 'rm',
+  };
+
+  bool get isVideo {
+    final dot = name.lastIndexOf('.');
+    if (dot < 0) return false;
+    return _videoExts.contains(name.substring(dot + 1).toLowerCase());
+  }
+
+  /// 下载用链接：视频且媒体链接可用时用媒体 CDN，否则用普通直链
+  String downloadUrlFor() => isVideo ? bestDownloadUrl : webContentLink;
 }
 
 /// 迅雷云盘客户端（按 AList thunder_browser 驱动实现，2026-08 现行可用流程）：
@@ -76,9 +111,9 @@ class XunleiClient {
   /// 根目录 parent_id（浏览器版未配置 root_folder_id，传空字符串）
   static const rootParentId = '';
 
-  /// 下载直链必须使用客户端下载 UA（影响限速档位）
+  /// 下载直链必须使用客户端下载 UA（影响限速档位；迅雷 App 版实测档位更高）
   static const downloadUa =
-      'AndroidDownloadManager/13 (Linux; U; Android 13; M2004J7AC Build/SP1A.210812.016)';
+      'Dalvik/2.1.0 (Linux; U; Android 12; M2004J7AC Build/SP1A.210812.016)';
 
   /// 登录后刷新验证码 token 用的签名算法链（thunder_browser 版）
   static const _algorithms = [
@@ -392,15 +427,15 @@ class XunleiClient {
     return XunleiFile.fromJson(map);
   }
 
-  /// 批量获取直链（逐文件请求，失败项跳过）
-  Future<Map<String, String>> getDownloadLinks(
+  /// 批量获取文件详情（含直链/媒体链接，失败项跳过）
+  Future<Map<String, XunleiFile>> getDownloadFiles(
       List<(String, String)> idAndSpace) async {
-    final result = <String, String>{};
+    final result = <String, XunleiFile>{};
     for (final (id, space) in idAndSpace) {
       try {
         final f = await getFileDetail(id, space: space);
-        if (f.webContentLink.isNotEmpty) {
-          result[id] = f.webContentLink;
+        if (f.webContentLink.isNotEmpty || f.mediaUrl.isNotEmpty) {
+          result[id] = f;
         }
       } catch (_) {
         // 单个失败跳过

@@ -186,16 +186,17 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
     for (var i = 0; i < items.length; i += batchSize) {
       final end = (i + batchSize) > items.length ? items.length : (i + batchSize);
       final batch = items.sublist(i, end);
-      final links = await _client.getDownloadLinks(
+      final files = await _client.getDownloadFiles(
           batch.map((e) => (e.$1, e.$2)).toList());
       for (final (id, _, rel) in batch) {
-        final url = links[id];
-        if (url == null || url.isEmpty) continue;
-        final name = _nameOf(id) ?? 'file_$id';
+        final f = files[id];
+        if (f == null) continue;
+        final url = f.downloadUrlFor();
+        if (url.isEmpty) continue;
         final path = rel.isEmpty ? base : '$base/$rel';
         final err = await DownloadService.addDirectUrl(
           url: url,
-          fileName: name,
+          fileName: f.name,
           cookie: '',
           path: path,
           maxConnections: app.xunleiConnections,
@@ -207,13 +208,6 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
       }
     }
     return added;
-  }
-
-  String? _nameOf(String id) {
-    for (final f in _files) {
-      if (f.id == id) return f.name;
-    }
-    return null;
   }
 
   // ---------------- UI ----------------
@@ -465,13 +459,14 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
   Future<void> _downloadFile(XunleiFile file) async {
     try {
       final detail = await _client.getFileDetail(file.id, space: file.space);
-      if (detail.webContentLink.isEmpty) {
+      final url = detail.downloadUrlFor();
+      if (url.isEmpty) {
         throw Exception('未获取到下载地址');
       }
       final app = AppState.I;
       final base = await app.effectiveDownloadDir();
       final err = await DownloadService.addDirectUrl(
-        url: detail.webContentLink,
+        url: url,
         fileName: detail.name,
         cookie: '',
         path: base,
