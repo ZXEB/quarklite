@@ -6,9 +6,9 @@ import 'package:flutter/services.dart';
 
 import '../../core/notify/download_notifier.dart';
 import '../../state/app_state.dart';
+import '../../state/xunlei_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
-import '../login/login_page.dart';
 
 class MePage extends StatelessWidget {
   const MePage({super.key});
@@ -16,7 +16,7 @@ class MePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: AppState.I,
+      listenable: Listenable.merge([AppState.I, XunleiState.I]),
       builder: (context, _) {
         final app = AppState.I;
         return SafeArea(
@@ -29,30 +29,11 @@ class MePage extends StatelessWidget {
                     style:
                         TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
               ),
-              _buildLoginCard(context, app),
+              _buildAccountCard(context, app),
               const SizedBox(height: 16),
               _buildSettingsCard(context, app),
               const SizedBox(height: 16),
               _buildAboutCard(context),
-              if (app.isLoggedIn) ...[
-                const SizedBox(height: 24),
-                OutlinedButton(
-                  onPressed: () async {
-                    final ok = await _confirm(context, '退出登录', '确定退出当前账号吗？');
-                    if (ok == true) {
-                      await app.logout();
-                    }
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.red,
-                    side: const BorderSide(color: AppColors.red),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('退出登录'),
-                ),
-              ],
             ],
           ),
         );
@@ -60,113 +41,104 @@ class MePage extends StatelessWidget {
     );
   }
 
-  Widget _buildLoginCard(BuildContext context, AppState app) {
-    final user = app.user;
+  /// 账号管理卡片：夸克网盘 / 迅雷云盘 登录状态与退出入口
+  Widget _buildAccountCard(BuildContext context, AppState app) {
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card,
         borderRadius: BorderRadius.circular(18),
       ),
-      child: InkWell(
-        onTap: () async {
-          if (app.isLoggedIn) return;
-          await Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const LoginPage()),
-          );
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Row(
-          children: [
-            user == null
-                ? Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: AppColors.cardLight,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.person_rounded,
-                        color: AppColors.textSecondary, size: 32),
+      child: Column(
+        children: [
+          _buildAccountRow(
+            context: context,
+            icon: Icons.folder_special_rounded,
+            title: '夸克网盘',
+            subtitle: app.isLoggedIn
+                ? (app.user?.nickname.isNotEmpty == true
+                    ? app.user!.nickname
+                    : '已登录')
+                : '未登录，请到「网盘」页登录',
+            trailing: app.isLoggedIn
+                ? _LogoutButton(
+                    onPressed: () => _confirmLogout(context, '夸克网盘',
+                        () => app.logout()),
                   )
-                : user.avatar.isNotEmpty
-                    ? ClipOval(
-                        child: Image.network(
-                          user.avatar,
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            width: 56,
-                            height: 56,
-                            color: AppColors.cardLight,
-                            child: const Icon(Icons.person_rounded,
-                                color: AppColors.textSecondary, size: 32),
-                          ),
-                        ),
-                      )
-                    : Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: AppColors.accentDeep,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            user.nickname.isNotEmpty
-                                ? user.nickname.characters.first
-                                : '夸',
-                            style: const TextStyle(
-                                color: AppColors.accent, fontSize: 22),
-                          ),
-                        ),
-                      ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    user == null
-                        ? '未登录'
-                        : user.nickname.isNotEmpty
-                            ? user.nickname
-                            : '夸克用户',
-                    style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    user == null
-                        ? '登录夸克账号，解锁全部功能'
-                        : '夸克网盘已连接',
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            if (user == null)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.accent,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text('登录',
-                    style: TextStyle(color: Colors.white, fontSize: 13)),
-              )
-            else
-              const Icon(Icons.verified_rounded,
-                  color: AppColors.green, size: 22),
-          ],
-        ),
+                : null,
+          ),
+          const Divider(height: 1, indent: 56),
+          _buildAccountRow(
+            context: context,
+            icon: Icons.bolt_rounded,
+            title: '迅雷云盘',
+            subtitle: XunleiState.I.isLoggedIn
+                ? (XunleiState.I.username?.isNotEmpty == true
+                    ? XunleiState.I.username!
+                    : '已登录')
+                : '未登录，请到「网盘」页登录',
+            trailing: XunleiState.I.isLoggedIn
+                ? _LogoutButton(
+                    onPressed: () => _confirmLogout(context, '迅雷云盘',
+                        () => XunleiState.I.logout()),
+                  )
+                : null,
+          ),
+        ],
       ),
     );
+  }
+
+  Widget _buildAccountRow({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    Widget? trailing,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.accentDeep,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: AppColors.accent, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12)),
+              ],
+            ),
+          ),
+          if (trailing != null) trailing,
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmLogout(
+      BuildContext context, String name, Future<void> Function() action) async {
+    final ok = await _confirm(context, '退出$name', '确定退出登录吗？');
+    if (ok == true) {
+      await action();
+    }
   }
 
   Widget _buildSettingsCard(BuildContext context, AppState app) {
@@ -572,6 +544,36 @@ class MePage extends StatelessWidget {
             child: const Text('确定'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 账号行右侧的「退出」小按钮
+class _LogoutButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _LogoutButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.red.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.logout_rounded, size: 14, color: AppColors.red),
+            SizedBox(width: 4),
+            Text('退出', style: TextStyle(color: AppColors.red, fontSize: 12)),
+          ],
+        ),
       ),
     );
   }

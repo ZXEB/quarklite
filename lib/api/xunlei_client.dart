@@ -74,6 +74,19 @@ class XunleiClient {
   static const downloadUa =
       'AndroidDownloadManager/13 (Linux; U; Android 13; M2004J7AC Build/SP1A.210812.016)';
 
+  /// 登录后刷新验证码 token 用的签名算法链（thunder_browser 版）
+  static const _algorithms = [
+    'uWRwO7gPfdPB/0NfPtfQO+71',
+    'F93x+qPluYy6jdgNpq+lwdH1ap6WOM+nfz8/V',
+    '0HbpxvpXFsBK5CoTKam',
+    'dQhzbhzFRcawnsZqRETT9AuPAJ+wTQso82mRv',
+    'SAH98AmLZLRa6DB2u68sGhyiDh15guJpXhBzI',
+    'unqfo7Z64Rie9RNHMOB',
+    '7yxUdFADp3DOBvXdz0DPuKNVT35wqa5z0DEyEvf',
+    'RBG',
+    'ThTWPG5eC0UBqlbQ+04nZAptqGCdpv9o55A',
+  ];
+
   final Dio _dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 30),
@@ -113,6 +126,21 @@ class XunleiClient {
     a = a.replaceAll(RegExp(r'[\s-]'), '');
     if (a.startsWith('+86')) a = a.substring(3);
     return a;
+  }
+
+  /// captcha_sign：MD5 链签名（登录后刷新验证码 token 用）
+  String _captchaSign(String timestamp) {
+    var str = '$clientId$clientVersion$packageName$deviceId$timestamp';
+    for (final alg in _algorithms) {
+      str = _md5(str + alg);
+    }
+    return '1.$str';
+  }
+
+  /// 生成接口 action（方法:路径），对照 AList GetAction
+  static String actionOf(String method, String url) {
+    final path = Uri.tryParse(url)?.path ?? '';
+    return '$method:$path';
   }
 
   /// 请求 UA（与设备 ID 绑定，格式对照 AList BuildCustomUserAgent）
@@ -261,7 +289,28 @@ class XunleiClient {
     }
   }
 
-  /// 带 token 续期的请求包装：过期错误码自动续期重试一次
+  /// 登录后刷新验证码 token（云盘请求返回 captcha_invalid 时调用）
+  Future<void> _refreshCaptchaAtLogin(String action) async {
+    final ts = DateTime.now().millisecondsSinceEpoch.toString();
+    final map = await _post('$_authBase/shield/captcha/init', {
+      'action': action,
+      'captcha_token': captchaToken,
+      'client_id': clientId,
+      'device_id': deviceId,
+      'meta': {
+        'client_version': clientVersion,
+        'package_name': packageName,
+        'user_id': userId,
+        'timestamp': ts,
+        'captcha_sign': _captchaSign(ts),
+      },
+      'redirect_uri': 'xlaccsdk01://xunlei.com/callback?state=harbor',
+    });
+    captchaToken = toStr(map['captcha_token']);
+    AppLogger.I.i('xunlei', '登录后刷新验证码 token: ${captchaToken.isNotEmpty}');
+  }
+
+  /// 带 token 续期/验证码刷新的请求包装：过期错误码自动处理并重试一次
   Future<Map<String, dynamic>> _authGet(String url,
       {Map<String, dynamic>? params}) async {
     try {
@@ -270,6 +319,11 @@ class XunleiClient {
       if (e.code == 4122 || e.code == 4121 || e.code == 10 || e.code == 16) {
         final err = await refresh();
         if (err != null) rethrow;
+        return _get(url, params: params);
+      }
+      if (e.code == 9 && e.message.contains('captcha_invalid')) {
+        // 验证码 token 过期：登录后刷新再重试
+        await _refreshCaptchaAtLogin(actionOf('GET', url));
         return _get(url, params: params);
       }
       rethrow;
