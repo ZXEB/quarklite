@@ -15,7 +15,9 @@ import 'theme/app_theme.dart';
 import 'utils/app_logger.dart';
 
 class QuarkLiteApp extends StatefulWidget {
-  const QuarkLiteApp({super.key});
+  final GlobalKey<NavigatorState>? navigatorKey;
+
+  const QuarkLiteApp({super.key, this.navigatorKey});
 
   @override
   State<QuarkLiteApp> createState() => _QuarkLiteAppState();
@@ -83,6 +85,7 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
     return MaterialApp(
       title: 'Quarklite',
       debugShowCheckedModeBanner: false,
+      navigatorKey: widget.navigatorKey,
       theme: AppTheme.dark(),
       home: _ready ? const RootPage() : _BootView(error: _bootError),
     );

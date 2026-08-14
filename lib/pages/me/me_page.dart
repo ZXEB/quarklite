@@ -205,6 +205,73 @@ class MePage extends StatelessWidget {
                 color: AppColors.textSecondary),
             onTap: () => app.openAllFilesAccess(),
           ),
+          if (!kIsWeb && Platform.isWindows) ...[
+            const Divider(height: 1, indent: 56),
+            ListTile(
+              leading: const Icon(Icons.close_fullscreen_rounded,
+                  color: AppColors.accent),
+              title: const Text('关闭窗口时'),
+              subtitle: Text(_closeActionLabel(app.closeAction)),
+              trailing: const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textSecondary),
+              onTap: () => _editCloseAction(context, app),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _closeActionLabel(String action) {
+    switch (action) {
+      case 'minimize':
+        return '最小化到任务栏（后台继续下载）';
+      case 'exit':
+        return '直接退出';
+      case 'ask':
+        return '每次询问';
+      default:
+        return '首次询问后记住（默认）';
+    }
+  }
+
+  void _editCloseAction(BuildContext context, AppState app) {
+    final options = <(String, String)>[
+      ('ask_once', '首次询问后记住（默认）'),
+      ('minimize', '最小化到任务栏（后台继续下载）'),
+      ('exit', '直接退出'),
+      ('ask', '每次询问'),
+    ];
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('关闭窗口时'),
+        children: [
+          for (final (value, label) in options)
+            SimpleDialogOption(
+              onPressed: () async {
+                await app.setCloseAction(value);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: Row(
+                children: [
+                  Icon(
+                    value == app.closeAction
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded,
+                    color: value == app.closeAction
+                        ? AppColors.accent
+                        : AppColors.textSecondary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(label,
+                        style: const TextStyle(fontSize: 14)),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

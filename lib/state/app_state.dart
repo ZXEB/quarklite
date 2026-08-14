@@ -22,6 +22,7 @@ class AppState extends ChangeNotifier {
   static const _kXunleiConnections = 'xunlei_connections';
   static const _kMaxRunning = 'max_running';
   static const _kConnectionBudget = 'connection_budget';
+  static const _kCloseAction = 'window_close_action';
 
   static AppState? _instance;
   static AppState get I => _instance ??= AppState._();
@@ -51,6 +52,9 @@ class AppState extends ChangeNotifier {
   /// 全局活动连接预算：所有任务的总连接数不超过该值。
   /// 单任务时可拿到接近全部预算保证速度，批量任务自动分摊避免打爆网络中断。
   int connectionBudget = 256;
+
+  /// Windows 关闭窗口行为：ask_once（首次询问后记住）/ minimize / exit / ask
+  String closeAction = 'ask_once';
 
   Timer? _sessionTimer;
 
@@ -144,6 +148,7 @@ class AppState extends ChangeNotifier {
       xunleiConnections = prefs.getInt(_kXunleiConnections) ?? 64;
       maxRunning = prefs.getInt(_kMaxRunning) ?? 4;
       connectionBudget = prefs.getInt(_kConnectionBudget) ?? 256;
+      closeAction = prefs.getString(_kCloseAction) ?? 'ask_once';
       notifyListeners();
     });
   }
@@ -223,6 +228,14 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kConnectionBudget, n);
     await _applyEngineConfig(connections: n);
+    notifyListeners();
+  }
+
+  /// 设置 Windows 关闭窗口行为（与 WindowCloseHandler 共用同一个 key）
+  Future<void> setCloseAction(String action) async {
+    closeAction = action;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kCloseAction, action);
     notifyListeners();
   }
 

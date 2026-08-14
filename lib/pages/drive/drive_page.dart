@@ -8,7 +8,6 @@ import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
-import 'album_page.dart';
 import 'search_page.dart';
 
 class DrivePage extends StatefulWidget {
@@ -332,14 +331,6 @@ class _DrivePageState extends State<DrivePage>
                 else ...[
                   IconButton(
                     onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const AlbumPage()),
-                    ),
-                    icon: const Icon(Icons.photo_library_rounded,
-                        color: AppColors.accent),
-                    tooltip: '相册',
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const SearchPage()),
                     ),
                     icon: const Icon(Icons.search_rounded,
@@ -347,30 +338,10 @@ class _DrivePageState extends State<DrivePage>
                     tooltip: '搜索',
                   ),
                   IconButton(
-                    onPressed: () {
-                      _crumbs
-                        ..clear()
-                        ..add(('0', '全部文件'));
-                      _pdirFid = '0';
-                      _currentName = '全部文件';
-                      _files = [];
-                      _load();
-                    },
-                    icon: const Icon(Icons.home_rounded,
-                        color: AppColors.accent),
-                    tooltip: '回到根目录',
-                  ),
-                  IconButton(
                     onPressed: _load,
                     icon: const Icon(Icons.refresh_rounded,
                         color: AppColors.accent),
                     tooltip: '刷新',
-                  ),
-                  IconButton(
-                    onPressed: () => _confirmLogout(),
-                    icon: const Icon(Icons.logout_rounded,
-                        color: AppColors.accent),
-                    tooltip: '退出登录',
                   ),
                 ],
               ],
@@ -645,38 +616,6 @@ class _DrivePageState extends State<DrivePage>
       DownloadManager.I.startPolling();
     } catch (e) {
       _toast('下载失败: $e');
-    }
-  }
-
-  Future<void> _confirmLogout() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('退出夸克网盘'),
-        content: const Text('确定退出登录吗？退出后需要重新登录才能访问网盘文件。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('退出'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      await AppState.I.logout();
-      if (mounted) {
-        _files = [];
-        _pdirFid = '0';
-        _currentName = '全部文件';
-        _crumbs
-          ..clear()
-          ..add(('0', '全部文件'));
-        Navigator.of(context).pop();
-      }
     }
   }
 
