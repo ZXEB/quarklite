@@ -76,14 +76,15 @@ class XunleiState extends ChangeNotifier {
 
   /// 账号密码登录
   Future<String?> login(String account, String password) async {
-    // 设备 ID 与登录凭据绑定（md5(账号+密码)），签名与请求头都依赖它
-    client.deviceId = XunleiClient.deviceIdFor('$account$password');
-    final err = await client.signin(account, password);
+    // 账号规范化（去掉 +86/空格等），设备 ID 与登录凭据绑定（md5(账号+密码)）
+    final normalized = XunleiClient.normalizeAccount(account);
+    client.deviceId = XunleiClient.deviceIdFor('$normalized$password');
+    final err = await client.signin(normalized, password);
     if (err != null) {
       AppLogger.I.e('xunlei', '登录失败: $err (device=${client.deviceId})');
       return err;
     }
-    username = account;
+    username = normalized;
     await _persist();
     _startRefresher();
     AppLogger.I.i('xunlei', '登录成功 user=${client.userId}');

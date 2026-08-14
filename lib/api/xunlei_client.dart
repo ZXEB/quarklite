@@ -101,6 +101,14 @@ class XunleiClient {
   /// 设备 ID：与登录凭据绑定（md5(账号+密码) / md5(refresh_token)），对照 AList 实现
   static String deviceIdFor(String seed) => _md5(seed);
 
+  /// 账号规范化：去掉 +86/空格/横线，服务端只接受纯手机号/邮箱
+  static String normalizeAccount(String account) {
+    var a = account.trim();
+    a = a.replaceAll(RegExp(r'[\s-]'), '');
+    if (a.startsWith('+86')) a = a.substring(3);
+    return a;
+  }
+
   /// 请求 UA（与设备 ID 绑定，格式对照 AList BuildCustomUserAgent）
   static String buildUserAgent(String deviceId) =>
       'ANDROID-com.xunlei.browser/$clientVersion networkType/WIFI appid/$appId '
@@ -152,22 +160,17 @@ class XunleiClient {
 
   // ---------------- 认证 ----------------
 
-  /// 第一步：获取验证码 token（meta 只放账号字段，不带签名）
+  /// 第一步：获取验证码 token（meta 固定用 username 字段，
+  /// 服务端校验 meta.username，传 phone_number/email 会报错）
   Future<void> initCaptcha(String username) async {
-    final meta = <String, dynamic>{};
-    if (username.contains('@')) {
-      meta['email'] = username;
-    } else if (username.length >= 11 && username.length <= 18) {
-      meta['phone_number'] = username;
-    } else {
-      meta['username'] = username;
-    }
     final map = await _post('$_authBase/shield/captcha/init', {
       'action': 'POST:/v1/auth/signin',
       'captcha_token': '',
       'client_id': clientId,
       'device_id': deviceId,
-      'meta': meta,
+      'meta': {
+        'username': username,
+      },
       'redirect_uri': 'xlaccsdk01://xunlei.com/callback?state=harbor',
     });
     final url = toStr(map['url']);
@@ -180,6 +183,7 @@ class XunleiClient {
   /// 第二步：账号密码登录，返回 null 表示成功
   Future<String?> signin(String username, String password) async {
     try {
+      username = normalizeAccount(username);
       await initCaptcha(username);
       final map = await _post('$_authBase/auth/signin', {
         'captcha_token': captchaToken,
