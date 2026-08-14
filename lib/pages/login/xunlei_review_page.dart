@@ -112,15 +112,10 @@ class _XunleiReviewPageState extends State<XunleiReviewPage> {
     final c = _controller;
     if (c == null || _done) return;
     try {
-      final raw = await c.runJavaScript('window.__XL_OPERATION_RESULT__ || ""');
-      // runJavaScript 返回 JSON 编码的字符串，先解外层
-      String text;
-      try {
-        text = jsonDecode(raw) as String;
-      } catch (_) {
-        return;
-      }
-      if (text.isEmpty) return;
+      final obj = await c.runJavaScriptReturningResult(
+          'window.__XL_OPERATION_RESULT__ || ""');
+      if (obj is! String || obj.isEmpty) return;
+      final text = obj;
       _done = true;
       _pollTimer?.cancel();
       AppLogger.I.i('xunlei', '验证结果: $text');
