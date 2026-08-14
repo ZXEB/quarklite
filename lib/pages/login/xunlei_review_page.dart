@@ -101,8 +101,9 @@ class _XunleiReviewPageState extends State<XunleiReviewPage> {
   }
 })();
 ''';
-    c.runJavaScript(js).catchError((e) {
+    c.runJavaScript(js).catchError((Object e) {
       AppLogger.I.w('xunlei', 'bridge 注入失败: $e');
+      return '';
     });
   }
 
