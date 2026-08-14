@@ -92,6 +92,18 @@ class XunleiState extends ChangeNotifier {
     return null;
   }
 
+  /// 风控验证完成后，用新的 creditkey 重试登录
+  Future<String?> loginWithCreditKey(
+      String account, String password, String key) async {
+    client.creditKey = key.trim();
+    client.reviewUrl = '';
+    final err = await login(account, password);
+    if (err != null) {
+      client.creditKey = '';
+    }
+    return err;
+  }
+
   Future<void> logout() async {
     client.setTokens();
     username = null;

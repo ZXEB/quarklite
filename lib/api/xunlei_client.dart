@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
+import '../utils/app_logger.dart';
 import '../utils/types.dart';
 
 /// 迅雷云盘接口异常
@@ -84,7 +85,12 @@ class XunleiClient {
   String deviceId = '';
   String captchaToken = '';
 
+  /// 风控验证：验证链接与人工验证后的密钥（review_panel 流程）
+  String reviewUrl = '';
+  String creditKey = '';
+
   bool get hasLogin => accessToken.isNotEmpty;
+  bool get reviewPending => reviewUrl.isNotEmpty;
 
   void setTokens(
       {String access = '', String refresh = '', String user = '', String device = ''}) {
@@ -153,7 +159,17 @@ class XunleiClient {
     final code = toInt(map['error_code'], fallback: -1);
     final err = toStr(map['error']);
     if (code != 0 && err != 'success' && err.isNotEmpty) {
-      throw XunleiException(code, toStr(map['error_description'], fallback: err));
+      final desc = toStr(map['error_description'], fallback: err);
+      // 风控 review：提取验证链接与 creditkey 供用户完成人工验证
+      if (err == 'review_panel' ||
+          err == 'review' ||
+          desc.contains('result:review') ||
+          desc.contains('review_panel')) {
+        reviewUrl = toStr(map['reviewurl'], fallback: toStr(map['url']));
+        if (map['creditkey'] != null) creditKey = toStr(map['creditkey']);
+        AppLogger.I.w('xunlei', '触发风控 review: $desc url=$reviewUrl');
+      }
+      throw XunleiException(code, desc);
     }
     return map;
   }
@@ -168,6 +184,7 @@ class XunleiClient {
       'captcha_token': '',
       'client_id': clientId,
       'device_id': deviceId,
+      if (creditKey.isNotEmpty) 'creditkey': creditKey,
       'meta': {
         'username': username,
       },
@@ -175,7 +192,11 @@ class XunleiClient {
     });
     final url = toStr(map['url']);
     if (url.isNotEmpty) {
-      throw XunleiException(-1, '触发风控，需要人工验证');
+      // 需要人工验证：记录验证链接
+      reviewUrl = url;
+      if (map['creditkey'] != null) creditKey = toStr(map['creditkey']);
+      AppLogger.I.w('xunlei', 'captcha init 需要验证: $url');
+      throw XunleiException(-1, '需要短信验证');
     }
     captchaToken = toStr(map['captcha_token']);
   }
@@ -191,19 +212,29 @@ class XunleiClient {
         'client_secret': clientSecret,
         'username': username,
         'password': password,
+        if (creditKey.isNotEmpty) 'creditkey': creditKey,
       });
       final access = toStr(map['access_token']);
       if (access.isEmpty) {
         final err = toStr(map['error']);
         if (err == 'review_panel') {
-          return '登录触发风控，需要短信/人工验证，请稍后重试';
+          return '需要短信验证';
         }
         return '登录失败: ${toStr(map['error_description'], fallback: err)}';
       }
       accessToken = access;
       refreshToken = toStr(map['refresh_token']);
       userId = toStr(map['user_id'], fallback: toStr(map['sub']));
+      reviewUrl = '';
+      creditKey = '';
       return null;
+    } on XunleiException catch (e) {
+      if (e.message == '需要短信验证' ||
+          e.message.contains('review') ||
+          reviewPending) {
+        return '需要短信验证';
+      }
+      return e.message;
     } catch (e) {
       return e.toString();
     }
