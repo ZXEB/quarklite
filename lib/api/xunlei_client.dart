@@ -11,7 +11,10 @@ class XunleiException implements Exception {
   final int code;
   final String message;
 
-  XunleiException(this.code, this.message);
+  /// 响应里的 error 字段原文（如 captcha_invalid / space_token_invalid）
+  final String rawError;
+
+  XunleiException(this.code, this.message, {this.rawError = ''});
 
   @override
   String toString() => message;
@@ -197,7 +200,7 @@ class XunleiClient {
         if (map['creditkey'] != null) creditKey = toStr(map['creditkey']);
         AppLogger.I.w('xunlei', '触发风控 review: $desc url=$reviewUrl');
       }
-      throw XunleiException(code, desc);
+      throw XunleiException(code, desc, rawError: err);
     }
     return map;
   }
@@ -255,6 +258,12 @@ class XunleiClient {
       userId = toStr(map['user_id'], fallback: toStr(map['sub']));
       reviewUrl = '';
       creditKey = '';
+      // 登录成功后主动刷新验证码 token，避免首个云盘请求报『验证码无效』
+      try {
+        await _refreshCaptchaAtLogin('POST:/v1/auth/signin');
+      } catch (_) {
+        // 刷新失败不阻塞登录，云盘请求失败时会自动再刷
+      }
       return null;
     } on XunleiException catch (e) {
       if (e.message == '需要短信验证' ||
@@ -291,23 +300,28 @@ class XunleiClient {
 
   /// 登录后刷新验证码 token（云盘请求返回 captcha_invalid 时调用）
   Future<void> _refreshCaptchaAtLogin(String action) async {
-    final ts = DateTime.now().millisecondsSinceEpoch.toString();
-    final map = await _post('$_authBase/shield/captcha/init', {
-      'action': action,
-      'captcha_token': captchaToken,
-      'client_id': clientId,
-      'device_id': deviceId,
-      'meta': {
-        'client_version': clientVersion,
-        'package_name': packageName,
-        'user_id': userId,
-        'timestamp': ts,
-        'captcha_sign': _captchaSign(ts),
-      },
-      'redirect_uri': 'xlaccsdk01://xunlei.com/callback?state=harbor',
-    });
-    captchaToken = toStr(map['captcha_token']);
-    AppLogger.I.i('xunlei', '登录后刷新验证码 token: ${captchaToken.isNotEmpty}');
+    try {
+      final ts = DateTime.now().millisecondsSinceEpoch.toString();
+      final map = await _post('$_authBase/shield/captcha/init', {
+        'action': action,
+        'captcha_token': captchaToken,
+        'client_id': clientId,
+        'device_id': deviceId,
+        'meta': {
+          'client_version': clientVersion,
+          'package_name': packageName,
+          'user_id': userId,
+          'timestamp': ts,
+          'captcha_sign': _captchaSign(ts),
+        },
+        'redirect_uri': 'xlaccsdk01://xunlei.com/callback?state=harbor',
+      });
+      captchaToken = toStr(map['captcha_token']);
+      AppLogger.I.i('xunlei', '刷新验证码 token: ${captchaToken.isNotEmpty}');
+    } catch (e) {
+      AppLogger.I.w('xunlei', '刷新验证码 token 失败: $e');
+      rethrow;
+    }
   }
 
   /// 带 token 续期/验证码刷新的请求包装：过期错误码自动处理并重试一次
@@ -321,7 +335,10 @@ class XunleiClient {
         if (err != null) rethrow;
         return _get(url, params: params);
       }
-      if (e.code == 9 && e.message.contains('captcha_invalid')) {
+      if (e.code == 9 &&
+          (e.rawError == 'captcha_invalid' ||
+              e.message.contains('验证码') ||
+              e.message.contains('captcha'))) {
         // 验证码 token 过期：登录后刷新再重试
         await _refreshCaptchaAtLogin(actionOf('GET', url));
         return _get(url, params: params);
