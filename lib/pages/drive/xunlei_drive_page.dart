@@ -21,10 +21,10 @@ class XunleiDrivePage extends StatefulWidget {
 
 class _XunleiDrivePageState extends State<XunleiDrivePage> {
   List<XunleiFile> _files = [];
-  String _parentId = '0';
+  String _parentId = XunleiClient.rootParentId;
   String _space = XunleiClient.rootSpace;
   String _currentName = '全部文件';
-  final List<(String, String, String)> _crumbs = [('0', XunleiClient.rootSpace, '全部文件')];
+  final List<(String, String, String)> _crumbs = [(XunleiClient.rootParentId, XunleiClient.rootSpace, '全部文件')];
   bool _loading = false;
   String? _error;
 
@@ -511,12 +511,12 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
       if (mounted) {
         setState(() {
           _files = [];
-          _parentId = '0';
+          _parentId = XunleiClient.rootParentId;
           _space = XunleiClient.rootSpace;
           _currentName = '全部文件';
           _crumbs
             ..clear()
-            ..add(('0', XunleiClient.rootSpace, '全部文件'));
+            ..add((XunleiClient.rootParentId, XunleiClient.rootSpace, '全部文件'));
         });
         Navigator.of(context).pop();
       }

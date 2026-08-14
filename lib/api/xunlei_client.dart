@@ -73,6 +73,9 @@ class XunleiClient {
   /// 浏览器网盘根目录 space
   static const rootSpace = 'SPACE_BROWSER';
 
+  /// 根目录 parent_id（浏览器版未配置 root_folder_id，传空字符串）
+  static const rootParentId = '';
+
   /// 下载直链必须使用客户端下载 UA（影响限速档位）
   static const downloadUa =
       'AndroidDownloadManager/13 (Linux; U; Android 13; M2004J7AC Build/SP1A.210812.016)';
