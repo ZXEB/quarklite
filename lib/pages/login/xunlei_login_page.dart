@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../../state/xunlei_state.dart';
 import '../../theme/app_theme.dart';
+import 'xunlei_review_page.dart';
 
 /// 迅雷云盘账号密码登录页（含风控短信验证流程）
 class XunleiLoginPage extends StatefulWidget {
@@ -43,12 +44,44 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
       Navigator.of(context).pop(true);
       return;
     }
-    // 风控：引导用户完成短信验证
+    // 风控：应用内完成短信/滑块验证
     if (XunleiState.I.client.reviewPending) {
-      _showReviewDialog(account, password);
+      await _startInAppReview(account, password);
       return;
     }
     _toast('登录失败: $err');
+  }
+
+  /// 应用内验证：WebView 打开验证页，验证成功后自动带 creditkey 重试登录
+  Future<void> _startInAppReview(String account, String password) async {
+    final client = XunleiState.I.client;
+    if (!mounted) return;
+    final key = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => XunleiReviewPage(
+          reviewUrl: client.reviewUrl,
+          creditKey: client.creditKey,
+          deviceId: client.deviceId,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (key == null || key.isEmpty) {
+      // 取消/失败：兜底手动输入 creditkey
+      _showReviewDialog(account, password);
+      return;
+    }
+    setState(() => _submitting = true);
+    final err = await XunleiState.I.loginWithCreditKey(account, password, key);
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    if (err == null) {
+      Navigator.of(context).pop(true);
+    } else if (XunleiState.I.client.reviewPending) {
+      _toast('仍需验证，请重新完成验证');
+    } else {
+      _toast('登录失败: $err');
+    }
   }
 
   /// 风控验证对话框：打开验证页 → 完成短信验证 → 粘贴 creditkey → 重新登录

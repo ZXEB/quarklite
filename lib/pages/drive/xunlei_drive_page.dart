@@ -227,6 +227,12 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
           IconButton(
             onPressed: _load,
             icon: const Icon(Icons.refresh_rounded, color: AppColors.accent),
+            tooltip: '刷新',
+          ),
+          IconButton(
+            onPressed: () => _confirmLogout(),
+            icon: const Icon(Icons.logout_rounded, color: AppColors.accent),
+            tooltip: '退出登录',
           ),
         ],
       ),
@@ -479,6 +485,41 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
     } catch (e) {
       AppLogger.I.e('xunlei', '下载失败 ${file.name}: $e');
       _toast('下载失败: $e');
+    }
+  }
+
+  Future<void> _confirmLogout() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('退出迅雷云盘'),
+        content: const Text('确定退出登录吗？退出后需要重新登录才能访问网盘文件。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await XunleiState.I.logout();
+      if (mounted) {
+        setState(() {
+          _files = [];
+          _parentId = '0';
+          _space = XunleiClient.rootSpace;
+          _currentName = '全部文件';
+          _crumbs
+            ..clear()
+            ..add(('0', XunleiClient.rootSpace, '全部文件'));
+        });
+        Navigator.of(context).pop();
+      }
     }
   }
 
