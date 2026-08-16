@@ -293,63 +293,51 @@ class _DrivePageState extends State<DrivePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final canBack = Navigator.of(context).canPop();
-    return SafeArea(
-      child: Column(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('夸克网盘'),
+        actions: _selectMode
+            ? [
+                TextButton(
+                  onPressed: _selectAllFiles,
+                  child: const Text('全选',
+                      style: TextStyle(color: AppColors.accent)),
+                ),
+                IconButton(
+                  onPressed: _exitSelectMode,
+                  icon: const Icon(Icons.close_rounded,
+                      color: AppColors.accent),
+                ),
+              ]
+            : [
+                IconButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SearchPage()),
+                  ),
+                  icon: const Icon(Icons.search_rounded,
+                      color: AppColors.accent),
+                  tooltip: '搜索',
+                ),
+                IconButton(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh_rounded,
+                      color: AppColors.accent),
+                  tooltip: '刷新',
+                ),
+                IconButton(
+                  onPressed: _confirmLogout,
+                  icon: const Icon(Icons.logout_rounded,
+                      color: AppColors.accent),
+                  tooltip: '退出登录',
+                ),
+              ],
+      ),
+      body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 16, 20, 8),
-            child: Row(
-              children: [
-                if (canBack)
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                        color: AppColors.accent, size: 20),
-                  ),
-                const SizedBox(width: 4),
-                const Text('网盘',
-                    style:
-                        TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
-                const Spacer(),
-                if (_selectMode)
-                  Row(
-                    children: [
-                      TextButton(
-                        onPressed: _selectAllFiles,
-                        child: const Text('全选',
-                            style: TextStyle(color: AppColors.accent)),
-                      ),
-                      IconButton(
-                        onPressed: _exitSelectMode,
-                        icon: const Icon(Icons.close_rounded,
-                            color: AppColors.accent),
-                      ),
-                    ],
-                  )
-                else ...[
-                  IconButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SearchPage()),
-                    ),
-                    icon: const Icon(Icons.search_rounded,
-                        color: AppColors.accent),
-                    tooltip: '搜索',
-                  ),
-                  IconButton(
-                    onPressed: _load,
-                    icon: const Icon(Icons.refresh_rounded,
-                        color: AppColors.accent),
-                    tooltip: '刷新',
-                  ),
-                ],
-              ],
-            ),
-          ),
           if (_crumbs.length > 1)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -500,9 +488,7 @@ class _DrivePageState extends State<DrivePage>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    file.isDir
-                        ? '文件夹'
-                        : '${formatBytes(file.size)}  ·  ${formatDateTime(file.updatedAt)}',
+                    file.isDir ? '文件夹' : formatBytes(file.size),
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),
@@ -622,5 +608,41 @@ class _DrivePageState extends State<DrivePage>
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _confirmLogout() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('退出夸克网盘'),
+        content: const Text('确定退出登录吗？退出后需要重新登录才能访问网盘文件。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await AppState.I.logout();
+      if (mounted) {
+        setState(() {
+          _files = [];
+          _pdirFid = '0';
+          _currentName = '全部文件';
+          _crumbs
+            ..clear()
+            ..add(('0', '全部文件'));
+          _selectMode = false;
+          _selected.clear();
+        });
+        Navigator.of(context).pop();
+      }
+    }
   }
 }

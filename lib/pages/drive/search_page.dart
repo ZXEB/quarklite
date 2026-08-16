@@ -271,9 +271,7 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    file.isDir
-                        ? '文件夹'
-                        : '${formatBytes(file.size)}  ·  ${formatDateTime(file.updatedAt)}',
+                    file.isDir ? '文件夹' : formatBytes(file.size),
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),
