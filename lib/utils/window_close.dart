@@ -77,7 +77,7 @@ class WindowCloseHandler {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, 'minimize'),
-            child: const Text('最小化'),
+            child: const Text('最小化到托盘'),
           ),
         ],
       ),

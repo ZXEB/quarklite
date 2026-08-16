@@ -7,7 +7,9 @@
 #include <flutter/standard_method_codec.h>
 
 #include <memory>
+#include <shellapi.h>
 
+#include "resource.h"
 #include "win32_window.h"
 
 // A window that does nothing but host a Flutter view.
@@ -33,6 +35,18 @@ class FlutterWindow : public Win32Window {
 
   // Window control channel: Dart 决定关闭/最小化行为。
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> window_channel_;
+
+  // 系统托盘图标（关闭窗口最小化到托盘后，从这里恢复/退出）。
+  NOTIFYICONDATAW tray_icon_{};
+
+  // 托盘图标是否已成功添加（失败时最小化回退到任务栏）。
+  bool tray_added_ = false;
+
+  // 托盘回调消息号（WM_APP + 1）。
+  static constexpr UINT kTrayCallbackMessage = WM_APP + 1;
+
+  // 从托盘恢复窗口（SW_RESTORE + 置前）。
+  void RestoreFromTray();
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

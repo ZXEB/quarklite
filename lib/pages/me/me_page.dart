@@ -225,7 +225,7 @@ class MePage extends StatelessWidget {
   String _closeActionLabel(String action) {
     switch (action) {
       case 'minimize':
-        return '最小化到任务栏（后台继续下载）';
+        return '最小化到托盘（后台继续下载）';
       case 'exit':
         return '直接退出';
       case 'ask':
@@ -238,7 +238,7 @@ class MePage extends StatelessWidget {
   void _editCloseAction(BuildContext context, AppState app) {
     final options = <(String, String)>[
       ('ask_once', '首次询问后记住（默认）'),
-      ('minimize', '最小化到任务栏（后台继续下载）'),
+      ('minimize', '最小化到托盘（后台继续下载）'),
       ('exit', '直接退出'),
       ('ask', '每次询问'),
     ];
