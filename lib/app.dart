@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show ImageFilter, TileMode;
 
 import 'package:flutter/material.dart';
 
@@ -149,8 +148,6 @@ class _RootPageState extends State<RootPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _AnimatedPageView(index: _index, children: _pages),
-      // 内容延伸到底栏下方，滚动时从液态玻璃底栏下透出（磨砂折射感）
-      extendBody: true,
       bottomNavigationBar: _BottomBar(
         index: _index,
         onTap: (i) => setState(() => _index = i),
@@ -194,262 +191,82 @@ class _AnimatedPageView extends StatelessWidget {
   }
 }
 
-/// 液态玻璃底栏：磨砂模糊 + 半透明填充 + 渐变边缘光 + 镜面高光 +
-/// 弹性入场 / 选中项液体气泡滑动 / 缓慢流动的镜面光带。
-class _BottomBar extends StatefulWidget {
+class _BottomBar extends StatelessWidget {
   final int index;
   final ValueChanged<int> onTap;
 
   const _BottomBar({required this.index, required this.onTap});
 
   @override
-  State<_BottomBar> createState() => _BottomBarState();
-}
-
-class _BottomBarState extends State<_BottomBar> with TickerProviderStateMixin {
-  /// 弹性入场（弹簧过冲）
-  late final AnimationController _entrance = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 750),
-  )..forward();
-
-  /// 镜面高光带循环流动
-  late final AnimationController _sheen = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 6),
-  )..repeat();
-
-  late final Animation<double> _spring = CurvedAnimation(
-    parent: _entrance,
-    curve: const Interval(0.0, 0.5, curve: Curves.easeOutBack),
-  );
-  late final Animation<double> _fade = CurvedAnimation(
-    parent: _entrance,
-    curve: const Interval(0.0, 0.35, curve: Curves.easeOut),
-  );
-
-  static const _items = [
-    (Icons.link_rounded, '解析'),
-    (Icons.folder_rounded, '网盘'),
-    (Icons.download_rounded, '下载'),
-    (Icons.person_outline_rounded, '我的'),
-  ];
-
-  @override
-  void dispose() {
-    _entrance.dispose();
-    _sheen.dispose();
-    super.dispose();
-  }
-
-  /// 选中项气泡的水平对齐（4 项均匀分布）
-  Alignment _bubbleAlignment(int index) => Alignment((index - 1.5) / 2, 0);
-
-  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([_entrance, _sheen]),
-      builder: (context, _) {
-        final scale = 0.92 + 0.08 * _spring.value;
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
-            child: Transform.scale(
-              scale: scale,
-              child: Opacity(
-                opacity: _fade.value,
-                child: _buildGlassBar(_sheen.value),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildGlassBar(double sheenT) {
+    final items = [
+      (Icons.link_rounded, '解析'),
+      (Icons.folder_rounded, '网盘'),
+      (Icons.download_rounded, '下载'),
+      (Icons.person_outline_rounded, '我的'),
+    ];
     return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        // 柔和悬浮投影 + 轻微主题色辉光
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.38),
-            blurRadius: 26,
-            offset: const Offset(0, 10),
-          ),
-          BoxShadow(
-            color: AppColors.accent.withValues(alpha: 0.10),
-            blurRadius: 34,
-            offset: Offset.zero,
-          ),
-        ],
+      decoration: const BoxDecoration(
+        color: Color(0xFF12121A),
+        border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
       ),
-      // 1px 渐变描边壳：上亮下暗，模拟玻璃切口边缘光
-      padding: const EdgeInsets.all(1),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(27),
-          gradient: const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0x6BFFFFFF), // 顶部边缘最亮
-              Color(0x1FFFFFFF),
-              Color(0x0DFFFFFF),
-            ],
-          ),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(27),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(
-              sigmaX: 26,
-              sigmaY: 26,
-              tileMode: TileMode.mirror,
-            ),
-            child: Container(
-              // 半透明玻璃填充 + 上部镜面高光
-              foregroundDecoration: const BoxDecoration(
-                borderRadius: BorderRadius.all(Radius.circular(27)),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment(0, 0.55),
-                  colors: [
-                    Color(0x1AFFFFFF),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-              decoration: BoxDecoration(
-                color: const Color(0xFF171722).withValues(alpha: 0.58),
-              ),
-              child: LayoutBuilder(
-                builder: (context, c) {
-                  final bandWidth = c.maxWidth + 260.0;
-                  final dx = (sheenT * 2 - 1) * (bandWidth / 2);
-                  return Stack(
-                    alignment: Alignment.center,
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: List.generate(items.length, (i) {
+            final selected = i == index;
+            final color = selected ? AppColors.accent : AppColors.textSecondary;
+            return Expanded(
+              child: InkWell(
+                onTap: () => onTap(i),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      // 选中项「液体气泡」：弹性滑动到当前项
-                      AnimatedAlign(
-                        duration: const Duration(milliseconds: 420),
-                        curve: Curves.easeOutBack,
-                        alignment: _bubbleAlignment(widget.index),
-                        child: Container(
-                          width: 64,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(18),
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                AppColors.accent.withValues(alpha: 0.36),
-                                AppColors.accent.withValues(alpha: 0.14),
-                              ],
-                            ),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.16),
-                            ),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 240),
+                        curve: Curves.easeOutCubic,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: selected ? 14 : 0,
+                          vertical: selected ? 3 : 0,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              selected ? AppColors.accentDeep : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          transitionBuilder: (child, anim) => ScaleTransition(
+                            scale: anim,
+                            child: child,
+                          ),
+                          child: Icon(
+                            items[i].$1,
+                            key: ValueKey(selected),
+                            size: 22,
+                            color: selected
+                                ? AppColors.accent
+                                : AppColors.textSecondary,
                           ),
                         ),
                       ),
-                      // 缓慢流动的镜面光带
-                      Positioned(
-                        left: -130,
-                        top: 0,
-                        bottom: 0,
-                        width: bandWidth,
-                        child: Transform.translate(
-                          offset: Offset(dx, 0),
-                          child: const DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.transparent,
-                                  Color(0x12FFFFFF),
-                                  Colors.transparent,
-                                ],
-                                stops: [0.32, 0.5, 0.68],
-                              ),
-                            ),
-                          ),
+                      const SizedBox(height: 3),
+                      Text(
+                        items[i].$2,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: color,
+                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                         ),
-                      ),
-                      // 菜单项
-                      Row(
-                        children: List.generate(_items.length, (i) {
-                          final selected = i == widget.index;
-                          final color = selected
-                              ? AppColors.accent
-                              : AppColors.textSecondary;
-                          return Expanded(
-                            child: InkWell(
-                              onTap: () => widget.onTap(i),
-                              borderRadius: BorderRadius.circular(24),
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    AnimatedContainer(
-                                      duration: const Duration(
-                                          milliseconds: 240),
-                                      curve: Curves.easeOutCubic,
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: selected ? 14 : 0,
-                                        vertical: selected ? 3 : 0,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: selected
-                                            ? AppColors.accentDeep
-                                            : Colors.transparent,
-                                        borderRadius:
-                                            BorderRadius.circular(20),
-                                      ),
-                                      child: AnimatedSwitcher(
-                                        duration: const Duration(
-                                            milliseconds: 200),
-                                        transitionBuilder: (child, anim) =>
-                                            ScaleTransition(
-                                          scale: anim,
-                                          child: child,
-                                        ),
-                                        child: Icon(
-                                          _items[i].$1,
-                                          key: ValueKey(selected),
-                                          size: 22,
-                                          color: color,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      _items[i].$2,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: color,
-                                        fontWeight: selected
-                                            ? FontWeight.w600
-                                            : FontWeight.w400,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
                       ),
                     ],
-                  );
-                },
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          }),
         ),
       ),
     );
