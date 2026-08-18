@@ -1,4 +1,8 @@
+import 'package:flutter/material.dart';
+
 import 'dart:ui' as ui;
+
+import 'theme/app_theme.dart';
 
 class _BottomBar extends StatelessWidget {
   final int index;
