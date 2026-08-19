@@ -50,3 +50,6 @@ android/key.properties
 
 # Local build logs / helper scripts
 build_log.txt
+
+# Local tooling
+.zcode/

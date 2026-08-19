@@ -11,6 +11,7 @@ import '../../utils/permission.dart';
 import '../../utils/upload_picker.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
+import 'move_target_page.dart';
 import 'search_page.dart';
 
 class DrivePage extends StatefulWidget {
@@ -42,6 +43,7 @@ class _DrivePageState extends State<DrivePage>
   bool _selectMode = false;
   final Set<String> _selected = {};
   bool _downloading = false;
+  bool _busy = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -228,6 +230,169 @@ class _DrivePageState extends State<DrivePage>
     }
   }
 
+  // ---------------- 文件管理 ----------------
+
+  /// 校验重命名名称（去掉首尾空白，禁止为空与特殊字符）
+  String? _validateName(String name) {
+    if (name.isEmpty) return '名称不能为空';
+    if (name.contains('/') || name.contains('\\')) return '名称不能包含 / 或 \\';
+    return null;
+  }
+
+  Future<void> _renameFile(QuarkFile file) async {
+    final controller = TextEditingController(text: file.fileName);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('重命名'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 1,
+          decoration: const InputDecoration(hintText: '输入新名称'),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (newName == null || !mounted) return;
+    final trimmed = newName.trim();
+    if (trimmed == file.fileName) return;
+    final err = _validateName(trimmed);
+    if (err != null) {
+      _toast(err);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await AppState.I.quark.renameFile(file.fid, trimmed);
+      _toast('已重命名');
+      _load();
+    } catch (e) {
+      _toast('重命名失败: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _moveFiles(Set<String> fids) async {
+    if (fids.isEmpty || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final toFid = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          builder: (_) => MoveTargetPage(movedFids: fids),
+        ),
+      );
+      if (!mounted || toFid == null) return;
+      if (toFid == _pdirFid) {
+        _toast('目标目录与当前目录相同');
+        return;
+      }
+      await AppState.I.quark.moveFiles(fids.toList(), toFid);
+      _toast('已移动 ${fids.length} 项');
+      _exitSelectMode();
+      _load();
+    } catch (e) {
+      _toast('移动失败: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _deleteFiles(Set<String> fids) async {
+    if (fids.isEmpty || _busy) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除确认'),
+        content: Text('确定删除选中的 ${fids.length} 项吗？删除后将移入回收站。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _busy = true);
+    try {
+      await AppState.I.quark.deleteFiles(fids.toList());
+      _toast('已删除 ${fids.length} 项');
+      _exitSelectMode();
+      _load();
+    } catch (e) {
+      _toast('删除失败: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _createFolder() async {
+    if (!AppState.I.isLoggedIn || _busy) return;
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('新建文件夹'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 1,
+          decoration: const InputDecoration(hintText: '输入文件夹名称'),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('创建'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || !mounted) return;
+    final trimmed = name.trim();
+    final err = _validateName(trimmed);
+    if (err != null) {
+      _toast(err);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await AppState.I.quark.createFolder(_pdirFid, trimmed);
+      _toast('已创建文件夹');
+      _load();
+    } catch (e) {
+      _toast('创建失败: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   /// 把选中的文件/文件夹展开为 (fid, 相对路径) 列表（文件夹递归收集）
   Future<List<(String, String)>> _expandSelection(Set<String> selected) async {
     final result = <(String, String)>[];
@@ -399,6 +564,30 @@ class _DrivePageState extends State<DrivePage>
                 style: const TextStyle(
                     color: AppColors.textPrimary, fontSize: 14)),
             const Spacer(),
+            OutlinedButton.icon(
+              onPressed: _busy || count == 0 ? null : () => _deleteFiles(_selected),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.red,
+                side: const BorderSide(color: AppColors.red),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.delete_outline_rounded, size: 18),
+              label: const Text('删除'),
+            ),
+            const SizedBox(width: 10),
+            OutlinedButton.icon(
+              onPressed: _busy || count == 0 ? null : () => _moveFiles(_selected),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.accent,
+                side: const BorderSide(color: AppColors.accent),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.drive_file_move_rounded, size: 18),
+              label: const Text('移动到'),
+            ),
+            const SizedBox(width: 10),
             FilledButton.icon(
               onPressed: _downloading || count == 0 ? null : _batchDownload,
               style: FilledButton.styleFrom(
@@ -559,9 +748,57 @@ class _DrivePageState extends State<DrivePage>
               },
             ),
             const SizedBox(height: 8),
+            _actionTile(
+              icon: Icons.drive_file_move_rounded,
+              title: '移动到',
+              subtitle: '转移到其他文件夹',
+              onTap: () {
+                Navigator.pop(ctx);
+                _moveFiles({file.fid});
+              },
+            ),
+            const Divider(height: 1),
+            _actionTile(
+              icon: Icons.drive_file_rename_outline_rounded,
+              title: '重命名',
+              subtitle: null,
+              onTap: () {
+                Navigator.pop(ctx);
+                _renameFile(file);
+              },
+            ),
+            _actionTile(
+              icon: Icons.delete_outline_rounded,
+              title: '删除',
+              subtitle: null,
+              color: AppColors.red,
+              onTap: () {
+                Navigator.pop(ctx);
+                _deleteFiles({file.fid});
+              },
+            ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _actionTile({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    Color color = AppColors.accent,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(title, style: TextStyle(color: color)),
+      subtitle: subtitle == null
+          ? null
+          : Text(subtitle,
+              style: const TextStyle(color: AppColors.textSecondary)),
+      onTap: onTap,
     );
   }
 
@@ -629,6 +866,16 @@ class _DrivePageState extends State<DrivePage>
           children: [
             const SizedBox(height: 8),
             ListTile(
+              leading: const Icon(Icons.create_new_folder_rounded,
+                  color: AppColors.accent),
+              title: const Text('新建文件夹'),
+              subtitle: const Text('在当前目录创建新文件夹'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _createFolder();
+              },
+            ),
+            ListTile(
               leading:
                   const Icon(Icons.upload_file_rounded, color: AppColors.accent),
               title: const Text('上传文件'),
@@ -639,7 +886,7 @@ class _DrivePageState extends State<DrivePage>
               },
             ),
             ListTile(
-              leading: const Icon(Icons.create_new_folder_rounded,
+              leading: const Icon(Icons.folder_upload_rounded,
                   color: AppColors.accent),
               title: const Text('上传文件夹'),
               subtitle: const Text('保持目录结构上传到当前目录'),

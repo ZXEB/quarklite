@@ -365,6 +365,35 @@ class QuarkClient {
     throw QuarkException(-1, '创建文件夹失败: $fileName');
   }
 
+  // ---------------- manage ----------------
+
+  /// 批量删除文件/文件夹（移入回收站）
+  Future<void> deleteFiles(List<String> fids) async {
+    if (fids.isEmpty) return;
+    await _post('$driveApi/file/delete',
+        params: _ucParams,
+        data: {'action_type': 1, 'exclude_fids': <String>[], 'filelist': fids});
+  }
+
+  /// 批量移动到指定目录（根目录 fid 为 '0'）
+  Future<void> moveFiles(List<String> fids, String toPdirFid) async {
+    if (fids.isEmpty) return;
+    await _post('$driveApi/file/move',
+        params: _ucParams,
+        data: {
+          'action_type': 1,
+          'exclude_fids': <String>[],
+          'filelist': fids,
+          'to_pdir_fid': toPdirFid,
+        });
+  }
+
+  /// 重命名文件/文件夹
+  Future<void> renameFile(String fid, String newName) async {
+    await _post('$driveApi/file/rename',
+        params: _ucParams, data: {'fid': fid, 'file_name': newName});
+  }
+
   /// 上传预申请：返回 OSS 分片上传会话（含秒传标记）
   Future<QuarkUploadSession> uploadPre({
     required String pdirFid,
