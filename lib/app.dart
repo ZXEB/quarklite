@@ -8,8 +8,10 @@ import 'pages/downloads/downloads_page.dart';
 import 'pages/drive/drive_hub_page.dart';
 import 'pages/me/me_page.dart';
 import 'pages/parse/parse_page.dart';
+import 'pages/uploads/uploads_page.dart';
 import 'state/app_state.dart';
 import 'state/download_manager.dart';
+import 'state/upload_manager.dart';
 import 'state/xunlei_state.dart';
 import 'theme/app_theme.dart';
 import 'utils/app_logger.dart';
@@ -141,6 +143,7 @@ class _RootPageState extends State<RootPage> {
     ParsePage(),
     DriveHubPage(),
     DownloadsPage(),
+    UploadsPage(),
     MePage(),
   ];
 
@@ -203,6 +206,7 @@ class _BottomBar extends StatelessWidget {
       (Icons.link_rounded, '解析'),
       (Icons.folder_rounded, '网盘'),
       (Icons.download_rounded, '下载'),
+      (Icons.upload_rounded, '上传'),
       (Icons.person_outline_rounded, '我的'),
     ];
     return Container(
@@ -232,8 +236,9 @@ class _BottomBar extends StatelessWidget {
                           vertical: selected ? 3 : 0,
                         ),
                         decoration: BoxDecoration(
-                          color:
-                              selected ? AppColors.accentDeep : Colors.transparent,
+                          color: selected
+                              ? AppColors.accentDeep
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: AnimatedSwitcher(
@@ -242,14 +247,7 @@ class _BottomBar extends StatelessWidget {
                             scale: anim,
                             child: child,
                           ),
-                          child: Icon(
-                            items[i].$1,
-                            key: ValueKey(selected),
-                            size: 22,
-                            color: selected
-                                ? AppColors.accent
-                                : AppColors.textSecondary,
-                          ),
+                          child: _buildTabIcon(i, items[i].$1, selected),
                         ),
                       ),
                       const SizedBox(height: 3),
@@ -258,7 +256,8 @@ class _BottomBar extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 11,
                           color: color,
-                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                          fontWeight:
+                              selected ? FontWeight.w600 : FontWeight.w400,
                         ),
                       ),
                     ],
@@ -268,6 +267,49 @@ class _BottomBar extends StatelessWidget {
             );
           }),
         ),
+      ),
+    );
+  }
+
+  /// 上传 Tab 图标：有进行中任务时显示小红点
+  Widget _buildTabIcon(int i, IconData icon, bool selected) {
+    final base = Icon(
+      icon,
+      key: ValueKey(selected),
+      size: 22,
+      color: selected ? AppColors.accent : AppColors.textSecondary,
+    );
+    if (i != 3) return base;
+    return ListenableBuilder(
+      listenable: UploadManager.I,
+      builder: (context, _) => Stack(
+        clipBehavior: Clip.none,
+        children: [
+          base,
+          if (UploadManager.I.hasActive)
+            const Positioned(
+              right: -4,
+              top: -4,
+              child: _ActiveDot(),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActiveDot extends StatelessWidget {
+  const _ActiveDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 9,
+      height: 9,
+      decoration: BoxDecoration(
+        color: AppColors.red,
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0xFF12121A), width: 1.5),
       ),
     );
   }

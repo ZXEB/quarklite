@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
 import '../utils/types.dart';
@@ -328,6 +331,257 @@ class QuarkClient {
       snapshot
     );
   }
+
+  // ---------------- upload ----------------
+  // 上传协议对齐 alist quark_uc 驱动 + QuarkPan / idv-login 等社区实现：
+  // upload/pre 预申请 → update/hash 秒传校验 → upload/auth 取 OSS 签名 →
+  // 直传 OSS 分片（PUT）→ 合并（POST CompleteMultipartUpload）→ upload/finish。
+
+  static const _ucParams = {'pr': 'ucpro', 'fr': 'pc'};
+  static const _ossUserAgent =
+      'aliyun-sdk-js/6.6.1 Chrome 98.0.4758.80 on Windows 10 64-bit';
+
+  /// 创建文件夹，返回新文件夹 fid。
+  /// 同名已存在等错误时回退：列出父目录复用同名文件夹。
+  Future<String> createFolder(String pdirFid, String fileName) async {
+    try {
+      final data = await _post('$driveApi/file',
+          params: _ucParams,
+          data: {
+            'dir_init_lock': false,
+            'dir_path': '',
+            'file_name': fileName,
+            'pdir_fid': pdirFid,
+          });
+      final fid = data is Map ? (data['fid']?.toString() ?? '') : '';
+      if (fid.isNotEmpty) return fid;
+    } on QuarkException {
+      // 同名冲突等错误：走回退查找
+    }
+    final files = await listFiles(pdirFid);
+    for (final f in files) {
+      if (f.isDir && f.fileName == fileName) return f.fid;
+    }
+    throw QuarkException(-1, '创建文件夹失败: $fileName');
+  }
+
+  /// 上传预申请：返回 OSS 分片上传会话（含秒传标记）
+  Future<QuarkUploadSession> uploadPre({
+    required String pdirFid,
+    required String fileName,
+    required int size,
+    required String mime,
+    required int createdAt,
+    required int updatedAt,
+  }) async {
+    final resp = await _request('POST', '$driveApi/file/upload/pre',
+        params: _ucParams,
+        data: {
+          'ccp_hash_update': true,
+          'dir_name': '',
+          'file_name': fileName,
+          'format_type': mime,
+          'l_created_at': createdAt,
+          'l_updated_at': updatedAt,
+          'pdir_fid': pdirFid,
+          'size': size,
+        });
+    final body = _parseBody(resp);
+    _check(body);
+    return QuarkUploadSession.fromJson(body);
+  }
+
+  /// 秒传校验：文件哈希命中服务端已有文件时返回 true（无需分片上传）
+  Future<bool> uploadHash({
+    required String md5,
+    required String sha1,
+    required String taskId,
+  }) async {
+    final data = await _post('$driveApi/file/update/hash',
+        params: _ucParams,
+        data: {'md5': md5, 'sha1': sha1, 'task_id': taskId});
+    return data is Map && data['finish'] == true;
+  }
+
+  /// 获取 OSS 直传授权（auth_meta 为 OSS V1 签名串，需与直传请求头完全一致）
+  Future<String> uploadAuth({
+    required String authInfo,
+    required String authMeta,
+    required String taskId,
+  }) async {
+    final data = await _post('$driveApi/file/upload/auth',
+        params: _ucParams,
+        data: {'auth_info': authInfo, 'auth_meta': authMeta, 'task_id': taskId});
+    final key = data is Map ? (data['auth_key']?.toString() ?? '') : '';
+    if (key.isEmpty) {
+      throw QuarkException(-1, '获取上传授权失败');
+    }
+    return key;
+  }
+
+  /// 直传单个分片到 OSS（先取签名再 PUT，保证 auth_meta 与请求头同秒一致），
+  /// 返回响应头 ETag（不带引号）
+  Future<String> uploadPart({
+    required QuarkUploadSession session,
+    required int partNumber,
+    required Uint8List bytes,
+    required String mime,
+    CancelToken? cancelToken,
+  }) async {
+    final timeStr = _httpDate();
+    final authKey = await uploadAuth(
+      authInfo: session.authInfo,
+      authMeta: partAuthMeta(session, partNumber, mime, timeStr),
+      taskId: session.taskId,
+    );
+    return uploadPartPut(
+      session: session,
+      partNumber: partNumber,
+      bytes: bytes,
+      mime: mime,
+      authKey: authKey,
+      timeStr: timeStr,
+      cancelToken: cancelToken,
+    );
+  }
+
+  /// 分片直传 OSS
+  Future<String> uploadPartPut({
+    required QuarkUploadSession session,
+    required int partNumber,
+    required Uint8List bytes,
+    required String mime,
+    required String authKey,
+    required String timeStr,
+    CancelToken? cancelToken,
+  }) async {
+    final base = _ossBase(session);
+    final resp = await _dio.put(
+      base,
+      queryParameters: {'partNumber': partNumber, 'uploadId': session.uploadId},
+      data: bytes,
+      options: Options(
+        headers: {
+          'Authorization': authKey,
+          'Content-Type': mime,
+          'Referer': 'https://pan.quark.cn/',
+          'x-oss-date': timeStr,
+          'x-oss-user-agent': _ossUserAgent,
+        },
+        validateStatus: (_) => true,
+        receiveTimeout: const Duration(seconds: 60),
+      ),
+      cancelToken: cancelToken,
+    );
+    if (resp.statusCode != 200) {
+      throw QuarkException(resp.statusCode ?? -1,
+          '上传分片 $partNumber 失败 (HTTP ${resp.statusCode})');
+    }
+    final etag = (resp.headers.value('etag') ?? '').replaceAll('"', '');
+    if (etag.isEmpty) {
+      throw QuarkException(-1, '上传分片 $partNumber 未返回 ETag');
+    }
+    return etag;
+  }
+
+  /// 分片 PUT 的 OSS V1 签名串（与直传请求头逐字一致）
+  static String partAuthMeta(
+      QuarkUploadSession s, int partNumber, String mime, String timeStr) {
+    return 'PUT\n'
+        '\n'
+        '$mime\n'
+        '$timeStr\n'
+        'x-oss-date:$timeStr\n'
+        'x-oss-user-agent:$_ossUserAgent\n'
+        '/${s.bucket}/${s.objKey}?partNumber=$partNumber&uploadId=${s.uploadId}';
+  }
+
+  /// 合并分片：POST CompleteMultipartUpload 到 OSS（含网盘回调登记）
+  /// 200 与 203（回调失败但文件已上传成功）均视为成功
+  Future<void> uploadCommit({
+    required QuarkUploadSession session,
+    required List<String> etags,
+    required String mime,
+  }) async {
+    final buffer = StringBuffer()
+      ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
+      ..writeln('<CompleteMultipartUpload>');
+    for (var i = 0; i < etags.length; i++) {
+      buffer
+        ..writeln('<Part>')
+        ..writeln('<PartNumber>${i + 1}</PartNumber>')
+        ..writeln('<ETag>"${etags[i]}"</ETag>')
+        ..writeln('</Part>');
+    }
+    buffer.writeln('</CompleteMultipartUpload>');
+    final xml = buffer.toString();
+
+    final contentMd5 = base64Encode(md5.convert(utf8.encode(xml)).bytes);
+    final callback = jsonEncode({
+      if (session.callbackUrl.isNotEmpty) 'callbackUrl': session.callbackUrl,
+      if (session.callbackBody.isNotEmpty) 'callbackBody': session.callbackBody,
+    });
+    final callbackBase64 = base64Encode(utf8.encode(callback));
+
+    final timeStr = _httpDate();
+    final authMeta = 'POST\n'
+        '$contentMd5\n'
+        'application/xml\n'
+        '$timeStr\n'
+        'x-oss-callback:$callbackBase64\n'
+        'x-oss-date:$timeStr\n'
+        'x-oss-user-agent:$_ossUserAgent\n'
+        '/${session.bucket}/${session.objKey}?uploadId=${session.uploadId}';
+    final authKey = await uploadAuth(
+        authInfo: session.authInfo, authMeta: authMeta, taskId: session.taskId);
+
+    final base = _ossBase(session);
+    final resp = await _dio.post(
+      base,
+      queryParameters: {'uploadId': session.uploadId},
+      data: xml,
+      options: Options(
+        headers: {
+          'Authorization': authKey,
+          'Content-MD5': contentMd5,
+          'Content-Type': 'application/xml',
+          'Referer': 'https://pan.quark.cn/',
+          'x-oss-callback': callbackBase64,
+          'x-oss-date': timeStr,
+          'x-oss-user-agent': _ossUserAgent,
+        },
+        validateStatus: (_) => true,
+        receiveTimeout: const Duration(seconds: 120),
+      ),
+    );
+    if (resp.statusCode != 200 && resp.statusCode != 203) {
+      throw QuarkException(resp.statusCode ?? -1,
+          '合并分片失败 (HTTP ${resp.statusCode})');
+    }
+  }
+
+  /// 完成上传（通知服务端登记文件）
+  Future<void> uploadFinish({
+    required String objKey,
+    required String taskId,
+  }) async {
+    await _post('$driveApi/file/upload/finish',
+        params: _ucParams, data: {'obj_key': objKey, 'task_id': taskId});
+  }
+
+  /// OSS 直传基础 URL：https://{bucket}.{upload_url去协议}/{obj_key}
+  String _ossBase(QuarkUploadSession s) {
+    var host = s.uploadUrl;
+    if (host.startsWith('https://')) {
+      host = host.substring(8);
+    } else if (host.startsWith('http://')) {
+      host = host.substring(7);
+    }
+    return 'https://${s.bucket}.$host/${s.objKey}';
+  }
+
+  /// RFC1123 GMT 时间（auth_meta 与直传请求头必须同秒一致）
+  static String _httpDate() => HttpDate.format(DateTime.now().toUtc());
 
   // ---------------- share ----------------
 

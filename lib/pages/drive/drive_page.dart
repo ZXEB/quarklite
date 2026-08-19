@@ -4,8 +4,11 @@ import '../../api/quark_models.dart';
 import '../../state/app_state.dart';
 import '../../state/download_manager.dart';
 import '../../state/download_service.dart';
+import '../../state/upload_manager.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
+import '../../utils/permission.dart';
+import '../../utils/upload_picker.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import 'search_page.dart';
@@ -319,6 +322,12 @@ class _DrivePageState extends State<DrivePage>
                   tooltip: '搜索',
                 ),
                 IconButton(
+                  onPressed: _showUploadMenu,
+                  icon: const Icon(Icons.upload_rounded,
+                      color: AppColors.accent),
+                  tooltip: '上传',
+                ),
+                IconButton(
                   onPressed: _load,
                   icon: const Icon(Icons.refresh_rounded,
                       color: AppColors.accent),
@@ -603,6 +612,91 @@ class _DrivePageState extends State<DrivePage>
     } catch (e) {
       _toast('下载失败: $e');
     }
+  }
+
+  // ---------------- 上传 ----------------
+
+  void _showUploadMenu() {
+    if (!AppState.I.isLoggedIn) {
+      _toast('请先登录夸克账号');
+      return;
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading:
+                  const Icon(Icons.upload_file_rounded, color: AppColors.accent),
+              title: const Text('上传文件'),
+              subtitle: const Text('支持一次选择多个文件，上传到当前目录'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickFiles();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.create_new_folder_rounded,
+                  color: AppColors.accent),
+              title: const Text('上传文件夹'),
+              subtitle: const Text('保持目录结构上传到当前目录'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickFolder();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickFiles() async {
+    try {
+      final sources = await UploadPicker.pickFiles();
+      if (!mounted) return;
+      if (sources.isEmpty) return;
+      UploadManager.I.addFiles(sources, _pdirFid);
+      _toast('已加入 ${sources.length} 个上传任务，可在「上传」页查看进度');
+    } catch (e) {
+      _toast('选择文件失败: $e');
+    }
+  }
+
+  Future<void> _pickFolder() async {
+    final FolderPickResult result;
+    try {
+      result = await UploadPicker.pickFolder();
+    } catch (e) {
+      _toast('选择文件夹失败: $e');
+      return;
+    }
+    if (!mounted) return;
+    if (result.canceled) return;
+    if (result.needPermission) {
+      await ensureStoragePermission(context, purpose: '上传文件夹');
+      if (mounted) _toast('授权完成后请重新选择文件夹');
+      return;
+    }
+    if (result.error != null) {
+      _toast(result.error!);
+      return;
+    }
+    if (result.files.isEmpty && result.emptyDirs.isEmpty) {
+      _toast('所选文件夹为空');
+      return;
+    }
+    UploadManager.I.addFolderBatch(
+      files: result.files,
+      emptyDirs: result.emptyDirs,
+      targetDirFid: _pdirFid,
+      rootFolderName: result.rootName,
+    );
+    _toast('已加入 ${result.files.length} 个上传任务，可在「上传」页查看进度');
   }
 
   void _toast(String msg) {

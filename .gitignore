@@ -47,3 +47,6 @@ app.*.map.json
 # Signing (generated in CI)
 android/app/upload-keystore.jks
 android/key.properties
+
+# Local build logs / helper scripts
+build_log.txt

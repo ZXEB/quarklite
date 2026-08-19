@@ -171,3 +171,69 @@ class QuarkDownloadInfo {
     );
   }
 }
+
+/// 夸克上传会话（/file/upload/pre 响应，协议对齐 alist quark_uc 驱动）
+class QuarkUploadSession {
+  /// 上传任务 id（hash 校验与 finish 使用）
+  final String taskId;
+
+  /// 服务端秒传命中（无需分片上传）
+  final bool finish;
+
+  /// OSS 分片上传参数
+  final String uploadId;
+  final String objKey;
+  final String uploadUrl;
+  final String bucket;
+  final String authInfo;
+
+  /// OSS 回调（合并完成后服务端回调网盘登记文件）
+  final String callbackUrl;
+  final String callbackBody;
+
+  /// 服务端建议分片大小（字节）
+  final int partSize;
+
+  /// 预申请后服务端已登记的 fid（秒传/完成场景可能返回）
+  final String fid;
+
+  QuarkUploadSession({
+    required this.taskId,
+    required this.finish,
+    required this.uploadId,
+    required this.objKey,
+    required this.uploadUrl,
+    required this.bucket,
+    required this.authInfo,
+    required this.callbackUrl,
+    required this.callbackBody,
+    required this.partSize,
+    required this.fid,
+  });
+
+  factory QuarkUploadSession.fromJson(Map<String, dynamic> json) {
+    final data = json['data'];
+    final callback = data is Map ? data['callback'] : null;
+    return QuarkUploadSession(
+      taskId: _str(data, 'task_id'),
+      finish: data is Map && data['finish'] == true,
+      uploadId: _str(data, 'upload_id'),
+      objKey: _str(data, 'obj_key'),
+      uploadUrl: _str(data, 'upload_url'),
+      bucket: _str(data, 'bucket'),
+      authInfo: _str(data, 'auth_info'),
+      callbackUrl: _str(callback, 'callbackUrl'),
+      callbackBody: _str(callback, 'callbackBody'),
+      partSize: toInt(json['metadata']?['part_size'], fallback: 0),
+      fid: _str(data, 'fid'),
+    );
+  }
+
+  static String _str(dynamic obj, String key) {
+    if (obj is Map) {
+      final v = obj[key];
+      return v == null ? '' : v.toString();
+    }
+    return '';
+  }
+}

@@ -12,8 +12,10 @@ Map<String, String> quarkImageHeaders() {
   };
 }
 
-/// 检查存储权限，未授权时弹窗引导去系统设置；返回是否已可用
-Future<bool> ensureStoragePermission(BuildContext context) async {
+/// 检查存储权限，未授权时弹窗引导去系统设置；返回是否已可用。
+/// [purpose] 用于定制弹窗文案（如「上传文件夹」）。
+Future<bool> ensureStoragePermission(BuildContext context,
+    {String purpose = '下载文件'}) async {
   final app = AppState.I;
   if (await app.canWriteDownload()) return true;
   if (!context.mounted) return false;
@@ -21,7 +23,7 @@ Future<bool> ensureStoragePermission(BuildContext context) async {
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('需要存储权限'),
-      content: const Text('下载文件需要「所有文件访问」权限，请授权后继续。'),
+      content: Text('$purpose需要「所有文件访问」权限，请授权后继续。'),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx),
