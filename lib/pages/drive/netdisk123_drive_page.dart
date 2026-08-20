@@ -199,7 +199,6 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
             batchTotal: items.length,
             referer: 'https://www.123pan.com/',
             userAgent: Netdisk123Client.ua,
-            userAgent: Netdisk123Client.ua,
           );
           if (err == null) added++;
         } catch (e) {
