@@ -512,7 +512,7 @@ class Netdisk123Client {
       'user-agent': isAndroid
           ? '123pan/v2.4.0(Android_11;Xiaomi)'
           : ua,
-      'platform': platform ?? this.platform,
+      'platform': platform ?? Netdisk123Client.platform,
       if (isAndroid) 'devicetype': 'M2007J20CI',
       if (isAndroid) 'devicename': 'Xiaomi',
       if (isAndroid) 'osversion': 'Android_11',
