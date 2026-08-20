@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../api/netdisk123_client.dart';
 import '../../state/app_state.dart';
@@ -121,8 +122,76 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
     });
   }
 
+  Future<Netdisk123Account?> _pickAccountForDownload() async {
+    final s = Netdisk123State.I;
+    if (s.accounts.isEmpty) {
+      _toast('未登录');
+      return null;
+    }
+    if (s.accounts.length == 1) return s.active ?? s.accounts.first;
+    return showModalBottomSheet<Netdisk123Account>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text('选择下载账号',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+            ),
+            ...s.accounts.map((a) => ListTile(
+                  leading: Icon(
+                    s.activeId == a.id
+                        ? Icons.check_circle_rounded
+                        : Icons.account_circle_rounded,
+                    color: s.activeId == a.id
+                        ? AppColors.accent
+                        : AppColors.textSecondary,
+                  ),
+                  title: Text(a.username),
+                  subtitle: s.activeId == a.id ? const Text('当前活跃') : null,
+                  onTap: () => Navigator.pop(ctx, a),
+                )),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showTrafficExhausted(Netdisk123Account acc) async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('流量不足'),
+        content: Text('账号「${acc.username}」本月免费流量已用完，是否前往充值/开通会员？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('去充值')),
+        ],
+      ),
+    );
+    if (go == true) {
+      final uri = Uri.parse(Netdisk123Client.kPayUrl);
+      try {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (e) {
+        _toast('打开支付页失败: $e');
+      }
+    }
+  }
+
+  bool _isTrafficExhausted(Object e) =>
+      e is Netdisk123Exception && e.code == 5113;
+
   Future<void> _batchDownload() async {
     if (_selected.isEmpty || _downloading) return;
+    final picked = await _pickAccountForDownload();
+    if (picked == null) return;
+    if (picked.id != Netdisk123State.I.activeId) {
+      await Netdisk123State.I.setActive(picked.id);
+    }
     setState(() => _downloading = true);
     _toast('正在扫描文件夹…');
     try {
@@ -131,12 +200,17 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
         _toast('没有可下载的文件');
         return;
       }
-      final added = await _downloadFileList(items);
+      final added = await _downloadFileList(items, picked);
+      if (added == -1) return; // 已弹流量不足
       _toast('已添加 $added 个下载任务');
       DownloadManager.I.startPolling();
       _exitSelectMode();
     } catch (e) {
-      _toast('批量下载失败: $e');
+      if (_isTrafficExhausted(e)) {
+        await _showTrafficExhausted(picked);
+      } else {
+        _toast('批量下载失败: $e');
+      }
     } finally {
       if (mounted) setState(() => _downloading = false);
     }
@@ -176,8 +250,9 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
     return result;
   }
 
-  /// 分批取直链并加入下载队列
-  Future<int> _downloadFileList(List<(Netdisk123File, String)> items) async {
+  /// 分批取直链并加入下载队列；返回 -1 表示遇到 5113 已弹窗
+  Future<int> _downloadFileList(List<(Netdisk123File, String)> items,
+      Netdisk123Account picked) async {
     final app = AppState.I;
     final base = await app.effectiveDownloadDir();
     var added = 0;
@@ -202,6 +277,10 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
           );
           if (err == null) added++;
         } catch (e) {
+          if (_isTrafficExhausted(e)) {
+            await _showTrafficExhausted(picked);
+            return -1;
+          }
           AppLogger.I.e('netdisk123', '取直链失败 ${f.name}: $e');
         }
       }
@@ -456,6 +535,11 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
   }
 
   Future<void> _downloadFile(Netdisk123File file) async {
+    final picked = await _pickAccountForDownload();
+    if (picked == null) return;
+    if (picked.id != Netdisk123State.I.activeId) {
+      await Netdisk123State.I.setActive(picked.id);
+    }
     try {
       final url = await _client.getDownloadUrl(file);
       if (url.isEmpty) {
@@ -476,12 +560,51 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
       _toast('已加入下载队列');
       DownloadManager.I.startPolling();
     } catch (e) {
+      if (_isTrafficExhausted(e)) {
+        await _showTrafficExhausted(picked);
+        return;
+      }
       AppLogger.I.e('netdisk123', '下载失败 ${file.name}: $e');
       _toast('下载失败: $e');
     }
   }
 
   Future<void> _confirmLogout() async {
+    final s = Netdisk123State.I;
+    if (s.accounts.length > 1) {
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('退出 123 网盘'),
+          content: Text('当前 ${s.accounts.length} 个账号，已登录：\n${s.accounts.map((e) => e.username).join("、")}\n\n选择退出方式。'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, 'cancel'), child: const Text('取消')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'active'),
+              child: Text('退出当前 (${s.active?.username ?? ""})'),
+            ),
+            FilledButton(onPressed: () => Navigator.pop(ctx, 'all'), child: const Text('退出全部')),
+          ],
+        ),
+      );
+      if (choice == 'active') {
+        await s.logoutActive();
+        if (s.accounts.isEmpty && mounted) Navigator.of(context).pop();
+        if (mounted) setState(() {});
+      } else if (choice == 'all') {
+        await s.logout();
+        if (mounted) {
+          setState(() {
+            _files = [];
+            _parentId = Netdisk123Client.rootParentId;
+            _currentName = '全部文件';
+            _crumbs..clear()..add((Netdisk123Client.rootParentId, '全部文件'));
+          });
+          Navigator.of(context).pop();
+        }
+      }
+      return;
+    }
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

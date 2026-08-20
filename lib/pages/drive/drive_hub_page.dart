@@ -8,6 +8,7 @@ import '../login/login_page.dart';
 import '../login/netdisk123_login_page.dart';
 import '../login/xunlei_login_page.dart';
 import 'drive_page.dart';
+import 'netdisk123_accounts_page.dart';
 import 'netdisk123_drive_page.dart';
 import 'xunlei_drive_page.dart';
 
@@ -138,14 +139,18 @@ class DriveHubPage extends StatelessWidget {
   Widget _buildNetdisk123Card(BuildContext context) {
     final n = Netdisk123State.I;
     final logged = n.isLoggedIn;
-    final account = n.username ?? '';
+    final count = n.accounts.length;
+    final activeName = n.active?.username ?? n.username ?? '';
+    final subtitle = !logged
+        ? '未登录，点击登录'
+        : count > 1
+            ? '已登录 $count 个账号 · 当前 $activeName'
+            : (activeName.isNotEmpty ? '$activeName · 已连接' : '已连接');
     return _DriveCard(
       icon: Icons.cloud_upload_rounded,
       iconBg: const Color(0xFF1677FF),
       title: '123 网盘',
-      subtitle: logged
-          ? (account.isNotEmpty ? '$account · 已连接' : '已连接')
-          : '未登录，点击登录',
+      subtitle: subtitle,
       statusColor: logged ? AppColors.green : AppColors.textSecondary,
       onTap: () {
         if (!logged) {
@@ -159,30 +164,90 @@ class DriveHubPage extends StatelessWidget {
         );
       },
       onLongPress: logged
-          ? () async {
-              final ok = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('退出 123 网盘'),
-                  content: Text('确定退出账号${account.isEmpty ? '' : '「$account」'}吗？'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('取消'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('退出'),
-                    ),
-                  ],
-                ),
-              );
-              if (ok == true) {
-                await Netdisk123State.I.logout();
-              }
-            }
+          ? () => _showNetdisk123Actions(context)
           : null,
     );
+  }
+
+  Future<void> _showNetdisk123Actions(BuildContext context) async {
+    final n = Netdisk123State.I;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(width: 36, height: 4,
+                decoration: BoxDecoration(color: AppColors.divider, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.manage_accounts_rounded, color: AppColors.accent),
+              title: const Text('管理账号'),
+              subtitle: Text('共 ${n.accounts.length} 个账号'),
+              onTap: () => Navigator.pop(ctx, 'manage'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_add_rounded, color: AppColors.accent),
+              title: const Text('添加账号'),
+              onTap: () => Navigator.pop(ctx, 'add'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout_rounded, color: AppColors.textSecondary),
+              title: Text('退出当前 (${n.active?.username ?? ""})'),
+              onTap: () => Navigator.pop(ctx, 'logoutActive'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+              title: const Text('退出全部'),
+              onTap: () => Navigator.pop(ctx, 'logoutAll'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+    switch (choice) {
+      case 'manage':
+        await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const Netdisk123AccountsPage()),
+        );
+        break;
+      case 'add':
+        await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const Netdisk123LoginPage()),
+        );
+        break;
+      case 'logoutActive':
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('退出当前账号'),
+            content: Text('确定退出「${n.active?.username ?? ""}」？'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('退出')),
+            ],
+          ),
+        );
+        if (ok == true) await Netdisk123State.I.logoutActive();
+        break;
+      case 'logoutAll':
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('退出全部'),
+            content: Text('确定退出全部 ${n.accounts.length} 个账号？'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('退出全部')),
+            ],
+          ),
+        );
+        if (ok == true) await Netdisk123State.I.logout();
+        break;
+    }
   }
 }
 

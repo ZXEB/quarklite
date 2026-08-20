@@ -315,6 +315,13 @@ class Netdisk123Client {
     }
   }
 
+  /// 官方支付/会员页（流量不足时外跳）。抓包后可精确到具体套餐页。
+  static const kPayUrl = 'https://www.123pan.com/vip';
+
+  Future<Map<String, dynamic>> fetchUserInfo() async {
+    return _get('$_apiBase/user/info');
+  }
+
   /// 校验 token 是否仍有效（失败时抛出异常，由调用方决定是否重登）
   Future<bool> validate() async {
     if (token.isEmpty) return false;
