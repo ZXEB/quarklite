@@ -396,7 +396,7 @@ class Netdisk123Client {
             'event': 'homeListFile',
             'operateType': '4',
             'inDirectSpace': 'false',
-          }));
+          });
       final list = map['InfoList'];
       if (list is List) {
         for (final item in list.whereType<Map>()) {
