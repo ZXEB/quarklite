@@ -11,6 +11,16 @@ String formatBytes(num bytes) {
   return '${v.toStringAsFixed(v >= 100 ? 0 : 1)} ${units[i]}';
 }
 
+/// 容量文本：`12.3 GB / 100 GB (12%)`；total 未知时仅显示已用。
+String formatCapacity(num used, num total) {
+  final totalV = total > 0 ? total.toDouble() : 0.0;
+  final usedV = used > 0 ? used.toDouble() : 0.0;
+  if (totalV <= 0) return formatBytes(usedV);
+  final pct = (usedV / totalV * 100).clamp(0.0, 100.0).toDouble();
+  return '${formatBytes(usedV)} / ${formatBytes(totalV)} '
+      '(${pct.toStringAsFixed(pct >= 100 ? 0 : 1)}%)';
+}
+
 String formatSpeed(num bytesPerSec) {
   if (bytesPerSec <= 0) return '0 KB/s';
   return '${formatBytes(bytesPerSec)}/s';

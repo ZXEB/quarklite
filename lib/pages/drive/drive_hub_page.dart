@@ -4,6 +4,7 @@ import '../../state/app_state.dart';
 import '../../state/netdisk123_state.dart';
 import '../../state/xunlei_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/storage_capacity.dart';
 import '../login/login_page.dart';
 import '../login/netdisk123_login_page.dart';
 import '../login/xunlei_login_page.dart';
@@ -71,6 +72,15 @@ class DriveHubPage extends StatelessWidget {
           ? (nickname.isNotEmpty ? '$nickname · 已连接' : '已连接')
           : '未登录，点击登录',
       statusColor: logged ? AppColors.green : AppColors.textSecondary,
+      trailing: logged && app.user != null && app.user!.totalSize > 0
+          ? Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: StorageCapacityRow(
+                totalSize: app.user!.totalSize,
+                usedSize: app.user!.usedSize,
+              ),
+            )
+          : null,
       onTap: () {
         if (!logged) {
           Navigator.of(context).push(
@@ -97,6 +107,15 @@ class DriveHubPage extends StatelessWidget {
           ? (account.isNotEmpty ? '$account · 已连接' : '已连接')
           : '未登录，点击登录',
       statusColor: logged ? AppColors.green : AppColors.textSecondary,
+      trailing: logged && x.hasQuota
+          ? Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: StorageCapacityRow(
+                totalSize: x.totalSize,
+                usedSize: x.usedSize,
+              ),
+            )
+          : null,
       onTap: () {
         if (!logged) {
           Navigator.of(context).push(
@@ -151,6 +170,15 @@ class DriveHubPage extends StatelessWidget {
       title: '123 网盘',
       subtitle: subtitle,
       statusColor: logged ? AppColors.green : AppColors.textSecondary,
+      trailing: logged && n.hasQuota
+          ? Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: StorageCapacityRow(
+                totalSize: n.totalSize,
+                usedSize: n.usedSize,
+              ),
+            )
+          : null,
       onTap: () {
         if (!logged) {
           Navigator.of(context).push(
@@ -176,6 +204,9 @@ class _DriveCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
+  /// 容量信息等附加内容（放在标题与副标题下方）
+  final Widget? trailing;
+
   const _DriveCard({
     required this.icon,
     required this.iconBg,
@@ -184,6 +215,7 @@ class _DriveCard extends StatelessWidget {
     required this.statusColor,
     required this.onTap,
     this.onLongPress,
+    this.trailing,
   });
 
   @override
@@ -225,6 +257,10 @@ class _DriveCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           color: statusColor, fontSize: 12)),
+                  if (trailing != null) ...[
+                    const SizedBox(height: 10),
+                    trailing!,
+                  ],
                 ],
               ),
             ),

@@ -5,10 +5,16 @@ class QuarkUserInfo {
   final String avatar;
   final String userId;
 
+  /// 网盘总容量 / 已用容量（字节，可能为 0 表示未知）
+  final int totalSize;
+  final int usedSize;
+
   QuarkUserInfo({
     required this.nickname,
     required this.avatar,
     required this.userId,
+    required this.totalSize,
+    required this.usedSize,
   });
 
   factory QuarkUserInfo.fromJson(Map<String, dynamic> json) {
@@ -17,6 +23,9 @@ class QuarkUserInfo {
       nickname: _s(data, 'nickname'),
       avatar: _s(data, 'avatar'),
       userId: _s(data, 'user_id'),
+      // 账号信息接口这些字段存在，但值可能为 null
+      totalSize: toInt(data is Map ? data['total_size'] : null),
+      usedSize: toInt(data is Map ? data['used_size'] : null),
     );
   }
 

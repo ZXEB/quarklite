@@ -123,6 +123,8 @@ class AppState extends ChangeNotifier {
           'nickname': info.nickname,
           'avatar': info.avatar,
           'user_id': info.userId,
+          'total_size': info.totalSize,
+          'used_size': info.usedSize,
         }),
       );
     } catch (_) {}
@@ -138,6 +140,8 @@ class AppState extends ChangeNotifier {
         nickname: map['nickname']?.toString() ?? '',
         avatar: map['avatar']?.toString() ?? '',
         userId: map['user_id']?.toString() ?? '',
+        totalSize: map['total_size'] is num ? (map['total_size'] as num).toInt() : 0,
+        usedSize: map['used_size'] is num ? (map['used_size'] as num).toInt() : 0,
       );
     } catch (_) {
       return null;

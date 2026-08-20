@@ -17,6 +17,38 @@ class Netdisk123Exception implements Exception {
   String toString() => message;
 }
 
+/// 123 网盘账号容量信息（/b/api/user/info 响应，未登录/未初始化时返回 0）
+class Netdisk123Quota {
+  /// 网盘总容量 / 已用容量（字节）
+  final int totalSize;
+  final int usedSize;
+
+  const Netdisk123Quota({required this.totalSize, required this.usedSize});
+
+  factory Netdisk123Quota.fromJson(Map<String, dynamic> json) {
+    // 不同协议版本字段名不一，做多键兜底
+    int pick(String key) {
+      final v = json[key];
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? 0;
+      return 0;
+    }
+
+    return Netdisk123Quota(
+      totalSize: pick('total_size') != 0
+          ? pick('total_size')
+          : (pick('totalSize') != 0
+              ? pick('totalSize')
+              : pick('capacity')),
+      usedSize: pick('used_size') != 0
+          ? pick('used_size')
+          : (pick('usedSize') != 0 ? pick('usedSize') : pick('usage')),
+    );
+  }
+
+  bool get valid => totalSize > 0 && usedSize >= 0;
+}
+
 /// 123 网盘文件/文件夹
 class Netdisk123File {
   final String id;
@@ -320,6 +352,12 @@ class Netdisk123Client {
 
   Future<Map<String, dynamic>> fetchUserInfo() async {
     return _get('$_apiBase/user/info');
+  }
+
+  /// 拉取账号容量信息（total_size / used_size）
+  Future<Netdisk123Quota> fetchQuota() async {
+    final map = await _get('$_apiBase/user/info');
+    return Netdisk123Quota.fromJson(map);
   }
 
   /// 校验 token 是否仍有效（失败时抛出异常，由调用方决定是否重登）

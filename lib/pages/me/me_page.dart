@@ -10,6 +10,7 @@ import '../../state/netdisk123_state.dart';
 import '../../state/xunlei_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
+import '../../widgets/storage_capacity.dart';
 
 class MePage extends StatelessWidget {
   const MePage({super.key});
@@ -61,6 +62,14 @@ class MePage extends StatelessWidget {
                     ? app.user!.nickname
                     : '已登录')
                 : '未登录，请到「网盘」页登录',
+            capability: app.isLoggedIn &&
+                    app.user != null &&
+                    app.user!.totalSize > 0
+                ? StorageCapacityRow(
+                    totalSize: app.user!.totalSize,
+                    usedSize: app.user!.usedSize,
+                  )
+                : null,
             trailing: app.isLoggedIn
                 ? _LogoutButton(
                     onPressed: () => _confirmLogout(context, '夸克网盘',
@@ -78,6 +87,12 @@ class MePage extends StatelessWidget {
                     ? XunleiState.I.username!
                     : '已登录')
                 : '未登录，请到「网盘」页登录',
+            capability: XunleiState.I.isLoggedIn && XunleiState.I.hasQuota
+                ? StorageCapacityRow(
+                    totalSize: XunleiState.I.totalSize,
+                    usedSize: XunleiState.I.usedSize,
+                  )
+                : null,
             trailing: XunleiState.I.isLoggedIn
                 ? _LogoutButton(
                     onPressed: () => _confirmLogout(context, '迅雷云盘',
@@ -95,6 +110,12 @@ class MePage extends StatelessWidget {
                     ? Netdisk123State.I.username!
                     : '已登录')
                 : '未登录，请到「网盘」页登录',
+            capability: Netdisk123State.I.isLoggedIn && Netdisk123State.I.hasQuota
+                ? StorageCapacityRow(
+                    totalSize: Netdisk123State.I.totalSize,
+                    usedSize: Netdisk123State.I.usedSize,
+                  )
+                : null,
             trailing: Netdisk123State.I.isLoggedIn
                 ? _LogoutButton(
                     onPressed: () => _confirmLogout(context, '123 网盘',
@@ -112,6 +133,7 @@ class MePage extends StatelessWidget {
     required IconData icon,
     required String title,
     required String subtitle,
+    Widget? capability,
     Widget? trailing,
   }) {
     return Padding(
@@ -143,6 +165,10 @@ class MePage extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 12)),
+                if (capability != null) ...[
+                  const SizedBox(height: 10),
+                  capability,
+                ],
               ],
             ),
           ),

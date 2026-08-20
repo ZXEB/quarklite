@@ -59,7 +59,17 @@ class Netdisk123State extends ChangeNotifier {
   String? _activeId;
   bool _ready = false;
 
+  /// 当前活跃账号的容量信息（-1 表示未拉取/不可用）
+  int _totalSize = -1;
+  int _usedSize = -1;
+
   Netdisk123State._();
+
+  int get totalSize => _totalSize;
+  int get usedSize => _usedSize;
+
+  /// 是否已拿到有效容量数据
+  bool get hasQuota => _totalSize > 0 && _usedSize >= 0;
 
   String? get activeId => _activeId;
   Netdisk123Account? get active {
@@ -76,6 +86,9 @@ class Netdisk123State extends ChangeNotifier {
 
   bool get isLoggedIn => client.hasLogin;
   bool get hasMultiple => accounts.length > 1;
+
+  /// 未登录或容量数据不可用
+  bool get noQuota => !isLoggedIn || !hasQuota;
 
   String _normalizeId(String raw) => raw.trim().toLowerCase();
 
@@ -141,6 +154,7 @@ class Netdisk123State extends ChangeNotifier {
               a.token = client.token;
             }
           }
+          if (client.hasLogin) await refreshQuota();
         }
       }
     } catch (e) {
@@ -176,6 +190,7 @@ class Netdisk123State extends ChangeNotifier {
     }
     await _persistAccounts();
     AppLogger.I.i('netdisk123', '登录成功 account=$account 账号数=${accounts.length}');
+    await refreshQuota();
     notifyListeners();
     return null;
   }
@@ -219,6 +234,7 @@ class Netdisk123State extends ChangeNotifier {
     }
     await _persistAccounts();
     AppLogger.I.i('netdisk123', '扫码登录成功 active=$_activeId');
+    await refreshQuota();
     notifyListeners();
   }
 
@@ -245,6 +261,7 @@ class Netdisk123State extends ChangeNotifier {
           }
         }
       }
+      if (client.hasLogin) await refreshQuota();
     }
     await _persistAccounts();
     notifyListeners();
@@ -260,9 +277,30 @@ class Netdisk123State extends ChangeNotifier {
         if (a.username.isNotEmpty) client.setCredentials(a.username, a.password);
       } else {
         client.clear();
+        _totalSize = -1;
+        _usedSize = -1;
       }
     }
     await _persistAccounts();
+    if (client.hasLogin) await refreshQuota();
+    notifyListeners();
+  }
+
+  /// 拉取当前活跃账号的容量信息并缓存（供网盘页/我的页展示）
+  Future<void> refreshQuota() async {
+    if (!client.hasLogin) {
+      _totalSize = -1;
+      _usedSize = -1;
+      notifyListeners();
+      return;
+    }
+    try {
+      final q = await client.fetchQuota();
+      _totalSize = q.totalSize;
+      _usedSize = q.usedSize;
+    } catch (_) {
+      // 失败保留旧值，不提示
+    }
     notifyListeners();
   }
 

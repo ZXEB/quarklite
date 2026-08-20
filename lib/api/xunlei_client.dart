@@ -20,6 +20,24 @@ class XunleiException implements Exception {
   String toString() => message;
 }
 
+/// 迅雷云盘容量信息（/user/me 响应，未返回容量时默认为 0）
+class XunleiQuota {
+  /// 总容量 / 已用容量（字节）
+  final int totalSize;
+  final int usedSize;
+
+  const XunleiQuota({required this.totalSize, required this.usedSize});
+
+  factory XunleiQuota.fromJson(Map<String, dynamic> json) {
+    return XunleiQuota(
+      totalSize: toInt(json['total_size'], fallback: 0),
+      usedSize: toInt(json['used_size'], fallback: 0),
+    );
+  }
+
+  bool get valid => totalSize > 0;
+}
+
 /// 迅雷云盘文件/文件夹
 class XunleiFile {
   final String id;
@@ -442,5 +460,11 @@ class XunleiClient {
       }
     }
     return result;
+  }
+
+  /// 拉取账号容量信息（/user/me 响应）
+  Future<XunleiQuota> fetchQuota() async {
+    final map = await _authGet('$_authBase/user/me');
+    return XunleiQuota.fromJson(map);
   }
 }

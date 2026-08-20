@@ -26,7 +26,17 @@ class XunleiState extends ChangeNotifier {
   bool _ready = false;
   Timer? _refreshTimer;
 
+  /// 当前账号容量信息（-1 表示未拉取/不可用）
+  int _totalSize = -1;
+  int _usedSize = -1;
+
   XunleiState._();
+
+  int get totalSize => _totalSize;
+  int get usedSize => _usedSize;
+
+  /// 是否已拿到有效容量数据
+  bool get hasQuota => _totalSize > 0 && _usedSize >= 0;
 
   bool get isLoggedIn => client.hasLogin;
 
@@ -58,6 +68,7 @@ class XunleiState extends ChangeNotifier {
           notifyListeners();
         }
       }
+      if (client.hasLogin) await refreshQuota();
     } catch (e) {
       AppLogger.I.e('xunlei', '恢复登录态失败: $e');
     }
@@ -70,6 +81,7 @@ class XunleiState extends ChangeNotifier {
       return err;
     }
     await _persist();
+    await refreshQuota();
     notifyListeners();
     return null;
   }
@@ -88,6 +100,7 @@ class XunleiState extends ChangeNotifier {
     await _persist();
     _startRefresher();
     AppLogger.I.i('xunlei', '登录成功 user=${client.userId}');
+    await refreshQuota();
     notifyListeners();
     return null;
   }
@@ -107,6 +120,8 @@ class XunleiState extends ChangeNotifier {
   Future<void> logout() async {
     client.setTokens();
     username = null;
+    _totalSize = -1;
+    _usedSize = -1;
     _refreshTimer?.cancel();
     _refreshTimer = null;
     for (final k in [_kAccess, _kRefresh, _kUser, _kUsername]) {
@@ -119,6 +134,24 @@ class XunleiState extends ChangeNotifier {
       } catch (_) {}
     }
     AppLogger.I.i('xunlei', '已退出登录');
+    notifyListeners();
+  }
+
+  /// 拉取当前账号容量信息并缓存（供网盘页/我的页展示）
+  Future<void> refreshQuota() async {
+    if (!client.hasLogin) {
+      _totalSize = -1;
+      _usedSize = -1;
+      notifyListeners();
+      return;
+    }
+    try {
+      final q = await client.fetchQuota();
+      _totalSize = q.totalSize;
+      _usedSize = q.usedSize;
+    } catch (_) {
+      // 失败保留旧值，不提示
+    }
     notifyListeners();
   }
 
