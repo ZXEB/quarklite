@@ -141,7 +141,8 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
       return BodySwitcher(child: const Center(child: CircularProgressIndicator()));
     }
     if (_files.isEmpty) {
-      return BodySwitcher(child: const EmptyView(icon: Icons.folder_open_rounded, text: '这里没有文件夹');
+      return BodySwitcher(
+          child: const EmptyView(icon: Icons.folder_open_rounded, text: '这里没有文件夹'));
     }
     final content = ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),

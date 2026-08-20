@@ -7,7 +7,7 @@ class StaggeredFileItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final delay = (index * 40).clamp(0, 240);
+    final delay = (index * 40).clamp(0, 240).toInt();
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: Duration(milliseconds: 320 + delay),
