@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../api/netdisk123_client.dart';
 import '../../state/app_state.dart';
@@ -7,6 +6,7 @@ import '../../state/download_manager.dart';
 import '../../state/download_service.dart';
 import '../../state/netdisk123_state.dart';
 import '../../theme/app_theme.dart';
+import 'netdisk123_pay_page.dart';
 import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
@@ -165,20 +165,17 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('流量不足'),
-        content: Text('账号「${acc.username}」本月免费流量已用完，是否前往充值/开通会员？'),
+        content: Text('账号「${acc.username}」本月免费流量已用完，是否购买流量包（0.5 元起）？'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('去充值')),
         ],
       ),
     );
-    if (go == true) {
-      final uri = Uri.parse(Netdisk123Client.kPayUrl);
-      try {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } catch (e) {
-        _toast('打开支付页失败: $e');
-      }
+    if (go == true && mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const Netdisk123PayPage()),
+      );
     }
   }
 

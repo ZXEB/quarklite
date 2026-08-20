@@ -315,8 +315,8 @@ class Netdisk123Client {
     }
   }
 
-  /// 官方支付/会员页（流量不足时外跳）。抓包后可精确到具体套餐页。
-  static const kPayUrl = 'https://www.123pan.com/vip';
+  /// 流量包充值页（0.5 元档，内置 WebView）（流量不足时外跳）。抓包后可精确到具体套餐页。
+  static const kPayUrl = 'https://www.123pan.com/buy/traffic';
 
   Future<Map<String, dynamic>> fetchUserInfo() async {
     return _get('$_apiBase/user/info');
