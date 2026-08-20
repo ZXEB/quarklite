@@ -11,6 +11,7 @@ import 'pages/parse/parse_page.dart';
 import 'pages/uploads/uploads_page.dart';
 import 'state/app_state.dart';
 import 'state/download_manager.dart';
+import 'state/netdisk123_state.dart';
 import 'state/upload_manager.dart';
 import 'state/xunlei_state.dart';
 import 'theme/app_theme.dart';
@@ -50,6 +51,7 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
       AppLogger.I.e('app', 'AppState 初始化失败: $e');
     }
     unawaited(XunleiState.I.init());
+    unawaited(Netdisk123State.I.init());
     // 引擎后台异步启动，不阻塞界面（失败时下载页可重试/查看原因）
     unawaited(_bootEngine());
     DownloadManager.I.startPolling();

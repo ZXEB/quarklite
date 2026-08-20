@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/notify/download_notifier.dart';
 import '../../state/app_state.dart';
+import '../../state/netdisk123_state.dart';
 import '../../state/xunlei_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
@@ -16,7 +17,8 @@ class MePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([AppState.I, XunleiState.I]),
+      listenable: Listenable.merge(
+          [AppState.I, XunleiState.I, Netdisk123State.I]),
       builder: (context, _) {
         final app = AppState.I;
         return SafeArea(
@@ -80,6 +82,23 @@ class MePage extends StatelessWidget {
                 ? _LogoutButton(
                     onPressed: () => _confirmLogout(context, '迅雷云盘',
                         () => XunleiState.I.logout()),
+                  )
+                : null,
+          ),
+          const Divider(height: 1, indent: 56),
+          _buildAccountRow(
+            context: context,
+            icon: Icons.cloud_upload_rounded,
+            title: '123 网盘',
+            subtitle: Netdisk123State.I.isLoggedIn
+                ? (Netdisk123State.I.username?.isNotEmpty == true
+                    ? Netdisk123State.I.username!
+                    : '已登录')
+                : '未登录，请到「网盘」页登录',
+            trailing: Netdisk123State.I.isLoggedIn
+                ? _LogoutButton(
+                    onPressed: () => _confirmLogout(context, '123 网盘',
+                        () => Netdisk123State.I.logout()),
                   )
                 : null,
           ),
@@ -176,6 +195,16 @@ class MePage extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right_rounded,
                 color: AppColors.textSecondary),
             onTap: () => _editXunleiConnections(context, app),
+          ),
+          const Divider(height: 1, indent: 56),
+          ListTile(
+            leading: const Icon(Icons.cloud_upload_rounded,
+                color: AppColors.accent),
+            title: const Text('123下载线程'),
+            subtitle: Text('单任务最大 ${app.netdisk123Connections} 线程'),
+            trailing: const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textSecondary),
+            onTap: () => _editNetdisk123Connections(context, app),
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
@@ -433,6 +462,18 @@ class MePage extends StatelessWidget {
       current: app.xunleiConnections,
       unit: '线程',
       onPick: (n) => app.setXunleiConnections(n),
+    );
+  }
+
+  void _editNetdisk123Connections(BuildContext context, AppState app) {
+    final options = [16, 32, 64, 128, 256];
+    _showThreadPicker(
+      context,
+      title: '123下载线程',
+      options: options,
+      current: app.netdisk123Connections,
+      unit: '线程',
+      onPick: (n) => app.setNetdisk123Connections(n),
     );
   }
 

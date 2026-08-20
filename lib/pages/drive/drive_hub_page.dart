@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../state/app_state.dart';
+import '../../state/netdisk123_state.dart';
 import '../../state/xunlei_state.dart';
 import '../../theme/app_theme.dart';
 import '../login/login_page.dart';
+import '../login/netdisk123_login_page.dart';
 import '../login/xunlei_login_page.dart';
 import 'drive_page.dart';
+import 'netdisk123_drive_page.dart';
 import 'xunlei_drive_page.dart';
 
 /// 多网盘入口页：列出所有支持的网盘，点击进入对应文件浏览；
@@ -16,7 +19,8 @@ class DriveHubPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([AppState.I, XunleiState.I]),
+      listenable: Listenable.merge(
+          [AppState.I, XunleiState.I, Netdisk123State.I]),
       builder: (context, _) {
         return SafeArea(
           child: Column(
@@ -34,6 +38,8 @@ class DriveHubPage extends StatelessWidget {
                     _buildQuarkCard(context),
                     const SizedBox(height: 14),
                     _buildXunleiCard(context),
+                    const SizedBox(height: 14),
+                    _buildNetdisk123Card(context),
                     const SizedBox(height: 20),
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 4),
@@ -123,6 +129,56 @@ class DriveHubPage extends StatelessWidget {
               );
               if (ok == true) {
                 await XunleiState.I.logout();
+              }
+            }
+          : null,
+    );
+  }
+
+  Widget _buildNetdisk123Card(BuildContext context) {
+    final n = Netdisk123State.I;
+    final logged = n.isLoggedIn;
+    final account = n.username ?? '';
+    return _DriveCard(
+      icon: Icons.cloud_upload_rounded,
+      iconBg: const Color(0xFF1677FF),
+      title: '123 网盘',
+      subtitle: logged
+          ? (account.isNotEmpty ? '$account · 已连接' : '已连接')
+          : '未登录，点击登录',
+      statusColor: logged ? AppColors.green : AppColors.textSecondary,
+      onTap: () {
+        if (!logged) {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const Netdisk123LoginPage()),
+          );
+          return;
+        }
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const Netdisk123DrivePage()),
+        );
+      },
+      onLongPress: logged
+          ? () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('退出 123 网盘'),
+                  content: Text('确定退出账号${account.isEmpty ? '' : '「$account」'}吗？'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('取消'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('退出'),
+                    ),
+                  ],
+                ),
+              );
+              if (ok == true) {
+                await Netdisk123State.I.logout();
               }
             }
           : null,
