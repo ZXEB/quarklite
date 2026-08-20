@@ -182,8 +182,8 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
                     color: AppColors.textSecondary, size: 20),
               ],
             ),
-          ),
-        );
+            ),
+        ));
       },
     );
   }
