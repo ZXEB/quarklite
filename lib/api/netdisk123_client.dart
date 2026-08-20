@@ -410,16 +410,16 @@ class Netdisk123Client {
     return files;
   }
 
-  /// 获取文件下载直链（download_info），按 123 免费/限流策略尽量走"备用线路"。
-  /// 下载流量受限时（服务端对 web 用户按日/月计费），社区通行做法是：
-  /// 1) 用 android 协议头请求，命中 APP 免费额度；
-  /// 2) 把直链改写为 web-pro2.123952.com/download-v2 备用线路（不走主流量配额）。
-  /// 返回最终可下载 URL；失败或无需改写时回退到原始直链。
-  Future<String> getDownloadUrl(Netdisk123File f,
-      {bool preferUnlimited = true}) async {
-    // 用 android 协议头请求 download_info，走 APP 免费流量档位
-    final map = await _apiPostRaw(
-        '$_apiBase/file/download_info', {
+  /// 获取文件下载直链（download_info）。实测(2026-08)现网行为：
+  /// 用 android 协议头请求时，返回的直链本身已是
+  /// `user-app-free-download-cdn.123295.com` 免费下载 CDN，
+  /// 直接 GET 即返回文件字节（application/octet-stream），无需再包装。
+  /// （web 协议头返回的 web-pro2.123952.com/download-v2 需二次请求
+  /// JSON `data.redirect_url` 才能落到真实 CDN，且不减少流量配额。）
+  /// 当账号"本月免费流量不足"(code 5113)时，本接口即抛异常，
+  /// 由调用方提示用户结束。
+  Future<String> getDownloadUrl(Netdisk123File f) async {
+    final map = await _apiPostRaw('$_apiBase/file/download_info', {
       'driveId': 0,
       'etag': f.etag,
       'fileId': f.id,
@@ -430,39 +430,20 @@ class Netdisk123Client {
     }, platform: 'android');
     final rawUrl = toStr(map['DownloadUrl']);
     if (rawUrl.isEmpty) return '';
-    // 先解出真实 CDN 地址（直链 params=base64 载荷）
-    String realUrl = rawUrl;
+    // 直链若带 params=base64 载荷(web-pro2 中转)，解出真实 CDN 地址，
+    // 但 android 直链一般直接就是可下载的真实地址。
     try {
       final uri = Uri.parse(rawUrl);
       final params = uri.queryParameters['params'];
       if (params != null && params.isNotEmpty) {
         final decoded =
             utf8.decode(base64Url.decode(base64Url.normalize(params)));
-        if (Uri.parse(decoded).host.isNotEmpty) realUrl = decoded;
+        if (Uri.parse(decoded).host.isNotEmpty) return decoded;
       }
     } catch (_) {
       // 解码失败则用原始 URL
     }
-    if (!preferUnlimited) return realUrl;
-    // 改写为备用线路下载地址（对照 123pan_unlock / 123panNextGen）
-    try {
-      final u = Uri.parse(realUrl);
-      if (u.host.contains('web-pro')) {
-        // 已是备用线路主机：给内层地址加 auto_redirect=0
-        return u
-            .replace(queryParameters: {...u.queryParameters, 'auto_redirect': '0'})
-            .toString();
-      }
-      // 主 CDN：包装为 web-pro2 备用线路
-      final b64 = base64Url.encode(utf8.encode(u
-          .replace(queryParameters: {...u.queryParameters, 'auto_redirect': '0'})
-          .toString()));
-      return Uri.parse('https://web-pro2.123952.com/download-v2/')
-          .replace(queryParameters: {'params': b64, 'is_s3': '0'})
-          .toString();
-    } catch (_) {
-      return realUrl;
-    }
+    return rawUrl;
   }
 
   /// 带平台覆盖的 POST（返回 data）。platform 覆盖默认为 web 的 _apiHeaders。

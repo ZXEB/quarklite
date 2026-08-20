@@ -53,3 +53,6 @@ build_log.txt
 
 # Local tooling
 .zcode/
+
+# 本地抓包临时目录（含 token，勿提交）
+.capture/

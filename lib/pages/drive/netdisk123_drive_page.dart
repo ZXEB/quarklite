@@ -197,7 +197,8 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
             path: path,
             maxConnections: app.netdisk123Connections,
             batchTotal: items.length,
-            referer: 'https://yun.123pan.com/',
+            referer: 'https://www.123pan.com/',
+            userAgent: Netdisk123Client.ua,
             userAgent: Netdisk123Client.ua,
           );
           if (err == null) added++;
@@ -469,7 +470,7 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
         cookie: '',
         path: base,
         maxConnections: app.netdisk123Connections,
-        referer: 'https://yun.123pan.com/',
+        referer: 'https://www.123pan.com/',
         userAgent: Netdisk123Client.ua,
       );
       if (err != null) throw Exception(err);
