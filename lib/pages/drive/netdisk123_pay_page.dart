@@ -22,7 +22,7 @@ class _Netdisk123PayPageState extends State<Netdisk123PayPage> {
     super.initState();
     final c = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(AppColors.background)
+      ..setBackgroundColor(AppColors.bg)
       ..setNavigationDelegate(NavigationDelegate(
         onPageStarted: (_) { if (mounted) setState(() => _loading = true); },
         onPageFinished: (_) { if (mounted) setState(() => _loading = false); },
