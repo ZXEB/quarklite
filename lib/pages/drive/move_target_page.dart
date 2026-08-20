@@ -5,6 +5,7 @@ import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
+import '../../widgets/file_list_anim.dart';
 
 /// 选择移动目标目录页：只展示文件夹，禁止进入被移动的文件夹内部，
 /// 底部固定「移动到此处」按钮返回目标 fid（根目录 fid 为 '0'）。
@@ -128,27 +129,28 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
 
   Widget _buildBody() {
     if (_error != null) {
-      return EmptyView(
-        icon: Icons.cloud_off_rounded,
+      return BodySwitcher(
+        child: EmptyView(
+          icon: Icons.cloud_off_rounded,
         text: '加载失败',
         subText: _error,
         action: OutlinedButton(onPressed: _load, child: const Text('重试')),
-      );
+      ));
     }
     if (_loading && _files.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return BodySwitcher(child: const Center(child: CircularProgressIndicator()));
     }
     if (_files.isEmpty) {
-      return const EmptyView(icon: Icons.folder_open_rounded, text: '这里没有文件夹');
+      return BodySwitcher(child: const EmptyView(icon: Icons.folder_open_rounded, text: '这里没有文件夹');
     }
-    return ListView.separated(
+    final content = ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       itemCount: _files.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (_, i) {
         final dir = _files[i];
         final blocked = widget.movedFids.contains(dir.fid);
-        return InkWell(
+        return StaggeredFileItem(index: i, child: InkWell(
           onTap: blocked ? null : () => _enterDir(dir),
           borderRadius: BorderRadius.circular(14),
           child: Container(

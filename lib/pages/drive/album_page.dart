@@ -10,6 +10,7 @@ import '../../utils/permission.dart';
 import '../../utils/quark_image.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
+import '../../widgets/file_list_anim.dart';
 import 'search_page.dart';
 
 enum AlbumFilter { all, photo, screenshot, live }
@@ -323,33 +324,36 @@ class _AlbumPageState extends State<AlbumPage> {
 
   Widget _buildBody() {
     if (!AppState.I.isLoggedIn) {
-      return const EmptyView(
-        icon: Icons.lock_outline_rounded,
+      return BodySwitcher(
+        child: const EmptyView(
+          icon: Icons.lock_outline_rounded,
         text: '登录后查看相册',
         subText: '请在「我的」页面登录夸克账号',
-      );
+      ));
     }
     if (_error != null && _photos.isEmpty) {
-      return EmptyView(
-        icon: Icons.cloud_off_rounded,
+      return BodySwitcher(
+        child: EmptyView(
+          icon: Icons.cloud_off_rounded,
         text: '加载失败',
         subText: _error,
         action: OutlinedButton(onPressed: _loadFirst, child: const Text('重试')),
-      );
+      ));
     }
     if (_loading && _photos.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return BodySwitcher(child: const Center(child: CircularProgressIndicator()));
     }
     if (_photos.isEmpty) {
-      return const EmptyView(
-        icon: Icons.photo_library_outlined,
+      return BodySwitcher(
+        child: const EmptyView(
+          icon: Icons.photo_library_outlined,
         text: '没有找到照片',
         subText: '把照片上传到夸克网盘后即可在这里查看',
-      );
+      ));
     }
     final filtered = _filtered;
     final liveCount = _photos.where((f) => f.isLivePhoto).length;
-    return Stack(
+    return BodySwitcher(child: Stack(
       children: [
         Column(
           children: [
@@ -423,7 +427,7 @@ class _AlbumPageState extends State<AlbumPage> {
             ),
           ),
       ],
-    );
+    ));
   }
 
   Widget _buildFilterBar(int liveCount) {
@@ -511,7 +515,7 @@ class _AlbumPageState extends State<AlbumPage> {
                               index > filtered.length - 25) {
                             _loadMoreImages();
                           }
-                          return _buildTile(photo, index);
+                          return StaggeredFileItem(index: index % 12, child: _buildTile(photo, index));
                         },
                         childCount: g.items.length,
                       ),

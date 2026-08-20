@@ -10,6 +10,7 @@ import '../../utils/format.dart';
 import '../../utils/permission.dart';
 import '../../utils/upload_picker.dart';
 import '../../widgets/empty_view.dart';
+import '../../widgets/file_list_anim.dart';
 import '../../widgets/file_icon.dart';
 import 'move_target_page.dart';
 import 'search_page.dart';
@@ -625,36 +626,27 @@ class _DrivePageState extends State<DrivePage>
 
   Widget _buildBody() {
     if (!AppState.I.isLoggedIn) {
-      return const EmptyView(
-        icon: Icons.lock_outline_rounded,
-        text: '登录后查看网盘文件',
-        subText: '请在「我的」页面登录夸克账号',
-      );
+      return BodySwitcher(child: const EmptyView(icon: Icons.lock_outline_rounded, text: '登录后查看网盘文件', subText: '请在「我的」页面登录夸克账号'));
     }
     if (_error != null && _files.isEmpty) {
-      return EmptyView(
-        icon: Icons.cloud_off_rounded,
-        text: '加载失败',
-        subText: _error,
-        action: OutlinedButton(onPressed: _load, child: const Text('重试')),
-      );
+      return BodySwitcher(child: EmptyView(icon: Icons.cloud_off_rounded, text: '加载失败', subText: _error, action: OutlinedButton(onPressed: _load, child: const Text('重试'))));
     }
     if (_loading && _files.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return BodySwitcher(child: const Center(child: CircularProgressIndicator()));
     }
     if (_files.isEmpty) {
-      return const EmptyView(
-          icon: Icons.folder_open_rounded, text: '这里空空如也');
+      return BodySwitcher(child: const EmptyView(icon: Icons.folder_open_rounded, text: '这里空空如也'));
     }
-    return RefreshIndicator(
+    final content = RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         itemCount: _files.length,
         separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (_, i) => _buildItem(_files[i]),
+        itemBuilder: (_, i) => StaggeredFileItem(index: i, child: _buildItem(_files[i])),
       ),
     );
+    return BodySwitcher(child: content);
   }
 
   Widget _buildItem(QuarkFile file) {

@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
+import '../../widgets/file_list_anim.dart';
 
 class DownloadsPage extends StatefulWidget {
   const DownloadsPage({super.key});
@@ -101,7 +102,7 @@ class _DownloadsPageState extends State<DownloadsPage>
               ),
               const SizedBox(height: 8),
               Expanded(
-                child: all.isEmpty
+                child: BodySwitcher(child: all.isEmpty
                     ? const EmptyView(
                         icon: Icons.inventory_2_outlined,
                         text: '暂无任务',
@@ -113,8 +114,8 @@ class _DownloadsPageState extends State<DownloadsPage>
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                             itemCount: filtered.length,
                             separatorBuilder: (_, _) => const SizedBox(height: 10),
-                            itemBuilder: (_, i) => _buildTaskCard(filtered[i]),
-                          ),
+                            itemBuilder: (_, i) => StaggeredFileItem(index: i, child: _buildTaskCard(filtered[i])),
+                          )),
               ),
             ],
           ),

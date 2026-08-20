@@ -5,6 +5,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
+import '../../widgets/file_list_anim.dart';
 
 class UploadsPage extends StatefulWidget {
   const UploadsPage({super.key});
@@ -113,7 +114,7 @@ class _UploadsPageState extends State<UploadsPage>
               ),
               const SizedBox(height: 8),
               Expanded(
-                child: all.isEmpty
+                child: BodySwitcher(child: all.isEmpty
                     ? const EmptyView(
                         icon: Icons.cloud_upload_outlined,
                         text: '暂无上传任务',
@@ -125,9 +126,8 @@ class _UploadsPageState extends State<UploadsPage>
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                             itemCount: filtered.length,
                             separatorBuilder: (_, _) => const SizedBox(height: 10),
-                            itemBuilder: (_, i) =>
-                                _buildTaskCard(filtered[i]),
-                          ),
+                            itemBuilder: (_, i) => StaggeredFileItem(index: i, child: _buildTaskCard(filtered[i])),
+                          )),
               ),
             ],
           ),

@@ -11,6 +11,7 @@ import '../../utils/format.dart';
 import '../../utils/permission.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
+import '../../widgets/file_list_anim.dart';
 import 'album_page.dart';
 import 'drive_page.dart';
 
@@ -184,44 +185,46 @@ class _SearchPageState extends State<SearchPage> {
 
   Widget _buildBody() {
     if (_searching) {
-      return const Center(child: CircularProgressIndicator());
+      return BodySwitcher(child: const Center(child: CircularProgressIndicator()));
     }
     if (_error != null) {
-      return EmptyView(
-        icon: Icons.cloud_off_rounded,
-        text: '搜索失败',
-        subText: _error,
-        action: OutlinedButton(
-          onPressed: () => _search(_controller.text),
-          child: const Text('重试'),
+      return BodySwitcher(
+        child: EmptyView(
+          icon: Icons.cloud_off_rounded,
+          text: '搜索失败',
+          subText: _error,
+          action: OutlinedButton(onPressed: () => _search(_controller.text), child: const Text('重试')),
         ),
       );
     }
     if (_keyword.isEmpty) {
-      return const EmptyView(
-        icon: Icons.search_rounded,
-        text: '输入关键词搜索',
-        subText: '「照片」模式按 AI 识别内容搜索（需照片已被夸克识别打标）',
+      return BodySwitcher(
+        child: const EmptyView(
+          icon: Icons.search_rounded,
+          text: '输入关键词搜索',
+          subText: '「照片」模式按 AI 识别内容搜索（需照片已被夸克识别打标）',
+        ),
       );
     }
     if (_results.isEmpty) {
-      return EmptyView(
-        icon: Icons.search_off_rounded,
-        text: '没有找到相关内容',
-        subText: _scope == 2
-            ? '照片内容搜索仅命中已被夸克 AI 识别打标的照片\n试试用「全部」按文件名搜索，或在相册中浏览'
-            : null,
+      return BodySwitcher(
+        child: EmptyView(
+          icon: Icons.search_off_rounded,
+          text: '没有找到相关内容',
+          subText: _scope == 2 ? '照片内容搜索仅命中已被夸克 AI 识别打标的照片\n试试用「全部」按文件名搜索，或在相册中浏览' : null,
+        ),
       );
     }
-    return RefreshIndicator(
+    final content = RefreshIndicator(
       onRefresh: () => _search(_keyword),
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         itemCount: _results.length,
         separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (_, i) => _buildItem(_results[i]),
+        itemBuilder: (_, i) => StaggeredFileItem(index: i, child: _buildItem(_results[i])),
       ),
     );
+    return BodySwitcher(child: content);
   }
 
   Widget _buildItem(QuarkFile file) {

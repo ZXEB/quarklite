@@ -9,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
+import '../../widgets/file_list_anim.dart';
 
 class ShareFilesPage extends StatefulWidget {
   final QuarkShareSession session;
@@ -293,31 +294,31 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
 
   Widget _buildBody() {
     if (_error != null) {
-      return EmptyView(
-        icon: Icons.cloud_off_rounded,
-        text: '加载失败',
-        subText: _error,
-        action: OutlinedButton(
-          onPressed: _reloadCurrent,
-          child: const Text('重试'),
+      return BodySwitcher(
+        child: EmptyView(
+          icon: Icons.cloud_off_rounded,
+          text: '加载失败',
+          subText: _error,
+          action: OutlinedButton(onPressed: _reloadCurrent, child: const Text('重试')),
         ),
       );
     }
     if (_loading && _files.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return BodySwitcher(child: const Center(child: CircularProgressIndicator()));
     }
     if (_files.isEmpty) {
-      return const EmptyView(icon: Icons.folder_open_rounded, text: '这个文件夹是空的');
+      return BodySwitcher(child: const EmptyView(icon: Icons.folder_open_rounded, text: '这个文件夹是空的'));
     }
-    return RefreshIndicator(
+    final content = RefreshIndicator(
       onRefresh: _reloadCurrent,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         itemCount: _files.length,
         separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (_, i) => _buildItem(_files[i]),
+        itemBuilder: (_, i) => StaggeredFileItem(index: i, child: _buildItem(_files[i])),
       ),
     );
+    return BodySwitcher(child: content);
   }
 
   Widget _buildItem(QuarkShareFile file) {

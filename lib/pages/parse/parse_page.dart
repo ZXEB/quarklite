@@ -5,7 +5,13 @@ import '../../api/quark_client.dart';
 import '../../state/app_state.dart';
 import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/file_list_anim.dart';
+import '../drive/netdisk123_accounts_page.dart';
+import '../drive/xunlei_drive_page.dart';
+import '../../widgets/file_list_anim.dart';
 import 'share_files_page.dart';
+
+enum ShareType { quark, netdisk123, xunlei, magnet, unknown }
 
 class ParsePage extends StatefulWidget {
   const ParsePage({super.key});
@@ -22,13 +28,37 @@ class _ParsePageState extends State<ParsePage> {
   bool _btMode = false;
   bool _parsing = false;
   List<Map<String, String>> _history = [];
+  ShareType _detected = ShareType.unknown;
+  String _detectedUrl = '';
 
+  @override
   @override
   void initState() {
     super.initState();
     _loadHistory();
+    _urlController.addListener(_onInputChanged);
+    _btController.addListener(_onInputChanged);
   }
 
+  void _onInputChanged() {
+    final raw = _btMode ? _btController.text : _urlController.text;
+    final urls = _extractUrls(raw);
+    final first = urls.isNotEmpty ? urls.first : raw.trim();
+    final ty = _detectType(first);
+    if (ty != _detected || first != _detectedUrl) setState(() { _detected = ty; _detectedUrl = first; });
+  }
+  ShareType _detectType(String s) {
+    final v = s.trim().toLowerCase();
+    if (v.startsWith('magnet:')) return ShareType.magnet;
+    if (v.contains('quark.cn') || v.contains('pan.quark')) return ShareType.quark;
+    if (v.contains('123pan') || v.contains('123865') || v.contains('123912') || v.contains('123684') || v.contains('www.123pan.com')) return ShareType.netdisk123;
+    if (v.contains('xunlei') || v.contains('pan.xunlei')) return ShareType.xunlei;
+    if (v.isEmpty) return ShareType.unknown;
+    if (v.startsWith('http')) return ShareType.quark;
+    return ShareType.unknown;
+  }
+  String _typeLabel(ShareType t) { switch(t){ case ShareType.quark: return '夸克分享'; case ShareType.netdisk123: return '123 网盘'; case ShareType.xunlei: return '迅雷分享'; case ShareType.magnet: return '磁力/BT'; case ShareType.unknown: return '自动识别'; } }
+  IconData _typeIcon(ShareType t) { switch(t){ case ShareType.quark: return Icons.cloud_rounded; case ShareType.netdisk123: return Icons.cloud_upload_rounded; case ShareType.xunlei: return Icons.bolt_rounded; case ShareType.magnet: return Icons.wifi_tethering_rounded; case ShareType.unknown: return Icons.search_rounded; } }
   Future<void> _loadHistory() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('parse_history');
