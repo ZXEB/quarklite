@@ -186,6 +186,7 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
         ));
       },
     );
+    return content;
   }
 
   Widget _buildMoveBar() {
