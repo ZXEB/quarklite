@@ -267,12 +267,17 @@ class _DrivePageState extends State<DrivePage>
     controller.dispose();
     if (newName == null || !mounted) return;
     final trimmed = newName.trim();
+    if (trimmed.isEmpty) {
+      _toast('名称不能为空');
+      return;
+    }
     if (trimmed == file.fileName) return;
     final err = _validateName(trimmed);
     if (err != null) {
       _toast(err);
       return;
     }
+    if (_busy) return;
     setState(() => _busy = true);
     try {
       await AppState.I.quark.renameFile(file.fid, trimmed);
@@ -376,11 +381,16 @@ class _DrivePageState extends State<DrivePage>
     controller.dispose();
     if (name == null || !mounted) return;
     final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      _toast('名称不能为空');
+      return;
+    }
     final err = _validateName(trimmed);
     if (err != null) {
       _toast(err);
       return;
     }
+    if (_busy) return;
     setState(() => _busy = true);
     try {
       await AppState.I.quark.createFolder(_pdirFid, trimmed);
@@ -886,7 +896,7 @@ class _DrivePageState extends State<DrivePage>
               },
             ),
             ListTile(
-              leading: const Icon(Icons.folder_upload_rounded,
+              leading: const Icon(Icons.create_new_folder_rounded,
                   color: AppColors.accent),
               title: const Text('上传文件夹'),
               subtitle: const Text('保持目录结构上传到当前目录'),
