@@ -410,9 +410,16 @@ class Netdisk123Client {
     return files;
   }
 
-  /// 获取文件下载直链（download_info，返回 data.DownloadUrl）
-  Future<String> getDownloadUrl(Netdisk123File f) async {
-    final map = await _apiPost('$_apiBase/file/download_info', {
+  /// 获取文件下载直链（download_info），按 123 免费/限流策略尽量走"备用线路"。
+  /// 下载流量受限时（服务端对 web 用户按日/月计费），社区通行做法是：
+  /// 1) 用 android 协议头请求，命中 APP 免费额度；
+  /// 2) 把直链改写为 web-pro2.123952.com/download-v2 备用线路（不走主流量配额）。
+  /// 返回最终可下载 URL；失败或无需改写时回退到原始直链。
+  Future<String> getDownloadUrl(Netdisk123File f,
+      {bool preferUnlimited = true}) async {
+    // 用 android 协议头请求 download_info，走 APP 免费流量档位
+    final map = await _apiPostRaw(
+        '$_apiBase/file/download_info', {
       'driveId': 0,
       'etag': f.etag,
       'fileId': f.id,
@@ -420,22 +427,100 @@ class Netdisk123Client {
       's3keyFlag': f.s3KeyFlag,
       'size': f.size,
       'type': f.isDir ? 1 : 0,
-    });
-    final url = toStr(map['DownloadUrl']);
-    if (url.isEmpty) return '';
-    // 直链带 params=base64 载荷时，解出真实下载地址（对照 alist）
+    }, platform: 'android');
+    final rawUrl = toStr(map['DownloadUrl']);
+    if (rawUrl.isEmpty) return '';
+    // 先解出真实 CDN 地址（直链 params=base64 载荷）
+    String realUrl = rawUrl;
     try {
-      final uri = Uri.parse(url);
+      final uri = Uri.parse(rawUrl);
       final params = uri.queryParameters['params'];
       if (params != null && params.isNotEmpty) {
         final decoded =
             utf8.decode(base64Url.decode(base64Url.normalize(params)));
-        if (Uri.parse(decoded).host.isNotEmpty) return decoded;
+        if (Uri.parse(decoded).host.isNotEmpty) realUrl = decoded;
       }
     } catch (_) {
-      // 无 params 或解码失败则直接用原 URL
+      // 解码失败则用原始 URL
     }
-    return url;
+    if (!preferUnlimited) return realUrl;
+    // 改写为备用线路下载地址（对照 123pan_unlock / 123panNextGen）
+    try {
+      final u = Uri.parse(realUrl);
+      if (u.host.contains('web-pro')) {
+        // 已是备用线路主机：给内层地址加 auto_redirect=0
+        return u
+            .replace(queryParameters: {...u.queryParameters, 'auto_redirect': '0'})
+            .toString();
+      }
+      // 主 CDN：包装为 web-pro2 备用线路
+      final b64 = base64Url.encode(utf8.encode(u
+          .replace(queryParameters: {...u.queryParameters, 'auto_redirect': '0'})
+          .toString()));
+      return Uri.parse('https://web-pro2.123952.com/download-v2/')
+          .replace(queryParameters: {'params': b64, 'is_s3': '0'})
+          .toString();
+    } catch (_) {
+      return realUrl;
+    }
+  }
+
+  /// 带平台覆盖的 POST（返回 data）。platform 覆盖默认为 web 的 _apiHeaders。
+  Future<Map<String, dynamic>> _apiPostRaw(String url, Object body,
+      {String? platform}) async {
+    final signed = _signUrl(url);
+    var resp = await _dio.request<dynamic>(signed,
+        data: body,
+        options: Options(
+            method: 'POST',
+            headers: _androidHeaders(platform),
+            validateStatus: (_) => true));
+    var map = _decode(resp);
+    var code = toInt(map['code'], fallback: -1);
+    if (code == 401 && _password.isNotEmpty) {
+      AppLogger.I.w('netdisk123', 'token 失效，尝试自动重登');
+      final err = await signIn(username, _password);
+      if (err == null) {
+        resp = await _dio.request<dynamic>(signed,
+            data: body,
+            options: Options(
+                method: 'POST',
+                headers: _androidHeaders(platform),
+                validateStatus: (_) => true));
+        map = _decode(resp);
+        code = toInt(map['code'], fallback: -1);
+      }
+    }
+    if (code != 0) {
+      throw Netdisk123Exception(
+          code, toStr(map['message'], fallback: '请求失败'));
+    }
+    final data = map['data'];
+    if (data is Map) return data.cast<String, dynamic>();
+    return <String, dynamic>{};
+  }
+
+  /// 用于 download_info 的请求头。platform='android' 时模拟安卓协议命中 APP 免费额度。
+  Map<String, dynamic> _androidHeaders(String? platform) {
+    final isAndroid = platform == 'android';
+    return {
+      'accept': 'application/json, text/plain, */*',
+      'origin': isAndroid ? 'https://www.123pan.com' : 'https://yun.123pan.com',
+      'referer': isAndroid
+          ? 'https://www.123pan.com/'
+          : 'https://yun.123pan.com/',
+      'user-agent': isAndroid
+          ? '123pan/v2.4.0(Android_11;Xiaomi)'
+          : ua,
+      'platform': platform ?? this.platform,
+      if (isAndroid) 'devicetype': 'M2007J20CI',
+      if (isAndroid) 'devicename': 'Xiaomi',
+      if (isAndroid) 'osversion': 'Android_11',
+      if (isAndroid) 'app-version': '61',
+      if (isAndroid) 'x-app-version': '2.4.0',
+      if (!isAndroid) 'app-version': appVersion,
+      if (token.isNotEmpty) 'authorization': 'Bearer $token',
+    };
   }
 
   Map<String, dynamic> _decode(Response<dynamic> resp) {
