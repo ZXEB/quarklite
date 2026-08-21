@@ -138,19 +138,27 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
     case WM_DROPFILES: {
-      // 拖放文件/文件夹：收集路径并发给 Dart（一次最多 kMaxDropPaths 项）
+      // 拖放文件/文件夹：收集路径并发给 Dart（一次最多 kMaxDropPaths 项）。
+      // EncodableValue 的字符串槽位是 UTF-8 std::string，需把宽字符路径转码。
       HDROP hdrop = reinterpret_cast<HDROP>(wparam);
       UINT count = DragQueryFileW(hdrop, 0xFFFFFFFF, nullptr, 0);
       count = count > kMaxDropPaths ? kMaxDropPaths : count;
       std::vector<flutter::EncodableValue> paths;
       for (UINT i = 0; i < count; i++) {
         const UINT len = DragQueryFileW(hdrop, i, nullptr, 0);
+        if (len == 0) continue;
         std::wstring wpath(len, L'\0');
-        if (len > 0) {
-          DragQueryFileW(hdrop, i, wpath.data(), len + 1);
+        DragQueryFileW(hdrop, i, wpath.data(), len + 1);
+        const int utf8Len = WideCharToMultiByte(
+            CP_UTF8, 0, wpath.c_str(), static_cast<int>(len), nullptr, 0,
+            nullptr, nullptr);
+        std::string utf8(utf8Len > 0 ? utf8Len : 0, '\0');
+        if (utf8Len > 0) {
+          WideCharToMultiByte(CP_UTF8, 0, wpath.c_str(),
+                              static_cast<int>(len), utf8.data(), utf8Len,
+                              nullptr, nullptr);
         }
-        paths.emplace_back(flutter::EncodableValue(
-            static_cast<std::wstring>(wpath)));
+        paths.emplace_back(flutter::EncodableValue(std::move(utf8)));
       }
       DragFinish(hdrop);
       if (drop_channel_ != nullptr && !paths.empty()) {
