@@ -790,9 +790,10 @@ class _DrivePageState extends State<DrivePage>
     required IconData icon,
     required String title,
     String? subtitle,
-    Color color = AppColors.accent,
+    Color? color,
     required VoidCallback onTap,
   }) {
+    color ??= AppColors.accent;
     return ListTile(
       leading: Icon(icon, color: color),
       title: Text(title, style: TextStyle(color: color)),
