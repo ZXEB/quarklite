@@ -221,12 +221,7 @@ class MiuixActionSheet {
     final completer = Completer<T?>();
     // 弹出后立即返回 future；关闭时由 _showImpl 里的 onDismissFinished/onPick
     // 完成 completer（异步调用不阻塞调用方，也不 await）。
-    _showImpl(
-      context: context,
-      title: title,
-      actions: actions,
-      completer: completer,
-    );
+    _showImpl(context, title: title, actions: actions, completer: completer);
     return completer.future;
   }
 
