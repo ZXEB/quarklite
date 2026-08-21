@@ -167,7 +167,7 @@ class _BootView extends StatelessWidget {
                     child: MiuixText(
                       error!,
                       textAlign: TextAlign.center,
-                      color: AppColors.textSecondary,
+                      color: MiuixTheme.of(context).colors.onSurfaceSecondary,
                       fontSize: 12,
                     ),
                   ),

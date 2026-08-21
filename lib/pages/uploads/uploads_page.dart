@@ -58,14 +58,16 @@ class _UploadsPageState extends State<UploadsPage>
         final filtered = _applyFilter(all);
 
         return SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
-                child: Row(
-                  children: [
-                    MiuixText(_selectMode ? '批量操作' : '上传管理',
+          child: MiuixContentColor(
+            color: MiuixTheme.of(context).colors.onSurfaceContainer,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                  child: Row(
+                    children: [
+                      MiuixText(_selectMode ? '批量操作' : '上传管理',
                         fontSize: 24, fontWeight: FontWeight.w800),
                     const Spacer(),
                     if (_selectMode)
@@ -149,6 +151,7 @@ class _UploadsPageState extends State<UploadsPage>
               ),
               if (_selectMode) _buildSelectBar(),
             ],
+          ),
           ),
         );
       },
@@ -519,17 +522,18 @@ class _UploadsPageState extends State<UploadsPage>
   }
 
   Widget _buildStatusBadge(UploadTask task) {
+    final neutral = MiuixTheme.of(context).colors.onSurfaceSecondary;
     final (color, text) = switch (task.status) {
       UploadStatus.done => (AppColors.green, '完成'),
       UploadStatus.failed => (AppColors.red, '失败'),
-      UploadStatus.canceled => (AppColors.textSecondary, '已取消'),
+      UploadStatus.canceled => (neutral, '已取消'),
       UploadStatus.paused => (AppColors.orange, '已暂停'),
       UploadStatus.uploading => switch (task.stage) {
           UploadStage.hashing => (AppColors.accent, '校验中'),
           UploadStage.merging => (AppColors.orange, '合并中'),
           _ => (AppColors.accent, '上传中'),
         },
-      UploadStatus.pending => (AppColors.textSecondary, '排队'),
+      UploadStatus.pending => (neutral, '排队'),
     };
     return MiuixStatusChip(text, color);
   }

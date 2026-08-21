@@ -21,6 +21,15 @@ class MiuixToast {
   }
 }
 
+/// 弹出层必备的 Material 祖先：Flutter 的 Text/TextField 在找不到
+/// `Material` 祖先时会画出黄色双下划线（debug 兜底）。所有经 Overlay
+/// 插入的内容都必须包一层，与库内 MiuixPopupHost 的 _MiuixHostedEntry、
+/// MiuixOverlayDialog 的做法保持一致。
+Widget _overlayMaterial(Widget child) => Material(
+      type: MaterialType.transparency,
+      child: child,
+    );
+
 /// 基于 [Overlay] 的命令式 Miuix 弹层（替代 showDialog/MiuixDialogLayout）。
 ///
 /// 之前两版分别依赖 `MiuixPopupHost`（根 Scaffold popupHost 绑在一条
@@ -46,13 +55,15 @@ class MiuixOverlayPanel {
     late OverlayEntry entry;
     entry = OverlayEntry(
       opaque: false,
-      builder: (overlayContext) => MiuixDialogLayout(
-        controller: controller,
-        renderInRoot: false,
-        onDismissFinished: () {
-          completer.complete();
-        },
-        content: (dialogContext) => builder(dialogContext),
+      builder: (overlayContext) => _overlayMaterial(
+        MiuixDialogLayout(
+          controller: controller,
+          renderInRoot: false,
+          onDismissFinished: () {
+            completer.complete();
+          },
+          content: (dialogContext) => builder(dialogContext),
+        ),
       ),
     );
     _entry = entry;
@@ -69,8 +80,17 @@ class MiuixOverlayPanel {
     final c = _controller;
     _entry = null;
     _controller = null;
-    if (c != null && c.visible) c.dismiss();
-    if (e != null && e.mounted) e.remove();
+    // 弹层仍在显示中时走 Miuix 的关闭动画再移除（动画需在 _MiuixHostedEntry
+    // 上跑完，直接 remove 会闪断且把遮罩层残留在注册表里拦截指针）。
+    if (e != null && e.mounted) {
+      if (c != null && c.visible) {
+        c.dismiss();
+      } else {
+        e.remove();
+      }
+    } else if (c != null && c.visible) {
+      c.dismiss();
+    }
   }
 }
 
@@ -188,72 +208,108 @@ class MiuixActionSheet {
 
   /// 弹出底部操作单。返回所选动作值；取消返回 null。
   /// [actions] 为 (icon, text, value, {color}) 列表。
+  ///
+  /// 不依赖 Navigator 弹层：MiuixScaffold 自带的 MiuixPopupHost 会在最上层
+  /// 拦截指针，原生 showModalBottomSheet 与它混用会导致弹层盖住页面但
+  /// 按钮点不到。这里用窗口级 MiuixWindowBottomSheet（root Overlay 承载），
+  /// 行为与 showModalBottomSheet 一致且与 Miuix 弹层互不冲突。
   static Future<T?> show<T>(
     BuildContext context, {
     required String title,
     required List<({IconData icon, String text, T value, Color? color})> actions,
   }) {
-    return showModalBottomSheet<T>(
+    final completer = Completer<T?>();
+    unawaited(_showImpl(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => MiuixActionSheetView(title: title, actions: actions),
+      title: title,
+      actions: actions,
+      completer: completer,
+    ));
+    return completer.future;
+  }
+
+  static Future<void> _showImpl<T>(
+    BuildContext context, {
+    required String title,
+    required List<({IconData icon, String text, T value, Color? color})> actions,
+    required Completer<T?> completer,
+  }) async {
+    await MiuixOverlayPanel.show(
+      context: context,
+      builder: (_) => MiuixWindowBottomSheet(
+        show: true,
+        title: title,
+        allowDismiss: true,
+        onDismissRequest: () => MiuixOverlayPanel.hide(),
+        onDismissFinished: () {
+          if (!completer.isCompleted) completer.complete(null);
+        },
+        content: MiuixActionSheetView(
+          title: title,
+          actions: actions,
+          onPick: (v) {
+            if (!completer.isCompleted) completer.complete(v);
+            MiuixOverlayPanel.hide();
+          },
+        ),
+      ),
     );
+    if (!completer.isCompleted) completer.complete(null);
   }
 }
 
+/// 底部操作单内容。行间用主题分隔线隔开；文字/图标默认取
+/// `onSurfaceContainer`（明暗自适应，暗色下不再是黑字）。
 class MiuixActionSheetView<T> extends StatelessWidget {
   final String title;
   final List<({IconData icon, String text, T value, Color? color})> actions;
+  final ValueChanged<T>? onPick;
 
   const MiuixActionSheetView({
     super.key,
     required this.title,
     required this.actions,
+    this.onPick,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
-    return MiuixSurface(
-      color: colors.surfaceContainer,
-      cornerRadius: 20,
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: MiuixText(title,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  textAlign: TextAlign.center),
-            ),
-            const SizedBox(height: 4),
-            for (final a in actions)
-              MiuixPressable(
-                onPressed: () => Navigator.of(context).pop(a.value),
-                borderRadius: BorderRadius.circular(10),
-                feedbackType: MiuixPressFeedbackType.sink,
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                  child: Row(
-                    children: [
-                      MiuixIcon(
-                          icon: a.icon, size: 22, tint: a.color ?? colors.onBackground),
-                      const SizedBox(width: 16),
-                      MiuixText(a.text,
-                          fontSize: 15, color: a.color ?? colors.onBackground),
-                    ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 4),
+        for (var i = 0; i < actions.length; i++) ...[
+          if (i > 0)
+            MiuixHorizontalDivider(
+                color: colors.dividerLine.withValues(alpha: 0.6)),
+          MiuixPressable(
+            onPressed: onPick == null ? null : () => onPick!(actions[i].value),
+            borderRadius: BorderRadius.circular(10),
+            feedbackType: MiuixPressFeedbackType.sink,
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+              child: Row(
+                children: [
+                  MiuixIcon(
+                      icon: actions[i].icon,
+                      size: 22,
+                      tint: actions[i].color ?? colors.onSurfaceContainer),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: MiuixText(actions[i].text,
+                        fontSize: 15,
+                        color: actions[i].color ?? colors.onSurfaceContainer),
                   ),
-                ),
+                ],
               ),
-            const SizedBox(height: 12),
-          ],
-        ),
-      ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+      ],
     );
   }
 }

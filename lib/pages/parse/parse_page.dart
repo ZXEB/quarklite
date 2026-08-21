@@ -189,66 +189,69 @@ class _ParsePageState extends State<ParsePage> {
     final now = DateTime.now();
     const months = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
     return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      MiuixText('${now.day} / ${months[now.month - 1]}',
-                          fontSize: 30, fontWeight: FontWeight.w800),
-                      const SizedBox(height: 2),
-                      MiuixText('下午好，解析分享链接',
-                          color: colors.primary, fontSize: 14),
-                    ],
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => _showHistory(),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.accentDeep,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
+      child: MiuixContentColor(
+        color: colors.onSurfaceContainer,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        MiuixIcon(icon: Icons.history_rounded,
-                            tint: colors.primary, size: 18),
-                        const SizedBox(width: 6),
-                        MiuixText('历史', color: colors.primary, fontSize: 13),
+                        MiuixText('${now.day} / ${months[now.month - 1]}',
+                            fontSize: 30, fontWeight: FontWeight.w800),
+                        const SizedBox(height: 2),
+                        MiuixText('下午好，解析分享链接',
+                            color: colors.primary, fontSize: 14),
                       ],
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              children: [
-                _buildInputCard(),
-                if (_history.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  Padding(
-                    padding: EdgeInsets.only(left: 4, bottom: 10),
-                    child: MiuixText('解析记录',
-                        color: colors.onSurfaceSecondary, fontSize: 13),
+                  GestureDetector(
+                    onTap: () => _showHistory(),
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.accentDeep,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          MiuixIcon(icon: Icons.history_rounded,
+                              tint: colors.primary, size: 18),
+                          const SizedBox(width: 6),
+                          MiuixText('历史', color: colors.primary, fontSize: 13),
+                        ],
+                      ),
+                    ),
                   ),
-                  ..._history.map(_buildHistoryItem),
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                children: [
+                  _buildInputCard(),
+                  if (_history.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    Padding(
+                      padding: EdgeInsets.only(left: 4, bottom: 10),
+                      child: MiuixText('解析记录',
+                          color: colors.onSurfaceSecondary, fontSize: 13),
+                    ),
+                    ..._history.map(_buildHistoryItem),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

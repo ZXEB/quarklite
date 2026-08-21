@@ -24,16 +24,17 @@ class MePage extends StatelessWidget {
       listenable: Listenable.merge([AppState.I, XunleiState.I, Netdisk123State.I]),
       builder: (context, _) {
         final app = AppState.I;
+        final colors = MiuixTheme.of(context).colors;
         return SafeArea(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
             children: [
-              const Padding(
-                padding: EdgeInsets.only(left: 4, bottom: 12),
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 12),
                 child: MiuixText('我的',
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary),
+                    color: colors.onSurfaceContainer),
               ),
               _buildAccountCard(context, app),
               const SizedBox(height: 16),
@@ -134,6 +135,7 @@ class MePage extends StatelessWidget {
     Widget? capability,
     Widget? trailing,
   }) {
+    final colors = MiuixTheme.of(context).colors;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -145,14 +147,14 @@ class MePage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 MiuixText(title,
-                    color: AppColors.textPrimary,
+                    color: colors.onSurfaceContainer,
                     fontSize: 14,
                     fontWeight: FontWeight.w600),
                 const SizedBox(height: 2),
                 MiuixText(subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    color: AppColors.textSecondary,
+                    color: colors.onSurfaceSecondary,
                     fontSize: 12),
                 if (capability != null) ...[
                   const SizedBox(height: 10),

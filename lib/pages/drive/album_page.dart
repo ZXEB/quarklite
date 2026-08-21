@@ -376,7 +376,7 @@ class _AlbumPageState extends State<AlbumPage> {
                     const MiuixCircularProgressIndicator(size: 14, strokeWidth: 2),
                     const SizedBox(width: 8),
                     MiuixText('正在筛选中… 已找到 $_screenshotCount 张截图',
-                        color: AppColors.textSecondary, fontSize: 12),
+                        color: MiuixTheme.of(context).colors.onSurfaceSecondary, fontSize: 12),
                   ],
                 ),
               ),
@@ -592,7 +592,7 @@ class _AlbumPageState extends State<AlbumPage> {
                           color: _axisDragFraction > 0 &&
                                   _monthLabel(m.key) == _axisDragMonth
                               ? AppColors.accent
-                              : AppColors.textSecondary,
+                              : MiuixTheme.of(context).colors.onSurfaceSecondary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -631,7 +631,7 @@ class _AlbumPageState extends State<AlbumPage> {
             QuarkImage(photo.thumbnail, fileName: photo.fileName)
           else
             Container(
-              color: AppColors.card,
+              color: MiuixTheme.of(context).colors.surfaceContainer,
               child: Center(
                 child:
                     FileIcon(isDir: false, name: photo.fileName, size: 36),

@@ -23,16 +23,17 @@ class DriveHubPage extends StatelessWidget {
     return ListenableBuilder(
       listenable: Listenable.merge([AppState.I, XunleiState.I, Netdisk123State.I]),
       builder: (context, _) {
+        final colors = MiuixTheme.of(context).colors;
         return SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 16, 20, 12),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 16, 20, 12),
                 child: MiuixText('网盘',
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary),
+                    color: colors.onSurfaceContainer),
               ),
               Expanded(
                 child: ListView(
@@ -48,7 +49,7 @@ class DriveHubPage extends StatelessWidget {
                       padding: EdgeInsets.symmetric(horizontal: 4),
                       child: MiuixText(
                         '更多网盘陆续接入中…',
-                        color: AppColors.textSecondary,
+                        color: colors.onSurfaceSecondary,
                         fontSize: 12,
                       ),
                     ),
@@ -71,7 +72,7 @@ class DriveHubPage extends StatelessWidget {
           provider: NetdiskProvider.quark, size: 52, radius: 14),
       title: '夸克网盘',
       subtitle: logged ? (nickname.isNotEmpty ? '$nickname · 已连接' : '已连接') : '未登录，点击登录',
-      statusColor: logged ? AppColors.green : AppColors.textSecondary,
+      statusColor: logged ? AppColors.green : MiuixTheme.of(context).colors.onSurfaceSecondary,
       trailing: logged && app.user != null && app.user!.totalSize > 0
           ? Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -97,7 +98,7 @@ class DriveHubPage extends StatelessWidget {
           provider: NetdiskProvider.xunlei, size: 52, radius: 14),
       title: '迅雷云盘',
       subtitle: logged ? (account.isNotEmpty ? '$account · 已连接' : '已连接') : '未登录，点击登录',
-      statusColor: logged ? AppColors.green : AppColors.textSecondary,
+      statusColor: logged ? AppColors.green : MiuixTheme.of(context).colors.onSurfaceSecondary,
       trailing: logged && x.hasQuota
           ? Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -141,7 +142,7 @@ class DriveHubPage extends StatelessWidget {
           provider: NetdiskProvider.netdisk123, size: 52, radius: 14),
       title: '123 网盘',
       subtitle: subtitle,
-      statusColor: logged ? AppColors.green : AppColors.textSecondary,
+      statusColor: logged ? AppColors.green : MiuixTheme.of(context).colors.onSurfaceSecondary,
       trailing: logged && n.hasQuota
           ? Padding(
               padding: const EdgeInsets.only(top: 8),

@@ -56,14 +56,16 @@ class _DownloadsPageState extends State<DownloadsPage>
         final filtered = _applyFilter(all);
 
         return SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
-                child: Row(
-                  children: [
-                    MiuixText(_selectMode ? '批量操作' : '下载管理',
+          child: MiuixContentColor(
+            color: MiuixTheme.of(context).colors.onSurfaceContainer,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                  child: Row(
+                    children: [
+                      MiuixText(_selectMode ? '批量操作' : '下载管理',
                         fontSize: 24, fontWeight: FontWeight.w800),
                     const Spacer(),
                     if (_selectMode)
@@ -152,6 +154,7 @@ class _DownloadsPageState extends State<DownloadsPage>
               ),
               if (_selectMode) _buildSelectBar(filtered),
             ],
+          ),
           ),
         );
       },
@@ -507,12 +510,13 @@ class _DownloadsPageState extends State<DownloadsPage>
   }
 
   Widget _buildStatusBadge(GopeedTask task) {
+    final neutral = MiuixTheme.of(context).colors.onSurfaceSecondary;
     final (color, text) = switch (task.status) {
       GopeedStatus.done => (AppColors.green, '完成'),
       GopeedStatus.error => (AppColors.red, '失败'),
       GopeedStatus.pause => (AppColors.orange, '暂停'),
       GopeedStatus.running => (AppColors.accent, '下载中'),
-      _ => (AppColors.textSecondary, '排队'),
+      _ => (neutral, '排队'),
     };
     return MiuixStatusChip(text, color);
   }

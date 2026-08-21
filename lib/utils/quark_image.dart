@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 
-import '../theme/app_theme.dart';
 import '../widgets/file_icon.dart';
 import 'permission.dart';
 
@@ -27,6 +26,7 @@ class QuarkImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final placeholderColor = MiuixTheme.of(context).colors.surfaceContainer;
     return CachedNetworkImage(
       imageUrl: url,
       fit: fit,
@@ -36,13 +36,13 @@ class QuarkImage extends StatelessWidget {
       placeholder: (_, _) =>
           placeholder?.call(context) ??
           Container(
-            color: AppColors.card,
+            color: placeholderColor,
             child: const Center(
               child: MiuixCircularProgressIndicator(size: 18, strokeWidth: 2),
             ),
           ),
       errorWidget: (_, _, _) => Container(
-        color: AppColors.card,
+        color: placeholderColor,
         child: Center(
           child: FileIcon(isDir: false, name: fileName ?? '', size: 36),
         ),
