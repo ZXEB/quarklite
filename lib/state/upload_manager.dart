@@ -14,7 +14,7 @@ import '../utils/app_logger.dart';
 import '../utils/mime.dart';
 import '../utils/upload_picker.dart';
 
-enum UploadStatus { pending, uploading, done, failed, canceled }
+enum UploadStatus { pending, uploading, paused, done, failed, canceled }
 
 enum UploadStage { queued, hashing, uploading, merging }
 
@@ -38,6 +38,25 @@ class UploadTask {
   final DateTime createdAt;
   bool cancelRequested = false;
   CancelToken? cancelToken;
+
+  /// 是否处于「暂停」状态（区别于用户「取消」：暂停保留进度可续传）
+  bool paused = false;
+
+  // ---- 断点续传（暂停/继续）状态：仅在暂停后恢复时使用 ----
+  /// 已成功上传分片的 ETag（按 1-based 分片号顺序）
+  final List<String> etags = [];
+  String? md5Hex;
+  String? sha1Hex;
+
+  /// 预申请得到的上传会话（保存以便续传复用 uploadId）
+  QuarkUploadSession? session;
+  int partSize = 0;
+
+  /// 下一个待上传的分片号（1-based）
+  int nextPartNumber = 1;
+
+  /// 是否已完成哈希计算（暂停在哈希阶段时置 false，恢复需重算）
+  bool hashingDone = false;
 
   // 速度采样用（仅管理器中读写）
   int lastSampleBytes = 0;
@@ -63,6 +82,10 @@ class UploadTask {
 
   bool get isActive =>
       status == UploadStatus.pending || status == UploadStatus.uploading;
+
+  /// 已上传字节数中已完成分片对应的部分（不含当前分片已写入的部分，
+  /// 用于暂停时展示可靠进度）
+  int get committedBytes => (nextPartNumber - 1) * partSize;
 }
 
 /// 夸克网盘上传管理器：单例队列 + 顺序 worker。
@@ -174,6 +197,31 @@ class UploadManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 暂停上传：中断当前网络请求，保留已上传分片与上传会话，
+  /// 再次调用 [resume] 可从断点继续。
+  void pause(UploadTask task) {
+    if (!task.isActive) return;
+    task
+      ..paused = true
+      ..status = UploadStatus.uploading
+      ..cancelRequested = true
+      ..cancelToken?.cancel();
+    notifyListeners();
+  }
+
+  /// 恢复上传：回到待上传状态，由 worker 从已保存的上传会话/etag 续传。
+  void resume(UploadTask task) {
+    if (task.status != UploadStatus.paused) return;
+    task
+      ..paused = false
+      ..status = UploadStatus.pending
+      ..stage = UploadStage.queued
+      ..cancelRequested = false
+      ..cancelToken = null;
+    notifyListeners();
+    _kick();
+  }
+
   void retry(UploadTask task) {
     task
       ..status = UploadStatus.pending
@@ -182,7 +230,14 @@ class UploadManager extends ChangeNotifier {
       ..uploadedBytes = 0
       ..speed = 0
       ..cancelRequested = false
-      ..cancelToken = null;
+      ..cancelToken = null
+      ..etags.clear()
+      ..md5Hex = null
+      ..sha1Hex = null
+      ..session = null
+      ..partSize = 0
+      ..nextPartNumber = 1
+      ..hashingDone = false;
     notifyListeners();
     _kick();
   }
@@ -197,6 +252,46 @@ class UploadManager extends ChangeNotifier {
   void clearDone() {
     tasks.removeWhere((t) =>
         t.status == UploadStatus.done || t.status == UploadStatus.canceled);
+    notifyListeners();
+  }
+
+  // ---------------- 批量控制 ----------------
+
+  void pauseAll(List<UploadTask> list) {
+    final targets = list.where((t) => t.isActive).toList();
+    if (targets.isEmpty) return;
+    for (final t in targets) {
+      t
+        ..paused = true
+        ..status = UploadStatus.uploading
+        ..cancelRequested = true
+        ..cancelToken?.cancel();
+    }
+    notifyListeners();
+  }
+
+  void resumeAll(List<UploadTask> list) {
+    final targets = list.where((t) => t.status == UploadStatus.paused).toList();
+    if (targets.isEmpty) return;
+    for (final t in targets) {
+      t
+        ..paused = false
+        ..status = UploadStatus.pending
+        ..stage = UploadStage.queued
+        ..cancelRequested = false
+        ..cancelToken = null;
+    }
+    notifyListeners();
+    _kick();
+  }
+
+  void removeAll(List<UploadTask> list) {
+    final ids = list.map((t) => t.id).toSet();
+    for (final t in list) {
+      t.cancelRequested = true;
+      t.cancelToken?.cancel();
+    }
+    tasks.removeWhere((t) => ids.contains(t.id));
     notifyListeners();
   }
 
@@ -226,6 +321,7 @@ class UploadManager extends ChangeNotifier {
     task
       ..status = UploadStatus.uploading
       ..stage = UploadStage.hashing
+      ..paused = false
       ..error = null
       ..cancelToken = CancelToken();
     notifyListeners();
@@ -246,56 +342,77 @@ class UploadManager extends ChangeNotifier {
       final mime = mimeFor(task.fileName);
 
       // 1. 计算 md5/sha1（供秒传校验；分块推进进度）
-      task.uploadedBytes = 0;
-      task.lastSampleBytes = 0;
-      task.lastSampleTs = DateTime.now();
-      final (md5Hex, sha1Hex) = await _hashFile(file, task);
-      if (task.cancelRequested) {
-        task.status = UploadStatus.canceled;
+      //    暂停后恢复时保留哈希结果，直接跳过
+      if (!task.hashingDone) {
+        task.uploadedBytes = 0;
+        task.lastSampleBytes = 0;
+        task.lastSampleTs = DateTime.now();
+        final (md5Hex, sha1Hex) = await _hashFile(file, task);
+        task
+          ..md5Hex = md5Hex
+          ..sha1Hex = sha1Hex
+          ..hashingDone = true;
+      }
+      if (task.cancelRequested || task.status == UploadStatus.paused) {
+        task.status = UploadStatus.paused;
         return;
       }
 
-      // 2. 上传预申请
+      // 2. 上传预申请（暂停后恢复时复用原会话，不重复申请）
       final targetFid = await _resolveDirFid(task.relDir);
-      final session = await app.quark.uploadPre(
-        pdirFid: targetFid,
-        fileName: task.fileName,
-        size: task.size,
-        mime: mime,
-        createdAt: stat.modified.millisecondsSinceEpoch,
-        updatedAt: stat.modified.millisecondsSinceEpoch,
-      );
+      final session = task.session ??
+          await app.quark.uploadPre(
+            pdirFid: targetFid,
+            fileName: task.fileName,
+            size: task.size,
+            mime: mime,
+            createdAt: stat.modified.millisecondsSinceEpoch,
+            updatedAt: stat.modified.millisecondsSinceEpoch,
+          );
+      if (task.cancelRequested || task.status == UploadStatus.paused) {
+        task.status = UploadStatus.paused;
+        return;
+      }
+      task.session = session;
+      task.partSize = session.partSize > 0 ? session.partSize : _defaultPartSize;
       if (session.finish) {
         _finishDone(task);
         return;
       }
-
-      // 3. 秒传校验（哈希命中直接完成）
-      final instant = await app.quark.uploadHash(
-          md5: md5Hex, sha1: sha1Hex, taskId: session.taskId);
-      if (instant) {
-        _finishDone(task);
-        return;
-      }
-
-      // 4. 分片上传
-      task.stage = UploadStage.uploading;
-      task.uploadedBytes = 0;
-      final partSize = session.partSize > 0 ? session.partSize : _defaultPartSize;
-      raf = await file.open();
-      var offset = 0;
-      var partNumber = 1;
-      final etags = <String>[];
-      while (offset < task.size) {
-        if (task.cancelRequested) {
-          task.status = UploadStatus.canceled;
+      if (task.hashingDone && task.md5Hex != null && task.sha1Hex != null) {
+        // 3. 秒传校验（哈希命中直接完成）
+        final instant = await app.quark.uploadHash(
+            md5: task.md5Hex!, sha1: task.sha1Hex!, taskId: session.taskId);
+        if (task.cancelRequested || task.status == UploadStatus.paused) {
+          task.status = UploadStatus.paused;
           return;
         }
-        final len = partSize < task.size - offset ? partSize : task.size - offset;
+        if (instant) {
+          _finishDone(task);
+          return;
+        }
+      }
+
+      // 4. 分片上传（暂停后恢复时跳过已传分片）
+      task.stage = UploadStage.uploading;
+      task.uploadedBytes = task.committedBytes;
+      raf = await file.open();
+      var offset = task.committedBytes;
+      var partNumber = task.nextPartNumber;
+      while (offset < task.size) {
+        if (task.cancelRequested || task.status == UploadStatus.paused) {
+          task.status = UploadStatus.paused;
+          return;
+        }
+        final len = task.partSize < task.size - offset
+            ? task.partSize
+            : task.size - offset;
         final bytes = await _readExact(raf, len);
-        final etag = await _uploadPartWithRetry(task, session, partNumber, bytes, mime);
-        etags.add(etag);
+        final etag = await _uploadPartWithRetry(
+            task, session, partNumber, bytes, mime);
+        task.etags.add(etag);
         offset += len;
+        task.nextPartNumber = partNumber + 1;
         partNumber++;
         task.uploadedBytes = offset;
         notifyListeners();
@@ -303,13 +420,17 @@ class UploadManager extends ChangeNotifier {
 
       // 5. 合并分片 + 完成登记
       task.stage = UploadStage.merging;
-      await app.quark.uploadCommit(session: session, etags: etags, mime: mime);
+      await app.quark.uploadCommit(
+          session: session, etags: task.etags, mime: mime);
       await app.quark.uploadFinish(
           objKey: session.objKey, taskId: session.taskId);
       await Future<void>.delayed(const Duration(seconds: 1));
       _finishDone(task);
     } catch (e) {
-      if (task.cancelRequested) {
+      if (task.paused) {
+        // 用户点了「暂停」：cancelToken 中断抛出的异常按暂停处理
+        task.status = UploadStatus.paused;
+      } else if (task.cancelRequested) {
         task.status = UploadStatus.canceled;
       } else {
         task.status = UploadStatus.failed;

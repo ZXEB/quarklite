@@ -7,6 +7,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../api/netdisk123_client.dart';
 import '../../state/netdisk123_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/miuix_common.dart';
 
 /// 123 网盘登录页（密码登录 + 扫码登录 Tab 切换）
 class Netdisk123LoginPage extends StatefulWidget {
@@ -16,42 +17,46 @@ class Netdisk123LoginPage extends StatefulWidget {
   State<Netdisk123LoginPage> createState() => _Netdisk123LoginPageState();
 }
 
-class _Netdisk123LoginPageState extends State<Netdisk123LoginPage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab = TabController(length: 2, vsync: this);
-
-  @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
-  }
+class _Netdisk123LoginPageState extends State<Netdisk123LoginPage> {
+  int _tabIndex = 0;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('登录 123 网盘')),
-      body: Column(
-        children: [
-          TabBar(
-            controller: _tab,
-            indicatorColor: AppColors.accent,
-            labelColor: AppColors.textPrimary,
-            unselectedLabelColor: AppColors.textSecondary,
-            tabs: const [
-              Tab(text: '密码登录'),
-              Tab(text: '扫码登录'),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tab,
-              children: const [
-                _PasswordLoginView(),
-                _QrLoginView(),
-              ],
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixScaffold(
+      topBar: MiuixTopAppBar(
+        title: '登录 123 网盘',
+        navigationIcon: MiuixIconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: MiuixIcon(
+              icon: Icons.arrow_back_ios_new_rounded,
+              tint: colors.onSurfaceVariant,
+              size: 20),
+        ),
+      ),
+      content: (padding) => Padding(
+        padding: padding,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: MiuixTabRow(
+                tabs: const ['密码登录', '扫码登录'],
+                selectedTabIndex: _tabIndex,
+                onTabSelected: (i) => setState(() => _tabIndex = i),
+              ),
             ),
-          ),
-        ],
+            Expanded(
+              child: IndexedStack(
+                index: _tabIndex,
+                children: const [
+                  _PasswordLoginView(),
+                  _QrLoginView(),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -97,74 +102,74 @@ class _PasswordLoginViewState extends State<_PasswordLoginView> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    MiuixToast.show(msg);
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Text(
+        MiuixText(
           '使用 123 网盘账号（手机号 / 邮箱）登录，登录后可浏览网盘文件并使用多线程不限速下载。',
-          style: TextStyle(
-              color: AppColors.textSecondary, fontSize: 12, height: 1.6),
+          color: colors.onSurfaceSecondary,
+          fontSize: 12,
         ),
         const SizedBox(height: 20),
-        TextField(
+        MiuixTextField(
           controller: _account,
           keyboardType: TextInputType.emailAddress,
-          style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
-          decoration: InputDecoration(
-            hintText: '手机号 / 邮箱',
-            prefixIcon: Icon(Icons.person_outline_rounded,
-                color: AppColors.textSecondary, size: 20),
-          ),
+          label: '手机号 / 邮箱',
+          useLabelAsPlaceholder: true,
+          singleLine: true,
+          leadingIcon: MiuixIcon(Icons.person_outline_rounded,
+              tint: colors.onSurfaceSecondary, size: 20),
         ),
         const SizedBox(height: 14),
-        TextField(
+        MiuixTextField(
           controller: _password,
           obscureText: _obscure,
-          style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
-          decoration: InputDecoration(
-            hintText: '密码',
-            prefixIcon: Icon(Icons.lock_outline_rounded,
-                color: AppColors.textSecondary, size: 20),
-            suffixIcon: IconButton(
-              onPressed: () => setState(() => _obscure = !_obscure),
-              icon: Icon(
-                _obscure
-                    ? Icons.visibility_off_rounded
-                    : Icons.visibility_rounded,
-                color: AppColors.textSecondary,
-                size: 20,
-              ),
+          label: '密码',
+          useLabelAsPlaceholder: true,
+          singleLine: true,
+          onSubmitted: (_) => _submit(),
+          leadingIcon: MiuixIcon(Icons.lock_outline_rounded,
+              tint: colors.onSurfaceSecondary, size: 20),
+          trailingIcon: MiuixIconButton(
+            onPressed: () => setState(() => _obscure = !_obscure),
+            child: MiuixIcon(
+              _obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+              tint: colors.onSurfaceSecondary,
+              size: 20,
             ),
           ),
-          onSubmitted: (_) => _submit(),
         ),
         const SizedBox(height: 24),
-        FilledButton(
+        MiuixButton(
           onPressed: _submitting ? null : _submit,
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.accent,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+          colors: MiuixButtonColors(
+            color: colors.primary,
+            contentColor: Colors.white,
           ),
           child: _submitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white),
+              ? const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: MiuixCircularProgressIndicator(
+                      size: 16,
+                      colors: MiuixProgressIndicatorColors(
+                        foregroundColor: Colors.white,
+                        disabledForegroundColor: Colors.white,
+                        backgroundColor: Colors.white24,
+                      )),
                 )
-              : const Text('登录'),
+              : MiuixText('登录', color: Colors.white, fontSize: 15),
         ),
         const SizedBox(height: 14),
-        Text(
+        MiuixText(
           '提示：登录仅用于获取 123 网盘下载直链，账号信息仅保存在本机。',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+          color: colors.onSurfaceSecondary,
+          fontSize: 11,
           textAlign: TextAlign.center,
         ),
       ],
@@ -262,6 +267,7 @@ class _QrLoginViewState extends State<_QrLoginView> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -269,7 +275,7 @@ class _QrLoginViewState extends State<_QrLoginView> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (_loading)
-              const CircularProgressIndicator()
+              const MiuixCircularProgressIndicator()
             else if (_qrUrl != null)
               Container(
                 padding: const EdgeInsets.all(16),
@@ -284,31 +290,27 @@ class _QrLoginViewState extends State<_QrLoginView> {
                 ),
               )
             else
-              Icon(Icons.qr_code_2_rounded,
-                  size: 120, color: AppColors.cardLight),
+              MiuixIcon(Icons.qr_code_2_rounded,
+                  size: 120, tint: AppColors.cardLight),
             const SizedBox(height: 20),
-            Text(
+            MiuixText(
               _status,
-              style: TextStyle(
-                  color: AppColors.textSecondary, fontSize: 13),
+              color: colors.onSurfaceSecondary,
+              fontSize: 13,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            Text(
+            MiuixText(
               '二维码有效期约 5 分钟，请用 123 网盘 App「扫一扫」登录',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+              color: colors.onSurfaceSecondary,
+              fontSize: 11,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-            OutlinedButton(
+            MiuixTextButton(
+              '刷新二维码',
               onPressed: _refresh,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.accent,
-                side: BorderSide(color: AppColors.accent),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
-              ),
-              child: const Text('刷新二维码'),
+              colors: MiuixButtonColors(color: colors.primary),
             ),
           ],
         ),

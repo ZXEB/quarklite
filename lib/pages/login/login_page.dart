@@ -7,6 +7,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../api/quark_auth.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/miuix_common.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,44 +16,46 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab = TabController(length: 2, vsync: this);
-
-  @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
-  }
+class _LoginPageState extends State<LoginPage> {
+  int _tabIndex = 0;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('登录夸克账号'),
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixScaffold(
+      topBar: MiuixTopAppBar(
+        title: '登录夸克账号',
+        navigationIcon: MiuixIconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: MiuixIcon(
+              icon: Icons.arrow_back_ios_new_rounded,
+              tint: colors.onSurfaceVariant,
+              size: 20),
+        ),
       ),
-      body: Column(
-        children: [
-          TabBar(
-            controller: _tab,
-            indicatorColor: AppColors.accent,
-            labelColor: AppColors.textPrimary,
-            unselectedLabelColor: AppColors.textSecondary,
-            tabs: const [
-              Tab(text: '扫码登录'),
-              Tab(text: 'Cookie 登录'),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tab,
-              children: const [
-                _QrLoginView(),
-                _CookieLoginView(),
-              ],
+      content: (padding) => Padding(
+        padding: padding,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: MiuixTabRow(
+                tabs: const ['扫码登录', 'Cookie 登录'],
+                selectedTabIndex: _tabIndex,
+                onTabSelected: (i) => setState(() => _tabIndex = i),
+              ),
             ),
-          ),
-        ],
+            Expanded(
+              child: IndexedStack(
+                index: _tabIndex,
+                children: const [
+                  _QrLoginView(),
+                  _CookieLoginView(),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -139,6 +142,7 @@ class _QrLoginViewState extends State<_QrLoginView> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -146,7 +150,7 @@ class _QrLoginViewState extends State<_QrLoginView> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (_loading)
-              const CircularProgressIndicator()
+              const MiuixCircularProgressIndicator()
             else if (_qrUrl != null)
               Container(
                 padding: const EdgeInsets.all(16),
@@ -161,31 +165,27 @@ class _QrLoginViewState extends State<_QrLoginView> {
                 ),
               )
             else
-              Icon(Icons.qr_code_2_rounded,
-                  size: 120, color: AppColors.cardLight),
+              MiuixIcon(Icons.qr_code_2_rounded,
+                  size: 120, tint: AppColors.cardLight),
             const SizedBox(height: 20),
-            Text(
+            MiuixText(
               _status ?? '',
-              style: TextStyle(
-                  color: AppColors.textSecondary, fontSize: 13),
+              color: colors.onSurfaceSecondary,
+              fontSize: 13,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            Text(
+            MiuixText(
               '二维码 5 分钟内有效，请用夸克 App「扫一扫」登录',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+              color: colors.onSurfaceSecondary,
+              fontSize: 11,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-            OutlinedButton(
+            MiuixTextButton(
+              '刷新二维码',
               onPressed: _refresh,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.accent,
-                side: BorderSide(color: AppColors.accent),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
-              ),
-              child: const Text('刷新二维码'),
+              colors: MiuixButtonColors(color: colors.primary),
             ),
           ],
         ),
@@ -213,46 +213,46 @@ class _CookieLoginViewState extends State<_CookieLoginView> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
+          MiuixText(
             '从浏览器登录 pan.quark.cn 后，复制 Cookie 粘贴到这里（登录二维码失效时的备用方式）',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            color: colors.onSurfaceSecondary,
+            fontSize: 12,
           ),
           const SizedBox(height: 14),
           Expanded(
-            child: TextField(
+            child: MiuixTextField(
               controller: _controller,
               maxLines: null,
-              expands: true,
-              style:
-                  TextStyle(color: AppColors.textPrimary, fontSize: 13),
-              decoration: const InputDecoration(
-                hintText: '粘贴 Cookie，形如 __pus=xxx; __puus=xxx; ...',
-                alignLabelWithHint: true,
-              ),
+              minLines: 6,
+              label: '粘贴 Cookie，形如 __pus=xxx; __puus=xxx; ...',
+              useLabelAsPlaceholder: true,
             ),
           ),
           const SizedBox(height: 16),
-          FilledButton(
+          MiuixButton(
             onPressed: _submitting ? null : _submit,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+            colors: MiuixButtonColors(
+              color: colors.primary,
+              contentColor: Colors.white,
             ),
             child: _submitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                ? const Padding(
+                    padding: EdgeInsets.all(14),
+                    child: MiuixCircularProgressIndicator(
+                        size: 16,
+                        colors: MiuixProgressIndicatorColors(
+                          foregroundColor: Colors.white,
+                          disabledForegroundColor: Colors.white,
+                          backgroundColor: Colors.white24,
+                        )),
                   )
-                : const Text('登录'),
+                : MiuixText('登录', color: Colors.white, fontSize: 15),
           ),
         ],
       ),
@@ -278,6 +278,6 @@ class _CookieLoginViewState extends State<_CookieLoginView> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    MiuixToast.show(msg);
   }
 }

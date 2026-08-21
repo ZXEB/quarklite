@@ -7,6 +7,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
+import '../../widgets/miuix_common.dart';
 
 /// 应用内风控验证页：WebView 加载迅雷验证页（图形/短信验证），
 /// 注入 JS bridge 桥接原生通信，验证成功后自动拿到新 creditkey。
@@ -144,34 +145,46 @@ class _XunleiReviewPageState extends State<XunleiReviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('账号验证'),
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixScaffold(
+      topBar: MiuixTopAppBar(
+        title: '账号验证',
+        navigationIcon: MiuixIconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: MiuixIcon(
+              icon: Icons.arrow_back_ios_new_rounded,
+              tint: colors.onSurfaceVariant,
+              size: 20),
+        ),
         actions: [
-          TextButton(
+          MiuixTextButton(
+            '取消',
             onPressed: () => Navigator.of(context).pop(null),
-            child: Text('取消',
-                style: TextStyle(color: AppColors.textSecondary)),
+            colors: MiuixButtonColors(color: colors.onSurfaceSecondary),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            color: AppColors.card,
-            child: Text(
-              '请在下方完成短信/滑块验证，验证通过后自动登录',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+      content: (padding) => Padding(
+        padding: padding,
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              color: colors.surface,
+              child: MiuixText(
+                '请在下方完成短信/滑块验证，验证通过后自动登录',
+                color: colors.onSurfaceSecondary,
+                fontSize: 12,
+              ),
             ),
-          ),
-          Expanded(
-            child: _controller == null
-                ? const Center(child: CircularProgressIndicator())
-                : WebViewWidget(controller: _controller!),
-          ),
-        ],
+            Expanded(
+              child: _controller == null
+                  ? const Center(child: MiuixCircularProgressIndicator())
+                  : WebViewWidget(controller: _controller!),
+            ),
+          ],
+        ),
       ),
     );
   }

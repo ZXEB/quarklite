@@ -7,6 +7,7 @@ import '../../state/app_state.dart';
 import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/file_list_anim.dart';
+import '../../widgets/miuix_common.dart';
 import '../drive/netdisk123_accounts_page.dart';
 import '../drive/xunlei_drive_page.dart';
 import 'share_files_page.dart';
@@ -171,7 +172,7 @@ class _ParsePageState extends State<ParsePage> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    MiuixToast.show(msg);
   }
 
   @override
@@ -184,6 +185,7 @@ class _ParsePageState extends State<ParsePage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
     final now = DateTime.now();
     const months = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
     return SafeArea(
@@ -199,13 +201,11 @@ class _ParsePageState extends State<ParsePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('${now.day} / ${months[now.month - 1]}',
-                          style: const TextStyle(
-                              fontSize: 30, fontWeight: FontWeight.w800)),
+                      MiuixText('${now.day} / ${months[now.month - 1]}',
+                          fontSize: 30, fontWeight: FontWeight.w800),
                       const SizedBox(height: 2),
-                      Text('下午好，解析分享链接',
-                          style: TextStyle(
-                              color: AppColors.accent, fontSize: 14)),
+                      MiuixText('下午好，解析分享链接',
+                          color: colors.primary, fontSize: 14),
                     ],
                   ),
                 ),
@@ -220,12 +220,10 @@ class _ParsePageState extends State<ParsePage> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.history_rounded,
-                            color: AppColors.accent, size: 18),
-                        SizedBox(width: 6),
-                        Text('历史',
-                            style: TextStyle(
-                                color: AppColors.accent, fontSize: 13)),
+                        MiuixIcon(Icons.history_rounded,
+                            tint: colors.primary, size: 18),
+                        const SizedBox(width: 6),
+                        MiuixText('历史', color: colors.primary, fontSize: 13),
                       ],
                     ),
                   ),
@@ -242,9 +240,8 @@ class _ParsePageState extends State<ParsePage> {
                   const SizedBox(height: 20),
                   Padding(
                     padding: EdgeInsets.only(left: 4, bottom: 10),
-                    child: Text('解析记录',
-                        style: TextStyle(
-                            color: AppColors.textSecondary, fontSize: 13)),
+                    child: MiuixText('解析记录',
+                        color: colors.onSurfaceSecondary, fontSize: 13),
                   ),
                   ..._history.map(_buildHistoryItem),
                 ],
@@ -257,6 +254,7 @@ class _ParsePageState extends State<ParsePage> {
   }
 
   Widget _buildInputCard() {
+    final colors = MiuixTheme.of(context).colors;
     return MiuixCard(
       child: Padding(padding: const EdgeInsets.all(16), child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -270,90 +268,76 @@ class _ParsePageState extends State<ParsePage> {
                   color: AppColors.accentDeep,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.paste_rounded,
-                    color: AppColors.accent, size: 19),
+                child: MiuixIcon(Icons.paste_rounded,
+                    tint: colors.primary, size: 19),
               ),
               const SizedBox(width: 10),
-              Text('粘贴内容',
-                  style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600)),
+              MiuixText('粘贴内容',
+                  color: colors.onSurfaceVariant,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600),
               const Spacer(),
-              Text('等待粘贴链接',
-                  style: TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12)),
+              MiuixText('等待粘贴链接',
+                  color: colors.onSurfaceSecondary, fontSize: 12),
             ],
           ),
           const SizedBox(height: 14),
-          TextField(
+          MiuixTextField(
             controller: _urlController,
             maxLines: 3,
             minLines: 2,
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
-            decoration: const InputDecoration(
-              hintText: '粘贴夸克分享链接或包含链接的文本',
-            ),
+            label: '粘贴夸克分享链接或包含链接的文本',
+            useLabelAsPlaceholder: true,
           ),
           const SizedBox(height: 10),
-          TextField(
+          MiuixTextField(
             controller: _pwdController,
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
-            decoration: const InputDecoration(
-              hintText: '提取码（自动识别，可手动修改）',
-            ),
+            label: '提取码（自动识别，可手动修改）',
+            useLabelAsPlaceholder: true,
+            singleLine: true,
           ),
           if (_btMode) ...[
             const SizedBox(height: 10),
-            TextField(
+            MiuixTextField(
               controller: _btController,
               maxLines: 2,
               minLines: 1,
-              style:
-                  TextStyle(color: AppColors.textPrimary, fontSize: 14),
-              decoration: const InputDecoration(
-                hintText: '磁力链接或种子文件地址（magnet: 开头）',
-              ),
+              label: '磁力链接或种子文件地址（magnet: 开头）',
+              useLabelAsPlaceholder: true,
             ),
           ],
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: MiuixTextButton(
+                  _btMode ? '关闭 BT 输入' : '+ 添加BT',
                   onPressed: () => setState(() => _btMode = !_btMode),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _btMode ? AppColors.accent : AppColors.textSecondary,
-                    backgroundColor: _btMode ? AppColors.accentDeep : AppColors.bg,
-                    side: BorderSide(color: _btMode ? AppColors.accent : AppColors.divider),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text(_btMode ? '关闭 BT 输入' : '+ 添加BT'),
+                  colors: _btMode
+                      ? MiuixButtonColors(color: colors.primary)
+                      : MiuixButtonColors(color: colors.onSurfaceSecondary),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: FilledButton(
+                child: MiuixButton(
                   onPressed: _parsing ? null : _parse,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _parsing
-                        ? AppColors.accentDeep
-                        : AppColors.accent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                  colors: MiuixButtonColors(
+                    color: _parsing ? colors.primaryVariant : colors.primary,
+                    contentColor: Colors.white,
                   ),
                   child: _parsing
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
+                      ? const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: MiuixCircularProgressIndicator(
+                              size: 18,
+                              colors: MiuixProgressIndicatorColors(
+                                foregroundColor: Colors.white,
+                                disabledForegroundColor: Colors.white,
+                                backgroundColor: Colors.white24,
+                              )),
                         )
-                      : const Text('开始解析'),
+                      : MiuixText('开始解析', color: Colors.white, fontSize: 14),
                 ),
               ),
             ],
@@ -367,6 +351,7 @@ class _ParsePageState extends State<ParsePage> {
   Widget _buildHistoryItem(Map<String, String> item) {
     final url = item['url'] ?? '';
     final pwd = item['pwd'] ?? '';
+    final colors = MiuixTheme.of(context).colors;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: MiuixCard(onPressed: () async { _urlController.text = url; _pwdController.text = pwd; await _parse(); }, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12), child: Row(
@@ -378,32 +363,31 @@ class _ParsePageState extends State<ParsePage> {
                   color: AppColors.accentDeep,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.link_rounded,
-                    color: AppColors.accent, size: 18),
+                child: MiuixIcon(Icons.link_rounded,
+                    tint: colors.primary, size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(url,
+                    MiuixText(url,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            color: AppColors.textPrimary, fontSize: 13)),
+                        color: colors.onSurfaceVariant, fontSize: 13),
                     const SizedBox(height: 3),
-                    Text(
+                    MiuixText(
                       pwd.isEmpty ? '无提取码' : '提取码: $pwd',
-                      style: TextStyle(
-                          color: AppColors.textSecondary, fontSize: 11),
+                      color: colors.onSurfaceSecondary,
+                      fontSize: 11,
                     ),
                   ],
                 ),
               ),
-              IconButton(
+              MiuixIconButton(
                 onPressed: () => _removeHistory(url),
-                icon: Icon(Icons.close_rounded,
-                    color: AppColors.textSecondary, size: 18),
+                child: MiuixIcon(Icons.close_rounded,
+                    tint: colors.onSurfaceSecondary, size: 18),
               ),
             ],
           ),
@@ -426,44 +410,26 @@ class _ParsePageState extends State<ParsePage> {
       _toast('暂无解析记录');
       return;
     }
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('解析记录',
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700)),
-            ),
-            const Divider(height: 1),
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                children: _history.map((e) {
-                  return ListTile(
-                    leading: Icon(Icons.link_rounded,
-                        color: AppColors.accent),
-                    title: Text(e['url'] ?? '',
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Text(e['pwd'] == null || e['pwd']!.isEmpty
-                        ? '无提取码'
-                        : '提取码: ${e['pwd']}'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _urlController.text = e['url'] ?? '';
-                      _pwdController.text = e['pwd'] ?? '';
-                      _parse();
-                    },
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    MiuixActionSheet.show<String>(
+      context,
+      title: '解析记录',
+      actions: [
+        for (final e in _history)
+          (
+            icon: Icons.link_rounded,
+            text: e['url'] ?? '',
+            value: e['url'] ?? '',
+            color: null,
+          ),
+      ],
+    ).then((url) {
+      if (url == null) return;
+      _urlController.text = url;
+      _pwdController.text = _history
+          .firstWhere((e) => e['url'] == url,
+              orElse: () => {'url': url, 'pwd': '', 'time': ''})['pwd'] ??
+          '';
+      _parse();
+    });
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../widgets/miuix_common.dart';
+
 /// Windows 窗口关闭行为管理：
 /// 关闭窗口时按用户设置决定「最小化到任务栏（后台继续下载）」还是「退出」。
 /// 默认首次关闭时询问并记住选择，之后不再打扰；设置页可随时更改。
@@ -67,19 +69,9 @@ class WindowCloseHandler {
     }
     final choice = await showDialog<String>(
       context: ctx,
-      builder: (ctx) => AlertDialog(
-        title: const Text('关闭 Quarklite'),
-        content: const Text('关闭窗口后要继续在后台下载吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, 'exit'),
-            child: const Text('退出'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, 'minimize'),
-            child: const Text('最小化到托盘'),
-          ),
-        ],
+      builder: (ctx) => _CloseChoiceDialog(
+        onExit: () => Navigator.pop(ctx, 'exit'),
+        onMinimize: () => Navigator.pop(ctx, 'minimize'),
       ),
     );
     final action = choice ?? 'minimize';
@@ -104,5 +96,78 @@ class WindowCloseHandler {
     try {
       await _channel.invokeMethod('exit');
     } catch (_) {}
+  }
+}
+
+/// 关闭 Quarklite 询问对话框（MiuixOverlayDialog 包裹在 Navigator 弹层中）
+class _CloseChoiceDialog extends StatefulWidget {
+  final VoidCallback onExit;
+  final VoidCallback onMinimize;
+
+  const _CloseChoiceDialog({
+    super.key,
+    required this.onExit,
+    required this.onMinimize,
+  });
+
+  @override
+  State<_CloseChoiceDialog> createState() => _CloseChoiceDialogState();
+}
+
+class _CloseChoiceDialogState extends State<_CloseChoiceDialog> {
+  final MiuixPopupController _controller = MiuixPopupController(visible: false);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _controller.show());
+  }
+
+  void _close() => Navigator.of(context).pop('minimize');
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixOverlayDialog(
+      show: false,
+      title: '关闭 Quarklite',
+      onDismissRequest: _close,
+      content: MiuixDismissScope(
+        onDismissRequest: _close,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MiuixText('关闭窗口后要继续在后台下载吗？',
+                textAlign: TextAlign.center,
+                color: colors.onSurfaceSecondary,
+                fontSize: 14),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: MiuixTextButton(
+                    '退出',
+                    onPressed: widget.onExit,
+                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: MiuixTextButton(
+                    '最小化到托盘',
+                    onPressed: widget.onMinimize,
+                    colors: MiuixButtonColors(
+                      color: colors.primary,
+                      contentColor: Colors.white,
+                    ),
+                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_miuix/miuix.dart';
 import '../../state/netdisk123_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/file_list_anim.dart';
+import '../../widgets/miuix_common.dart';
 import '../login/netdisk123_login_page.dart';
 import 'netdisk123_drive_page.dart';
 
@@ -20,118 +21,201 @@ class _Netdisk123AccountsPageState extends State<Netdisk123AccountsPage> {
       listenable: Netdisk123State.I,
       builder: (_, __) {
         final s = Netdisk123State.I;
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('选择 123 网盘账号'),
+        final colors = MiuixTheme.of(context).colors;
+        return MiuixScaffold(
+          topBar: MiuixTopAppBar(
+            title: '选择 123 网盘账号',
+            navigationIcon: MiuixIconButton(
+              onPressed: () => Navigator.of(context).maybePop(),
+              child: MiuixIcon(
+                  icon: Icons.arrow_back_ios_new_rounded,
+                  tint: colors.onSurfaceVariant,
+                  size: 20),
+            ),
             actions: [
-              IconButton(
+              MiuixIconButton(
                 onPressed: () async {
                   await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const Netdisk123LoginPage()));
                   if (mounted) setState(() {});
                 },
-                icon: Icon(Icons.person_add_rounded, color: AppColors.accent),
-                tooltip: '添加账号',
+                child: MiuixIcon(icon: Icons.person_add_rounded, tint: colors.primary),
               ),
             ],
           ),
-          body: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.divider, width: 0.5)),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline_rounded, color: AppColors.accent, size: 18),
-                      SizedBox(width: 10),
-                      Expanded(child: Text('请选择账号进入文件 · 不同账号流量独立 · 右上角可添加', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4))),
-                    ],
-                  ),
-                ),
-              ),
-              Expanded(
-                child: BodySwitcher(
-                  child: s.accounts.isEmpty
-                      ? Center(
-                          key: const ValueKey('empty'),
-                          child: Column(mainAxisSize: MainAxisSize.min, children: [
-                            Container(width: 88, height: 88, decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(28)), child: Icon(Icons.account_circle_outlined, size: 42, color: AppColors.textSecondary)),
-                            const SizedBox(height: 16),
-                            Text('暂无账号', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-                            const SizedBox(height: 6),
-                            Text('添加后可在不同账号间切换下载', style: TextStyle(color: AppColors.divider, fontSize: 12)),
-                            const SizedBox(height: 18),
-                            FilledButton.icon(
-                              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const Netdisk123LoginPage())),
-                              style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: EdgeInsets.symmetric(horizontal: 22, vertical: 12)),
-                              icon: const Icon(Icons.person_add_rounded, size: 18),
-                              label: const Text('添加账号'),
-                            ),
-                          ]),
-                        )
-                      : ListView.separated(
-                          key: ValueKey('list-${s.accounts.length}-${s.activeId}'),
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                          itemCount: s.accounts.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
-                          itemBuilder: (_, i) {
-                            final a = s.accounts[i];
-                            final isActive = s.activeId == a.id;
-                            return StaggeredFileItem(
-                              index: i,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(18),
-                                onTap: () async {
-                                  if (!isActive) await Netdisk123State.I.setActive(a.id);
-                                  if (!context.mounted) return;
-                                  await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const Netdisk123DrivePage()));
-                                  if (mounted) setState(() {});
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  decoration: BoxDecoration(color: isActive ? AppColors.accentDeep : AppColors.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: isActive ? AppColors.accent : Colors.transparent, width: 1)),
-                                  child: ListTile(
-                                    leading: Container(width: 40, height: 40, decoration: BoxDecoration(color: isActive ? AppColors.accent : AppColors.cardLight, borderRadius: BorderRadius.circular(12)), child: Icon(isActive ? Icons.check_circle_rounded : Icons.account_circle_rounded, color: isActive ? Colors.white : AppColors.textSecondary, size: 22)),
-                                    title: Text(a.username, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 14)),
-                                    subtitle: Text(isActive ? '当前账号 · 点击进入文件' : '点击切换并进入文件', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                                      Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary, size: 20),
-                                      const SizedBox(width: 4),
-                                      InkWell(
-                                        borderRadius: BorderRadius.circular(20),
-                                        onTap: () async {
-                                          final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('移除账号'), content: Text('确定移除「${a.username}」？'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('移除'))]));
-                                          if (ok == true) { await Netdisk123State.I.removeAccount(a.id); if (mounted) setState(() {}); }
-                                        },
-                                        child: Padding(padding: EdgeInsets.all(6), child: Icon(Icons.delete_outline_rounded, color: AppColors.textSecondary, size: 18)),
-                                      ),
-                                    ]),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                decoration: BoxDecoration(color: AppColors.bottomBar, border: Border(top: BorderSide(color: AppColors.divider, width: 0.5))),
-                child: SafeArea(
-                  top: false,
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () async { await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const Netdisk123LoginPage())); if (mounted) setState(() {}); },
-                      style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white, padding: EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      icon: const Icon(Icons.person_add_rounded, size: 18),
-                      label: Text(s.accounts.isEmpty ? '添加第一个账号' : '添加账号'),
+          content: (padding) => Padding(
+            padding: padding,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: MiuixSurface(
+                    color: colors.surface,
+                    cornerRadius: 18,
+                    border: Border.all(color: colors.dividerLine, width: 0.5),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          MiuixIcon(Icons.info_outline_rounded,
+                              tint: colors.primary, size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: MiuixText('请选择账号进入文件 · 不同账号流量独立 · 右上角可添加',
+                                color: colors.onSurfaceSecondary, fontSize: 12),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: BodySwitcher(
+                    child: s.accounts.isEmpty
+                        ? Center(
+                            key: const ValueKey('empty'),
+                            child: Column(mainAxisSize: MainAxisSize.min, children: [
+                              MiuixSurface(
+                                color: colors.surface,
+                                cornerRadius: 28,
+                                child: SizedBox(
+                                  width: 88,
+                                  height: 88,
+                                  child: Center(
+                                    child: MiuixIcon(Icons.account_circle_outlined,
+                                        size: 42, tint: colors.onSurfaceSecondary),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              MiuixText('暂无账号', color: colors.onSurfaceSecondary, fontSize: 14),
+                              const SizedBox(height: 6),
+                              MiuixText('添加后可在不同账号间切换下载',
+                                  color: colors.outline, fontSize: 12),
+                              const SizedBox(height: 18),
+                              MiuixButton(
+                                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const Netdisk123LoginPage())),
+                                colors: MiuixButtonColors(
+                                  color: colors.primary,
+                                  contentColor: Colors.white,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const MiuixIcon(Icons.person_add_rounded,
+                                        tint: Colors.white, size: 18),
+                                    const SizedBox(width: 8),
+                                    MiuixText('添加账号', color: Colors.white, fontSize: 14),
+                                  ],
+                                ),
+                              ),
+                            ]),
+                          )
+                        : ListView.separated(
+                            key: ValueKey('list-${s.accounts.length}-${s.activeId}'),
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                            itemCount: s.accounts.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (_, i) {
+                              final a = s.accounts[i];
+                              final isActive = s.activeId == a.id;
+                              return StaggeredFileItem(
+                                index: i,
+                                child: MiuixCard(
+                                  onPressed: () async {
+                                    if (!isActive) await Netdisk123State.I.setActive(a.id);
+                                    if (!context.mounted) return;
+                                    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const Netdisk123DrivePage()));
+                                    if (mounted) setState(() {});
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            color: isActive ? AppColors.accent : colors.surfaceContainer,
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: MiuixIcon(
+                                            isActive ? Icons.check_circle_rounded : Icons.account_circle_rounded,
+                                            tint: isActive ? Colors.white : colors.onSurfaceSecondary,
+                                            size: 22,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              MiuixText(a.username,
+                                                  color: colors.onSurfaceVariant,
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 14),
+                                              const SizedBox(height: 2),
+                                              MiuixText(isActive ? '当前账号 · 点击进入文件' : '点击切换并进入文件',
+                                                  color: colors.onSurfaceSecondary, fontSize: 12),
+                                            ],
+                                          ),
+                                        ),
+                                        MiuixIcon(Icons.chevron_right_rounded,
+                                            tint: colors.onSurfaceSecondary, size: 20),
+                                        const SizedBox(width: 4),
+                                        MiuixIconButton(
+                                          onPressed: () async {
+                                            final ok = await confirmMiuix(context,
+                                                title: '移除账号',
+                                                content: '确定移除「${a.username}」？',
+                                                confirmText: '移除',
+                                                danger: true);
+                                            if (ok == true) {
+                                              await Netdisk123State.I.removeAccount(a.id);
+                                              if (mounted) setState(() {});
+                                            }
+                                          },
+                                          child: MiuixIcon(Icons.delete_outline_rounded,
+                                              tint: colors.onSurfaceSecondary, size: 18),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainer,
+                    border: Border(top: BorderSide(color: colors.dividerLine, width: 0.5)),
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: MiuixButton(
+                        onPressed: () async {
+                          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const Netdisk123LoginPage()));
+                          if (mounted) setState(() {});
+                        },
+                        colors: MiuixButtonColors(
+                          color: colors.primary,
+                          contentColor: Colors.white,
+                        ),
+                        child: MiuixText(
+                          s.accounts.isEmpty ? '添加第一个账号' : '添加账号',
+                          color: Colors.white,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },

@@ -11,6 +11,7 @@ import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/file_list_anim.dart';
+import '../../widgets/miuix_common.dart';
 
 class ShareFilesPage extends StatefulWidget {
   final QuarkShareSession session;
@@ -202,17 +203,17 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_selectMode
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixScaffold(
+      topBar: MiuixTopAppBar(
+        title: _selectMode
             ? '已选 ${_selected.length} 项'
             : _stack.isEmpty
                 ? widget.initialName
                 : _files.isEmpty
                     ? '文件夹'
-                    : ''),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                    : '分享内容',
+        navigationIcon: MiuixIconButton(
           onPressed: () {
             if (_selectMode) {
               _exitSelectMode();
@@ -222,70 +223,74 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
               Navigator.pop(context);
             }
           },
+          child: MiuixIcon(
+              icon: Icons.arrow_back_ios_new_rounded,
+              tint: colors.onSurfaceVariant,
+              size: 20),
         ),
         actions: [
           if (_selectMode)
-            TextButton(
+            MiuixTextButton(
+              '全选',
               onPressed: _selectAllFiles,
-              child: Text('全选',
-                  style: TextStyle(color: AppColors.accent)),
+              colors: MiuixButtonColors(color: colors.primary),
             ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(child: _buildBody()),
-          if (_selectMode) _buildSelectBar(),
-        ],
+      content: (padding) => Padding(
+        padding: padding,
+        child: Column(
+          children: [
+            Expanded(child: _buildBody()),
+            if (_selectMode) _buildSelectBar(),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildSelectBar() {
     final count = _selected.length;
+    final colors = MiuixTheme.of(context).colors;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: BoxDecoration(
-        color: AppColors.bottomBar,
-        border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
+        color: colors.surfaceContainer,
+        border: Border(top: BorderSide(color: colors.dividerLine, width: 0.5)),
       ),
       child: SafeArea(
         top: false,
         child: Row(
           children: [
-            Text('已选 $count 项',
-                style: TextStyle(
-                    color: AppColors.textPrimary, fontSize: 14)),
+            MiuixText('已选 $count 项',
+                fontSize: 14, color: colors.onSurfaceVariant),
             const Spacer(),
-            OutlinedButton(
+            MiuixTextButton(
+              '转存',
               onPressed: _busy || count == 0 ? null : _batchSave,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.green,
-                side: BorderSide(color: AppColors.green),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('转存'),
+              colors: MiuixButtonColors(color: AppColors.green),
             ),
             const SizedBox(width: 10),
-            FilledButton.icon(
+            MiuixButton(
               onPressed: _busy || count == 0 ? null : _batchDownload,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.accentDeep,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+              colors: MiuixButtonColors(
+                color: colors.primary,
+                disabledColor: colors.primaryVariant,
+                contentColor: Colors.white,
+                disabledContentColor: Colors.white,
               ),
-              icon: _busy
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
+              child: _busy
+                  ? const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: MiuixCircularProgressIndicator(
+                          size: 16,
+                          colors: MiuixProgressIndicatorColors(
+                            foregroundColor: Colors.white,
+                            disabledForegroundColor: Colors.white,
+                            backgroundColor: Colors.white24,
+                          )),
                     )
-                  : const Icon(Icons.download_rounded, size: 18),
-              label: Text('下载($count)'),
+                  : MiuixText('下载($count)', color: Colors.white, fontSize: 14),
             ),
           ],
         ),
@@ -300,17 +305,18 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
           icon: Icons.cloud_off_rounded,
           text: '加载失败',
           subText: _error,
-          action: OutlinedButton(onPressed: _reloadCurrent, child: const Text('重试')),
+          action: MiuixTextButton('重试', onPressed: _reloadCurrent),
         ),
       );
     }
     if (_loading && _files.isEmpty) {
-      return BodySwitcher(child: const Center(child: CircularProgressIndicator()));
+      return BodySwitcher(child: const Center(child: MiuixCircularProgressIndicator()));
     }
     if (_files.isEmpty) {
       return BodySwitcher(child: const EmptyView(icon: Icons.folder_open_rounded, text: '这个文件夹是空的'));
     }
-    final content = RefreshIndicator(
+    final content = MiuixPullToRefresh(
+      isRefreshing: _loading,
       onRefresh: _reloadCurrent,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -324,8 +330,9 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
 
   Widget _buildItem(QuarkShareFile file) {
     final selected = _selected.contains(file.fid);
-    return InkWell(
-      onTap: () {
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixCard(
+      onPressed: () {
         if (_selectMode) {
           _toggleSelect(file);
         } else if (file.isDir) {
@@ -335,13 +342,8 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
         }
       },
       onLongPress: _selectMode ? null : () => _enterSelectMode(file),
-      borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.accentDeep : AppColors.card,
-          borderRadius: BorderRadius.circular(14),
-        ),
         child: Row(
           children: [
             FileIcon(isDir: file.isDir, name: file.fileName),
@@ -350,35 +352,36 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  MiuixText(
                     file.fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500),
+                    color: colors.onSurfaceVariant,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  MiuixText(
                     file.isDir ? '文件夹' : formatBytes(file.size),
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    color: colors.onSurfaceSecondary,
+                    fontSize: 12,
                   ),
                 ],
               ),
             ),
             if (_selectMode)
-              Icon(
-                selected
+              MiuixIcon(
+                icon: selected
                     ? Icons.check_circle_rounded
                     : Icons.radio_button_unchecked_rounded,
-                color: selected ? AppColors.accent : AppColors.textSecondary,
+                tint: selected ? colors.primary : colors.onSurfaceSecondary,
                 size: 22,
               )
             else
-              Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary, size: 20),
+              MiuixIcon(
+                  icon: Icons.chevron_right_rounded,
+                  tint: colors.onSurfaceSecondary,
+                  size: 20),
           ],
         ),
       ),
@@ -386,56 +389,22 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
   }
 
   void _showFileActions(QuarkShareFile file) {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            FileIcon(isDir: false, name: file.fileName, size: 52),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                file.fileName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(formatBytes(file.size),
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: Icon(Icons.download_rounded, color: AppColors.accent),
-              title: const Text('立即下载'),
-              subtitle: const Text('提取直链，多线程不限速下载'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _downloadFile(file);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.save_alt_rounded, color: AppColors.green),
-              title: const Text('保存到网盘'),
-              subtitle: const Text('转存到自己的夸克网盘'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _saveFile(file);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
+    MiuixActionSheet.show<String>(
+      context,
+      title: file.fileName,
+      actions: [
+        (icon: Icons.download_rounded, text: '立即下载', value: 'download', color: null),
+        (icon: Icons.save_alt_rounded, text: '保存到网盘', value: 'save', color: AppColors.green),
+      ],
+    ).then((v) {
+      if (v == null) return;
+      switch (v) {
+        case 'download':
+          _downloadFile(file);
+        case 'save':
+          _saveFile(file);
+      }
+    });
   }
 
   Future<void> _downloadFile(QuarkShareFile file) async {
@@ -467,32 +436,21 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
   /// 直链获取失败时降级：转存到网盘再下载
   void _showSaveFallback([QuarkShareFile? file]) {
     final single = file != null;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('直链获取失败'),
-        content: Text(single
-            ? '该文件暂时无法获取直链，可以先保存到自己的网盘，再从网盘中下载。'
-            : '所选文件暂时无法获取直链，可以先转存到自己的网盘，再从网盘中下载。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              if (single) {
-                _saveFile(file);
-              } else {
-                _batchSave();
-              }
-            },
-            child: const Text('转存'),
-          ),
-        ],
-      ),
-    );
+    confirmMiuix(
+      context,
+      title: '直链获取失败',
+      content: single
+          ? '该文件暂时无法获取直链，可以先保存到自己的网盘，再从网盘中下载。'
+          : '所选文件暂时无法获取直链，可以先转存到自己的网盘，再从网盘中下载。',
+      confirmText: '转存',
+    ).then((ok) {
+      if (ok != true) return;
+      if (single) {
+        _saveFile(file);
+      } else {
+        _batchSave();
+      }
+    });
   }
 
   Future<void> _saveFile(QuarkShareFile file) async {
@@ -515,31 +473,18 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
     final ok = await app.canWriteDownload();
     if (ok) return null;
     if (!mounted) return '权限不足';
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('需要存储权限'),
-        content: const Text('下载文件需要「所有文件访问」权限，请授权后继续。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              app.openAllFilesAccess();
-            },
-            child: const Text('去授权'),
-          ),
-        ],
-      ),
+    final granted = await confirmMiuix(
+      context,
+      title: '需要存储权限',
+      content: '下载文件需要「所有文件访问」权限，请授权后继续。',
+      confirmText: '去授权',
     );
+    if (granted == true) app.openAllFilesAccess();
     return '未授权存储权限';
   }
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    MiuixToast.show(msg);
   }
 }

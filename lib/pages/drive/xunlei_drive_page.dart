@@ -12,6 +12,7 @@ import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/file_list_anim.dart';
+import '../../widgets/miuix_common.dart';
 
 /// 迅雷云盘文件浏览页（面包屑导航 + 多选批量下载）
 class XunleiDrivePage extends StatefulWidget {
@@ -216,98 +217,112 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('迅雷云盘'),
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixScaffold(
+      topBar: MiuixTopAppBar(
+        title: '迅雷云盘',
+        navigationIcon: MiuixIconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: MiuixIcon(
+              icon: Icons.arrow_back_ios_new_rounded,
+              tint: colors.onSurfaceVariant,
+              size: 20),
+        ),
         actions: [
-          IconButton(
+          MiuixIconButton(
             onPressed: _load,
-            icon: Icon(Icons.refresh_rounded, color: AppColors.accent),
-            tooltip: '刷新',
+            child: MiuixIcon(icon: Icons.refresh_rounded, tint: colors.primary),
           ),
-          IconButton(
+          MiuixIconButton(
             onPressed: () => _confirmLogout(),
-            icon: Icon(Icons.logout_rounded, color: AppColors.accent),
-            tooltip: '退出登录',
+            child: MiuixIcon(icon: Icons.logout_rounded, tint: colors.primary),
           ),
         ],
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_crumbs.length > 1)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (var i = 0; i < _crumbs.length; i++) ...[
-                      if (i > 0)
-                        Icon(Icons.chevron_right_rounded,
-                            size: 16, color: AppColors.textSecondary),
-                      InkWell(
-                        onTap: () => _toBreadcrumb(i),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 4),
-                          child: Text(
-                            _crumbs[i].$3,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: i == _crumbs.length - 1
-                                  ? AppColors.accent
-                                  : AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+      content: (padding) => Padding(
+        padding: padding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_crumbs.length > 1) _buildBreadcrumb(colors),
+            Expanded(child: _buildBody()),
+            if (_selectMode) _buildSelectBar(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBreadcrumb(MiuixColors colors) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (var i = 0; i < _crumbs.length; i++) ...[
+              if (i > 0)
+                MiuixIcon(
+                    icon: Icons.chevron_right_rounded,
+                    size: 16,
+                    tint: colors.onSurfaceSecondary),
+              MiuixPressable(
+                onPressed: () => _toBreadcrumb(i),
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: MiuixText(
+                    _crumbs[i].$3,
+                    fontSize: 13,
+                    color: i == _crumbs.length - 1
+                        ? colors.primary
+                        : colors.onSurfaceSecondary,
+                  ),
                 ),
               ),
-            ),
-          Expanded(child: _buildBody()),
-          if (_selectMode) _buildSelectBar(),
-        ],
+            ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildSelectBar() {
     final count = _selected.length;
+    final colors = MiuixTheme.of(context).colors;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: BoxDecoration(
-        color: AppColors.bottomBar,
-        border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
+        color: colors.surfaceContainer,
+        border: Border(top: BorderSide(color: colors.dividerLine, width: 0.5)),
       ),
       child: SafeArea(
         top: false,
         child: Row(
           children: [
-            Text('已选 $count 项',
-                style: TextStyle(
-                    color: AppColors.textPrimary, fontSize: 14)),
+            MiuixText('已选 $count 项',
+                fontSize: 14, color: colors.onSurfaceVariant),
             const Spacer(),
-            FilledButton.icon(
+            MiuixButton(
               onPressed: _downloading || count == 0 ? null : _batchDownload,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.accentDeep,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+              colors: MiuixButtonColors(
+                color: colors.primary,
+                disabledColor: colors.primaryVariant,
+                contentColor: Colors.white,
+                disabledContentColor: Colors.white,
               ),
-              icon: _downloading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
+              child: _downloading
+                  ? const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: MiuixCircularProgressIndicator(
+                          size: 16,
+                          colors: MiuixProgressIndicatorColors(
+                            foregroundColor: Colors.white,
+                            disabledForegroundColor: Colors.white,
+                            backgroundColor: Colors.white24,
+                          )),
                     )
-                  : const Icon(Icons.download_rounded, size: 18),
-              label: Text('下载($count)'),
+                  : MiuixText('下载($count)', color: Colors.white, fontSize: 14),
             ),
           ],
         ),
@@ -320,15 +335,16 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
       return BodySwitcher(child: const EmptyView(icon: Icons.lock_outline_rounded, text: '未登录迅雷云盘', subText: '请在网盘首页点击迅雷云盘登录'));
     }
     if (_error != null && _files.isEmpty) {
-      return BodySwitcher(child: EmptyView(icon: Icons.cloud_off_rounded, text: '加载失败', subText: _error, action: OutlinedButton(onPressed: _load, child: const Text('重试'))));
+      return BodySwitcher(child: EmptyView(icon: Icons.cloud_off_rounded, text: '加载失败', subText: _error, action: MiuixTextButton('重试', onPressed: _load)));
     }
     if (_loading && _files.isEmpty) {
-      return BodySwitcher(child: const Center(child: CircularProgressIndicator()));
+      return BodySwitcher(child: const Center(child: MiuixCircularProgressIndicator()));
     }
     if (_files.isEmpty) {
       return BodySwitcher(child: const EmptyView(icon: Icons.folder_open_rounded, text: '这里空空如也'));
     }
-    final content = RefreshIndicator(
+    final content = MiuixPullToRefresh(
+      isRefreshing: _loading,
       onRefresh: _load,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -342,8 +358,9 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
 
   Widget _buildItem(XunleiFile file) {
     final selected = _selected.contains(file.id);
-    return InkWell(
-      onTap: () {
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixCard(
+      onPressed: () {
         if (_selectMode) {
           _toggleSelect(file);
         } else if (file.isDir) {
@@ -353,13 +370,8 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
         }
       },
       onLongPress: _selectMode ? null : () => _enterSelectMode(file),
-      borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.accentDeep : AppColors.card,
-          borderRadius: BorderRadius.circular(14),
-        ),
         child: Row(
           children: [
             FileIcon(isDir: file.isDir, name: file.name),
@@ -368,37 +380,36 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  MiuixText(
                     file.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500),
+                    color: colors.onSurfaceVariant,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    file.isDir
-                        ? '文件夹'
-                        : '${formatBytes(file.size)}',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                  MiuixText(
+                    file.isDir ? '文件夹' : '${formatBytes(file.size)}',
+                    color: colors.onSurfaceSecondary,
+                    fontSize: 12,
                   ),
                 ],
               ),
             ),
             if (_selectMode)
-              Icon(
-                selected
+              MiuixIcon(
+                icon: selected
                     ? Icons.check_circle_rounded
                     : Icons.radio_button_unchecked_rounded,
-                color: selected ? AppColors.accent : AppColors.textSecondary,
+                tint: selected ? colors.primary : colors.onSurfaceSecondary,
                 size: 22,
               )
             else
-              Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary, size: 20),
+              MiuixIcon(
+                  icon: Icons.chevron_right_rounded,
+                  tint: colors.onSurfaceSecondary,
+                  size: 20),
           ],
         ),
       ),
@@ -406,47 +417,19 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
   }
 
   void _showFileActions(XunleiFile file) {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            FileIcon(isDir: false, name: file.name, size: 52),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                file.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(formatBytes(file.size),
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: Icon(Icons.download_rounded, color: AppColors.accent),
-              title: const Text('立即下载'),
-              subtitle: const Text('高速直链，多线程不限速下载'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _downloadFile(file);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
+    MiuixActionSheet.show<String>(
+      context,
+      title: file.name,
+      actions: [
+        (icon: Icons.download_rounded, text: '立即下载', value: 'download', color: null),
+      ],
+    ).then((v) {
+      if (v == null) return;
+      switch (v) {
+        case 'download':
+          _downloadFile(file);
+      }
+    });
   }
 
   Future<void> _downloadFile(XunleiFile file) async {
@@ -477,22 +460,12 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
   }
 
   Future<void> _confirmLogout() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('退出迅雷云盘'),
-        content: const Text('确定退出登录吗？退出后需要重新登录才能访问网盘文件。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('退出'),
-          ),
-        ],
-      ),
+    final ok = await confirmMiuix(
+      context,
+      title: '退出迅雷云盘',
+      content: '确定退出登录吗？退出后需要重新登录才能访问网盘文件。',
+      confirmText: '退出',
+      danger: true,
     );
     if (ok == true) {
       await XunleiState.I.logout();
@@ -513,6 +486,6 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    MiuixToast.show(msg);
   }
 }

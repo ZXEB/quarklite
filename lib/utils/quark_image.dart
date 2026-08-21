@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_miuix/miuix.dart';
 
 import '../theme/app_theme.dart';
 import '../widgets/file_icon.dart';
@@ -37,11 +38,7 @@ class QuarkImage extends StatelessWidget {
           Container(
             color: AppColors.card,
             child: const Center(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
+              child: MiuixCircularProgressIndicator(size: 18, strokeWidth: 2),
             ),
           ),
       errorWidget: (_, _, _) => Container(

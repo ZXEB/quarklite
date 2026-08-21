@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
-/// 应用颜色表 — 单一 Miuix / HyperOS 浅色。
+/// 应用颜色表 — 细节配色（辅助 Miuix 主题的少数强调色）。
 ///
-/// 重构后不再支持 dark/miuix 双主题，全部使用 HyperOS 浅色。
-/// 旧的 [UIStyle]/[AppStyleState] 保留为兼容存根，避免历史引用报错。
+/// 主体颜色一律取自 `MiuixTheme.of(context).colors`；这里仅保留与原有配色
+/// 语义一致的常量，供不方便读取主题的绘制/角标使用。
 class AppColors {
   static const bg = Color(0xFFF2F3F7);
   static const card = Color(0xFFFFFFFF);
@@ -18,16 +19,11 @@ class AppColors {
   static const red = Color(0xFFE94634);
   static const bottomBar = Color(0xFFF7F7F7);
 
-  @Deprecated('双主题已移除，AppColors 现为固定常量，无需 apply()')
+  @Deprecated('UI 已全量迁移到 Miuix 主题，AppColors 仅保留细节常量')
   static void apply(UIStyle _) {}
 }
 
-// ---------------------------------------------------------------------------
-// 兼容存根：保留旧符号，避免大量文件一次性改名导致编译阻断。
-// 新代码不应再使用这些类型，请直接使用 AppColors 常量或
-// MiuixTheme.of(context).colors。
-// ---------------------------------------------------------------------------
-
+// 兼容存根：迁移前的双主题符号，避免历史引用报错。新代码不应使用。
 enum UIStyle {
   dark,
   miuix;
@@ -51,16 +47,70 @@ class AppStyleState extends ChangeNotifier {
   Future<void> setStyle(UIStyle _) async {}
 }
 
-class AppTheme {
-  static ThemeData light() => _build(Brightness.light);
-  static ThemeData dark() => light();
+/// Miuix 风格页转场：新页面自右下向左上淡入 + 轻微缩放，返回时逆向收束，
+/// 复刻 HyperOS 的应用切换过渡。
+class MiuixPageTransitionsBuilder extends PageTransitionsBuilder {
+  const MiuixPageTransitionsBuilder();
 
-  static ThemeData _build(Brightness brightness) {
-    final base = ThemeData(
-      brightness: brightness,
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    if (route.isFirst) return child;
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    final slide = Tween<Offset>(
+      begin: const Offset(0.04, 0.02),
+      end: Offset.zero,
+    ).animate(curved);
+    final fade = Tween<double>(begin: 0.0, end: 1.0).animate(curved);
+    final scale = Tween<double>(begin: 0.98, end: 1.0).animate(curved);
+    // 下层页面轻微后移淡出，形成视差返回感
+    final prev = Tween<double>(begin: 1.0, end: 0.96).animate(
+      CurvedAnimation(
+        parent: secondaryAnimation,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        // 下层页面
+        if (prev.value < 1.0)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 1.0 - secondaryAnimation.value * 0.4,
+                child: Transform.scale(scale: prev.value, child: child),
+              ),
+            ),
+          ),
+        Transform.translate(
+          offset: slide.value,
+          child: Opacity(opacity: fade.value, child: child),
+        ),
+      ],
+    );
+  }
+}
+
+class AppTheme {
+  /// Material 主题：`MaterialApp.theme` 需要的主题基座。
+  /// 颜色/外观由外层 `MiuixTheme` 提供，此处仅配置文字、转场与基础色标，
+  /// 使 `MaterialPageRoute` 与文本默认样式稳定可用。
+  static ThemeData light() {
+    return ThemeData(
       useMaterial3: true,
+      brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.bg,
-      colorScheme: ColorScheme.light(
+      colorScheme: const ColorScheme.light(
         primary: AppColors.accent,
         secondary: AppColors.accent,
         surface: AppColors.card,
@@ -70,72 +120,21 @@ class AppTheme {
       fontFamily: 'MiSansPro',
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
-          TargetPlatform.iOS: FadeForwardsPageTransitionsBuilder(),
-          TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
-          TargetPlatform.macOS: FadeForwardsPageTransitionsBuilder(),
-          TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.android: MiuixPageTransitionsBuilder(),
+          TargetPlatform.iOS: MiuixPageTransitionsBuilder(),
+          TargetPlatform.windows: MiuixPageTransitionsBuilder(),
+          TargetPlatform.macOS: MiuixPageTransitionsBuilder(),
+          TargetPlatform.linux: MiuixPageTransitionsBuilder(),
         },
       ),
-    );
-    return base.copyWith(
-      cardTheme: CardThemeData(
-        color: AppColors.card,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(16)),
-        ),
-      ),
-      appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.bg,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: true,
-        titleTextStyle: TextStyle(
-          color: AppColors.textPrimary,
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
-        ),
-        iconTheme: IconThemeData(color: AppColors.accent),
-      ),
-      bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: AppColors.card,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-      ),
-      dialogTheme: DialogThemeData(
-        backgroundColor: AppColors.card,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(20)),
-        ),
-      ),
-      textTheme: base.textTheme.copyWith(
-        bodyLarge: TextStyle(color: AppColors.textPrimary),
+      textTheme: const TextTheme(
         bodyMedium: TextStyle(color: AppColors.textPrimary),
+        bodyLarge: TextStyle(color: AppColors.textPrimary),
       ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: AppColors.bg,
-        hintStyle: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.accent, width: 1.2),
-        ),
+      dialogTheme: const DialogThemeData(
+        backgroundColor: AppColors.card,
       ),
-      progressIndicatorTheme: ProgressIndicatorThemeData(color: AppColors.accent),
-      snackBarTheme: SnackBarThemeData(
-        backgroundColor: AppColors.cardLight,
-        contentTextStyle: TextStyle(color: AppColors.textPrimary, fontSize: 14),
-        behavior: SnackBarBehavior.floating,
-      ),
-      listTileTheme: ListTileThemeData(iconColor: AppColors.textSecondary),
-      dividerTheme: DividerThemeData(color: AppColors.divider),
+      dividerTheme: const DividerThemeData(color: AppColors.divider),
     );
   }
 }

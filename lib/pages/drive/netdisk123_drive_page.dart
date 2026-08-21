@@ -13,6 +13,7 @@ import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/file_list_anim.dart';
+import '../../widgets/miuix_common.dart';
 
 /// 123 网盘文件浏览页（面包屑导航 + 多选批量下载）
 class Netdisk123DrivePage extends StatefulWidget {
@@ -131,48 +132,30 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
       return null;
     }
     if (s.accounts.length == 1) return s.active ?? s.accounts.first;
-    return showModalBottomSheet<Netdisk123Account>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text('选择下载账号',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-            ),
-            ...s.accounts.map((a) => ListTile(
-                  leading: Icon(
-                    s.activeId == a.id
-                        ? Icons.check_circle_rounded
-                        : Icons.account_circle_rounded,
-                    color: s.activeId == a.id
-                        ? AppColors.accent
-                        : AppColors.textSecondary,
-                  ),
-                  title: Text(a.username),
-                  subtitle: s.activeId == a.id ? const Text('当前活跃') : null,
-                  onTap: () => Navigator.pop(ctx, a),
-                )),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+    final picked = await MiuixActionSheet.show<Netdisk123Account>(
+      context,
+      title: '选择下载账号',
+      actions: [
+        for (final a in s.accounts)
+          (
+            icon: s.activeId == a.id
+                ? Icons.check_circle_rounded
+                : Icons.account_circle_rounded,
+            text: s.activeId == a.id ? '${a.username}（当前活跃）' : a.username,
+            value: a,
+            color: s.activeId == a.id ? AppColors.accent : null,
+          ),
+      ],
     );
+    return picked;
   }
 
   Future<void> _showTrafficExhausted(Netdisk123Account acc) async {
-    final go = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('流量不足'),
-        content: Text('账号「${acc.username}」本月免费流量已用完，是否购买流量包（0.5 元起）？'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('去充值')),
-        ],
-      ),
+    final go = await confirmMiuix(
+      context,
+      title: '流量不足',
+      content: '账号「${acc.username}」本月免费流量已用完，是否购买流量包（0.5 元起）？',
+      confirmText: '去充值',
     );
     if (go == true && mounted) {
       await Navigator.of(context).push(
@@ -291,98 +274,112 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('123 网盘'),
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixScaffold(
+      topBar: MiuixTopAppBar(
+        title: '123 网盘',
+        navigationIcon: MiuixIconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: MiuixIcon(
+              icon: Icons.arrow_back_ios_new_rounded,
+              tint: colors.onSurfaceVariant,
+              size: 20),
+        ),
         actions: [
-          IconButton(
+          MiuixIconButton(
             onPressed: _load,
-            icon: Icon(Icons.refresh_rounded, color: AppColors.accent),
-            tooltip: '刷新',
+            child: MiuixIcon(icon: Icons.refresh_rounded, tint: colors.primary),
           ),
-          IconButton(
+          MiuixIconButton(
             onPressed: () => _confirmLogout(),
-            icon: Icon(Icons.logout_rounded, color: AppColors.accent),
-            tooltip: '退出登录',
+            child: MiuixIcon(icon: Icons.logout_rounded, tint: colors.primary),
           ),
         ],
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_crumbs.length > 1)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (var i = 0; i < _crumbs.length; i++) ...[
-                      if (i > 0)
-                        Icon(Icons.chevron_right_rounded,
-                            size: 16, color: AppColors.textSecondary),
-                      InkWell(
-                        onTap: () => _toBreadcrumb(i),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 4),
-                          child: Text(
-                            _crumbs[i].$2,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: i == _crumbs.length - 1
-                                  ? AppColors.accent
-                                  : AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+      content: (padding) => Padding(
+        padding: padding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_crumbs.length > 1) _buildBreadcrumb(colors),
+            Expanded(child: _buildBody()),
+            if (_selectMode) _buildSelectBar(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBreadcrumb(MiuixColors colors) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (var i = 0; i < _crumbs.length; i++) ...[
+              if (i > 0)
+                MiuixIcon(
+                    icon: Icons.chevron_right_rounded,
+                    size: 16,
+                    tint: colors.onSurfaceSecondary),
+              MiuixPressable(
+                onPressed: () => _toBreadcrumb(i),
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: MiuixText(
+                    _crumbs[i].$2,
+                    fontSize: 13,
+                    color: i == _crumbs.length - 1
+                        ? colors.primary
+                        : colors.onSurfaceSecondary,
+                  ),
                 ),
               ),
-            ),
-          Expanded(child: _buildBody()),
-          if (_selectMode) _buildSelectBar(),
-        ],
+            ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildSelectBar() {
     final count = _selected.length;
+    final colors = MiuixTheme.of(context).colors;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: BoxDecoration(
-        color: AppColors.bottomBar,
-        border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
+        color: colors.surfaceContainer,
+        border: Border(top: BorderSide(color: colors.dividerLine, width: 0.5)),
       ),
       child: SafeArea(
         top: false,
         child: Row(
           children: [
-            Text('已选 $count 项',
-                style: TextStyle(
-                    color: AppColors.textPrimary, fontSize: 14)),
+            MiuixText('已选 $count 项',
+                fontSize: 14, color: colors.onSurfaceVariant),
             const Spacer(),
-            FilledButton.icon(
+            MiuixButton(
               onPressed: _downloading || count == 0 ? null : _batchDownload,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.accentDeep,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+              colors: MiuixButtonColors(
+                color: colors.primary,
+                disabledColor: colors.primaryVariant,
+                contentColor: Colors.white,
+                disabledContentColor: Colors.white,
               ),
-              icon: _downloading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
+              child: _downloading
+                  ? const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: MiuixCircularProgressIndicator(
+                          size: 16,
+                          colors: MiuixProgressIndicatorColors(
+                            foregroundColor: Colors.white,
+                            disabledForegroundColor: Colors.white,
+                            backgroundColor: Colors.white24,
+                          )),
                     )
-                  : const Icon(Icons.download_rounded, size: 18),
-              label: Text('下载($count)'),
+                  : MiuixText('下载($count)', color: Colors.white, fontSize: 14),
             ),
           ],
         ),
@@ -395,15 +392,16 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
       return BodySwitcher(child: const EmptyView(icon: Icons.lock_outline_rounded, text: '未登录 123 网盘', subText: '请在网盘首页点击 123 网盘登录'));
     }
     if (_error != null && _files.isEmpty) {
-      return BodySwitcher(child: EmptyView(icon: Icons.cloud_off_rounded, text: '加载失败', subText: _error, action: OutlinedButton(onPressed: _load, child: const Text('重试'))));
+      return BodySwitcher(child: EmptyView(icon: Icons.cloud_off_rounded, text: '加载失败', subText: _error, action: MiuixTextButton('重试', onPressed: _load)));
     }
     if (_loading && _files.isEmpty) {
-      return BodySwitcher(child: const Center(child: CircularProgressIndicator()));
+      return BodySwitcher(child: const Center(child: MiuixCircularProgressIndicator()));
     }
     if (_files.isEmpty) {
       return BodySwitcher(child: const EmptyView(icon: Icons.folder_open_rounded, text: '这里空空如也'));
     }
-    final content = RefreshIndicator(
+    final content = MiuixPullToRefresh(
+      isRefreshing: _loading,
       onRefresh: _load,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -417,8 +415,9 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
 
   Widget _buildItem(Netdisk123File file) {
     final selected = _selected.contains(file.id);
-    return InkWell(
-      onTap: () {
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixCard(
+      onPressed: () {
         if (_selectMode) {
           _toggleSelect(file);
         } else if (file.isDir) {
@@ -428,13 +427,8 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
         }
       },
       onLongPress: _selectMode ? null : () => _enterSelectMode(file),
-      borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.accentDeep : AppColors.card,
-          borderRadius: BorderRadius.circular(14),
-        ),
         child: Row(
           children: [
             FileIcon(isDir: file.isDir, name: file.name),
@@ -443,37 +437,36 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  MiuixText(
                     file.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500),
+                    color: colors.onSurfaceVariant,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    file.isDir
-                        ? '文件夹'
-                        : '${formatBytes(file.size)}',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                  MiuixText(
+                    file.isDir ? '文件夹' : '${formatBytes(file.size)}',
+                    color: colors.onSurfaceSecondary,
+                    fontSize: 12,
                   ),
                 ],
               ),
             ),
             if (_selectMode)
-              Icon(
-                selected
+              MiuixIcon(
+                icon: selected
                     ? Icons.check_circle_rounded
                     : Icons.radio_button_unchecked_rounded,
-                color: selected ? AppColors.accent : AppColors.textSecondary,
+                tint: selected ? colors.primary : colors.onSurfaceSecondary,
                 size: 22,
               )
             else
-              Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary, size: 20),
+              MiuixIcon(
+                  icon: Icons.chevron_right_rounded,
+                  tint: colors.onSurfaceSecondary,
+                  size: 20),
           ],
         ),
       ),
@@ -481,47 +474,19 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
   }
 
   void _showFileActions(Netdisk123File file) {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            FileIcon(isDir: false, name: file.name, size: 52),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                file.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(formatBytes(file.size),
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: Icon(Icons.download_rounded, color: AppColors.accent),
-              title: const Text('立即下载'),
-              subtitle: const Text('高速直链，多线程不限速下载'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _downloadFile(file);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
+    MiuixActionSheet.show<String>(
+      context,
+      title: file.name,
+      actions: [
+        (icon: Icons.download_rounded, text: '立即下载', value: 'download', color: null),
+      ],
+    ).then((v) {
+      if (v == null) return;
+      switch (v) {
+        case 'download':
+          _downloadFile(file);
+      }
+    });
   }
 
   Future<void> _downloadFile(Netdisk123File file) async {
@@ -562,20 +527,13 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
   Future<void> _confirmLogout() async {
     final s = Netdisk123State.I;
     if (s.accounts.length > 1) {
-      final choice = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('退出 123 网盘'),
-          content: Text('当前 ${s.accounts.length} 个账号，已登录：\n${s.accounts.map((e) => e.username).join("、")}\n\n选择退出方式。'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, 'cancel'), child: const Text('取消')),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, 'active'),
-              child: Text('退出当前 (${s.active?.username ?? ""})'),
-            ),
-            FilledButton(onPressed: () => Navigator.pop(ctx, 'all'), child: const Text('退出全部')),
-          ],
-        ),
+      final choice = await MiuixActionSheet.show<String>(
+        context,
+        title: '退出 123 网盘',
+        actions: [
+          (icon: Icons.account_circle_rounded, text: '退出当前（${s.active?.username ?? ''}）', value: 'active', color: null),
+          (icon: Icons.logout_rounded, text: '退出全部账号', value: 'all', color: AppColors.red),
+        ],
       );
       if (choice == 'active') {
         await s.logoutActive();
@@ -595,22 +553,12 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
       }
       return;
     }
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('退出 123 网盘'),
-        content: const Text('确定退出登录吗？退出后需要重新登录才能访问网盘文件。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('退出'),
-          ),
-        ],
-      ),
+    final ok = await confirmMiuix(
+      context,
+      title: '退出 123 网盘',
+      content: '确定退出登录吗？退出后需要重新登录才能访问网盘文件。',
+      confirmText: '退出',
+      danger: true,
     );
     if (ok == true) {
       await Netdisk123State.I.logout();
@@ -630,6 +578,6 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    MiuixToast.show(msg);
   }
 }

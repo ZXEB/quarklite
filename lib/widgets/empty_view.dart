@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_miuix/miuix.dart';
 
 import '../theme/app_theme.dart';
 
@@ -18,28 +19,30 @@ class EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              color: AppColors.card,
-              borderRadius: BorderRadius.circular(28),
+          MiuixSurface(
+            color: colors.surface,
+            cornerRadius: 28,
+            child: SizedBox(
+              width: 88,
+              height: 88,
+              child: Center(
+                child: MiuixIcon(
+                    icon: icon, size: 42, tint: colors.onSurfaceSecondary),
+              ),
             ),
-            child: Icon(icon, size: 42, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 20),
-          Text(text,
-              style: TextStyle(
-                  color: AppColors.textSecondary, fontSize: 15)),
+          MiuixText(text,
+              fontSize: 15, color: colors.onSurfaceSecondary),
           if (subText != null) ...[
             const SizedBox(height: 6),
-            Text(subText!,
-                style:
-                    TextStyle(color: AppColors.divider, fontSize: 12)),
+            MiuixText(subText!,
+                fontSize: 12, color: colors.outline, textAlign: TextAlign.center),
           ],
           if (action != null) ...[
             const SizedBox(height: 20),

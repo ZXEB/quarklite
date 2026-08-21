@@ -7,6 +7,17 @@
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
+  // 单实例限制：已有一个 Quarklite 实例在运行时，唤起其主窗口并退出。
+  HANDLE mutex = CreateMutexW(nullptr, FALSE, L"Quarklite_SingleInstance_Mutex");
+  if (mutex != nullptr && GetLastError() == ERROR_ALREADY_EXISTS) {
+    HWND existing = FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", nullptr);
+    if (existing != nullptr) {
+      ShowWindow(existing, SW_RESTORE);
+      SetForegroundWindow(existing);
+    }
+    return EXIT_SUCCESS;
+  }
+
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {

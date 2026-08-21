@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../../state/xunlei_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/miuix_common.dart';
 import 'xunlei_review_page.dart';
 
 /// 迅雷云盘账号密码登录页（含风控短信验证流程）
@@ -91,109 +92,38 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
     final controller = TextEditingController();
     await showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('需要短信验证'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '本次登录触发了风控，请按以下步骤完成验证：',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                '① 打开下面的验证链接（在浏览器中完成短信/滑块验证）',
-                style: TextStyle(fontSize: 13, height: 1.5),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.cardLight,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: SelectableText(
-                        reviewUrl,
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.accent),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: reviewUrl));
-                        _toast('验证链接已复制');
-                      },
-                      icon: Icon(Icons.copy_rounded,
-                          size: 18, color: AppColors.accent),
-                      tooltip: '复制链接',
-                    ),
-                    if (!kIsWeb && Platform.isWindows)
-                      IconButton(
-                        onPressed: () async {
-                          try {
-                            await Process.start(
-                                'cmd', ['/c', 'start', '', reviewUrl]);
-                          } catch (_) {}
-                        },
-                        icon: Icon(Icons.open_in_browser_rounded,
-                            size: 18, color: AppColors.accent),
-                        tooltip: '打开浏览器',
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                '② 验证完成后，复制页面显示的验证密钥（creditkey），粘贴到下面',
-                style: TextStyle(fontSize: 13, height: 1.5),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: controller,
-                style: TextStyle(
-                    color: AppColors.textPrimary, fontSize: 14),
-                decoration: const InputDecoration(
-                  hintText: '粘贴验证密钥 creditkey',
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final key = controller.text.trim();
-              if (key.isEmpty) {
-                _toast('请先粘贴验证密钥');
-                return;
-              }
-              Navigator.pop(ctx);
-              setState(() => _submitting = true);
-              final err = await XunleiState.I
-                  .loginWithCreditKey(account, password, key);
-              if (!mounted) return;
-              setState(() => _submitting = false);
-              if (err == null) {
-                Navigator.of(context).pop(true);
-              } else if (XunleiState.I.client.reviewPending) {
-                _toast('仍需验证，请重新完成短信验证');
-              } else {
-                _toast('登录失败: $err');
-              }
-            },
-            child: const Text('完成验证并登录'),
-          ),
-        ],
+      builder: (ctx) => _ReviewKeyDialog(
+        reviewUrl: reviewUrl,
+        controller: controller,
+        onCopy: () {
+          Clipboard.setData(ClipboardData(text: reviewUrl));
+          _toast('验证链接已复制');
+        },
+        onOpenBrowser: () async {
+          try {
+            await Process.start('cmd', ['/c', 'start', '', reviewUrl]);
+          } catch (_) {}
+        },
+        onSubmit: () async {
+          final key = controller.text.trim();
+          if (key.isEmpty) {
+            _toast('请先粘贴验证密钥');
+            return;
+          }
+          Navigator.pop(ctx);
+          setState(() => _submitting = true);
+          final err = await XunleiState.I
+              .loginWithCreditKey(account, password, key);
+          if (!mounted) return;
+          setState(() => _submitting = false);
+          if (err == null) {
+            Navigator.of(context).pop(true);
+          } else if (XunleiState.I.client.reviewPending) {
+            _toast('仍需验证，请重新完成短信验证');
+          } else {
+            _toast('登录失败: $err');
+          }
+        },
       ),
     );
     controller.dispose();
@@ -201,78 +131,222 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    MiuixToast.show(msg);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('登录迅雷云盘')),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          Text(
-            '使用迅雷账号（手机号/邮箱）登录，登录后可浏览网盘文件并使用多线程不限速下载。',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.6),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _account,
-            keyboardType: TextInputType.emailAddress,
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
-            decoration: InputDecoration(
-              hintText: '手机号 / 邮箱',
-              prefixIcon: Icon(Icons.person_outline_rounded,
-                  color: AppColors.textSecondary, size: 20),
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixScaffold(
+      topBar: MiuixTopAppBar(
+        title: '登录迅雷云盘',
+        navigationIcon: MiuixIconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: MiuixIcon(
+              icon: Icons.arrow_back_ios_new_rounded,
+              tint: colors.onSurfaceVariant,
+              size: 20),
+        ),
+      ),
+      content: (padding) => Padding(
+        padding: padding,
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            MiuixText(
+              '使用迅雷账号（手机号/邮箱）登录，登录后可浏览网盘文件并使用多线程不限速下载。',
+              color: colors.onSurfaceSecondary,
+              fontSize: 12,
             ),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: _password,
-            obscureText: _obscure,
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
-            decoration: InputDecoration(
-              hintText: '密码',
-              prefixIcon: Icon(Icons.lock_outline_rounded,
-                  color: AppColors.textSecondary, size: 20),
-              suffixIcon: IconButton(
+            const SizedBox(height: 20),
+            MiuixTextField(
+              controller: _account,
+              keyboardType: TextInputType.emailAddress,
+              label: '手机号 / 邮箱',
+              useLabelAsPlaceholder: true,
+              singleLine: true,
+              leadingIcon: MiuixIcon(Icons.person_outline_rounded,
+                  tint: colors.onSurfaceSecondary, size: 20),
+            ),
+            const SizedBox(height: 14),
+            MiuixTextField(
+              controller: _password,
+              obscureText: _obscure,
+              label: '密码',
+              useLabelAsPlaceholder: true,
+              singleLine: true,
+              onSubmitted: (_) => _submit(),
+              leadingIcon: MiuixIcon(Icons.lock_outline_rounded,
+                  tint: colors.onSurfaceSecondary, size: 20),
+              trailingIcon: MiuixIconButton(
                 onPressed: () => setState(() => _obscure = !_obscure),
-                icon: Icon(
+                child: MiuixIcon(
                   _obscure
                       ? Icons.visibility_off_rounded
                       : Icons.visibility_rounded,
-                  color: AppColors.textSecondary,
+                  tint: colors.onSurfaceSecondary,
                   size: 20,
                 ),
               ),
             ),
-            onSubmitted: (_) => _submit(),
-          ),
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _submitting ? null : _submit,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+            const SizedBox(height: 24),
+            MiuixButton(
+              onPressed: _submitting ? null : _submit,
+              colors: MiuixButtonColors(
+                color: colors.primary,
+                contentColor: Colors.white,
+              ),
+              child: _submitting
+                  ? const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: MiuixCircularProgressIndicator(
+                          size: 16,
+                          colors: MiuixProgressIndicatorColors(
+                            foregroundColor: Colors.white,
+                            disabledForegroundColor: Colors.white,
+                            backgroundColor: Colors.white24,
+                          )),
+                    )
+                  : MiuixText('登录', color: Colors.white, fontSize: 15),
             ),
-            child: _submitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
-                : const Text('登录'),
+            const SizedBox(height: 14),
+            MiuixText(
+              '提示：登录仅用于获取迅雷云盘下载直链，账号信息仅保存在本机。',
+              color: colors.onSurfaceSecondary,
+              fontSize: 11,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 风控短信验证密钥输入对话框（MiuixOverlayDialog 声明式包裹在 Navigator 弹层中）
+class _ReviewKeyDialog extends StatefulWidget {
+  final String reviewUrl;
+  final TextEditingController controller;
+  final VoidCallback onCopy;
+  final VoidCallback onOpenBrowser;
+  final VoidCallback onSubmit;
+
+  const _ReviewKeyDialog({
+    super.key,
+    required this.reviewUrl,
+    required this.controller,
+    required this.onCopy,
+    required this.onOpenBrowser,
+    required this.onSubmit,
+  });
+
+  @override
+  State<_ReviewKeyDialog> createState() => _ReviewKeyDialogState();
+}
+
+class _ReviewKeyDialogState extends State<_ReviewKeyDialog> {
+  final MiuixPopupController _controller = MiuixPopupController(visible: false);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _controller.show());
+  }
+
+  void _close() {
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixOverlayDialog(
+      show: false,
+      title: '需要短信验证',
+      onDismissRequest: _close,
+      content: MiuixDismissScope(
+        onDismissRequest: _close,
+        child: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              MiuixText(
+                '本次登录触发了风控，请按以下步骤完成验证：',
+                color: colors.onSurfaceSecondary,
+                fontSize: 13,
+              ),
+              const SizedBox(height: 10),
+              MiuixText('① 打开下面的验证链接（在浏览器中完成短信/滑块验证）',
+                  fontSize: 13),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: SelectableText(
+                        widget.reviewUrl,
+                        style:
+                            TextStyle(fontSize: 11, color: colors.primary),
+                      ),
+                    ),
+                    MiuixIconButton(
+                      onPressed: widget.onCopy,
+                      child: MiuixIcon(Icons.copy_rounded,
+                          tint: colors.primary, size: 18),
+                    ),
+                    if (!kIsWeb && Platform.isWindows)
+                      MiuixIconButton(
+                        onPressed: widget.onOpenBrowser,
+                        child: MiuixIcon(Icons.open_in_browser_rounded,
+                            tint: colors.primary, size: 18),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              MiuixText('② 验证完成后，复制页面显示的验证密钥（creditkey），粘贴到下面',
+                  fontSize: 13),
+              const SizedBox(height: 8),
+              MiuixTextField(
+                controller: widget.controller,
+                label: '粘贴验证密钥 creditkey',
+                useLabelAsPlaceholder: true,
+                singleLine: true,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: MiuixTextButton(
+                      '取消',
+                      onPressed: _close,
+                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: MiuixTextButton(
+                      '完成验证并登录',
+                      onPressed: widget.onSubmit,
+                      colors: MiuixButtonColors(
+                        color: colors.primary,
+                        contentColor: Colors.white,
+                      ),
+                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(height: 14),
-          Text(
-            '提示：登录仅用于获取迅雷云盘下载直链，账号信息仅保存在本机。',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-            textAlign: TextAlign.center,
-          ),
-        ],
+        ),
       ),
     );
   }

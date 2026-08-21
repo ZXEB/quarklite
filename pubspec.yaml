@@ -39,6 +39,9 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  assets:
+    - assets/icons/
+
   fonts:
     - family: MiSansPro
       fonts:

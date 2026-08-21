@@ -17,6 +17,7 @@ import 'state/upload_manager.dart';
 import 'state/xunlei_state.dart';
 import 'theme/app_theme.dart';
 import 'utils/app_logger.dart';
+import 'widgets/miuix_common.dart';
 
 class QuarkLiteApp extends StatefulWidget {
   final GlobalKey<NavigatorState>? navigatorKey;
@@ -28,6 +29,7 @@ class QuarkLiteApp extends StatefulWidget {
 }
 
 class _QuarkLiteAppState extends State<QuarkLiteApp> {
+  final MiuixSnackbarHostState _snackbarHost = MiuixSnackbarHostState();
   bool _ready = false;
   String? _bootError;
 
@@ -78,49 +80,67 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
   @override
   void dispose() {
     DownloadManager.I.stopPolling();
+    _snackbarHost.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Quarklite',
-      debugShowCheckedModeBanner: false,
-      navigatorKey: widget.navigatorKey,
-      theme: AppTheme.light(),
-      home: _ready ? const RootPage() : _BootView(error: _bootError),
+    // 全局 Snackbar：供 pages 通过 MiuixToast.show(context, msg) 调用
+    SnackbarRegistry.globalHost = _snackbarHost;
+    return MiuixThemeController(
+      colorSchemeMode: MiuixColorSchemeMode.light,
+      child: MaterialApp(
+        title: 'Quarklite',
+        debugShowCheckedModeBanner: false,
+        navigatorKey: widget.navigatorKey,
+        // Material 主题仅提供文字/转场基座；颜色由外层 MiuixTheme 主导
+        theme: AppTheme.light(),
+        home: _ready
+            ? RootPage(snackbarHost: _snackbarHost)
+            : _BootView(error: _bootError, snackbarHost: _snackbarHost),
+      ),
     );
   }
 }
 
+/// 全局 Snackbar 注册表：让业务代码不依赖页面直接拿到 host。
+class SnackbarRegistry {
+  SnackbarRegistry._();
+  static MiuixSnackbarHostState globalHost = MiuixSnackbarHostState();
+}
+
 class _BootView extends StatelessWidget {
   final String? error;
+  final MiuixSnackbarHostState snackbarHost;
 
-  const _BootView({this.error});
+  const _BootView({this.error, required this.snackbarHost});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bg,
-      body: Center(
+    return MiuixScaffold(
+      snackbarHost: MiuixSnackbarHost(state: snackbarHost),
+      content: (_) => Center(
         child: error == null
-            ? const CircularProgressIndicator()
+            ? const MiuixCircularProgressIndicator()
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.error_outline, color: AppColors.red, size: 48),
+                  const MiuixIcon(
+                      icon: Icons.error_outline,
+                      tint: AppColors.red,
+                      size: 48),
                   const SizedBox(height: 16),
-                  Text('下载引擎启动失败',
-                      style: TextStyle(
-                          color: AppColors.textPrimary, fontSize: 16)),
+                  MiuixText('下载引擎启动失败',
+                      fontSize: 16, fontWeight: FontWeight.w600),
                   const SizedBox(height: 8),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
+                    child: MiuixText(
                       error!,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12),
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
                     ),
                   ),
                 ],
@@ -131,7 +151,9 @@ class _BootView extends StatelessWidget {
 }
 
 class RootPage extends StatefulWidget {
-  const RootPage({super.key});
+  final MiuixSnackbarHostState snackbarHost;
+
+  const RootPage({super.key, required this.snackbarHost});
 
   @override
   State<RootPage> createState() => _RootPageState();
@@ -150,13 +172,13 @@ class _RootPageState extends State<RootPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bg,
-      body: _AnimatedPageView(index: _index, children: _pages),
-      bottomNavigationBar: _MiuixBottomBar(
+    return MiuixScaffold(
+      snackbarHost: MiuixSnackbarHost(state: widget.snackbarHost),
+      bottomBar: _MiuixBottomBar(
         index: _index,
         onTap: (i) => setState(() => _index = i),
       ),
+      content: (_) => _AnimatedPageView(index: _index, children: _pages),
     );
   }
 }
@@ -219,13 +241,13 @@ class _MiuixBottomBar extends StatelessWidget {
   const _MiuixBottomBar({required this.index, required this.onTap});
 
   Widget _tabIcon(int i, IconData icon) {
-    if (i != 3) return Icon(icon, size: 26);
+    if (i != 3) return MiuixIcon(icon: icon, size: 26);
     return ListenableBuilder(
       listenable: UploadManager.I,
       builder: (context, _) => Stack(
         clipBehavior: Clip.none,
         children: [
-          Icon(icon, size: 26),
+          MiuixIcon(icon: icon, size: 26),
           if (UploadManager.I.hasActive)
             const Positioned(
               right: -4,

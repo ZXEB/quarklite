@@ -13,6 +13,7 @@ import '../../utils/upload_picker.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_list_anim.dart';
 import '../../widgets/file_icon.dart';
+import '../../widgets/miuix_common.dart';
 import 'move_target_page.dart';
 import 'search_page.dart';
 
@@ -189,27 +190,14 @@ class _DrivePageState extends State<DrivePage>
     final ok = await app.canWriteDownload();
     if (!ok) {
       if (!mounted) return;
-      final granted = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('需要存储权限'),
-          content: const Text('下载文件需要「所有文件访问」权限，请授权后继续。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(ctx, true);
-                app.openAllFilesAccess();
-              },
-              child: const Text('去授权'),
-            ),
-          ],
-        ),
+      final granted = await confirmMiuix(
+        context,
+        title: '需要存储权限',
+        content: '下载文件需要「所有文件访问」权限，请授权后继续。',
+        confirmText: '去授权',
       );
       if (granted != true) return;
+      app.openAllFilesAccess();
       _toast('授权完成后请重新下载');
       return;
     }
@@ -242,31 +230,12 @@ class _DrivePageState extends State<DrivePage>
   }
 
   Future<void> _renameFile(QuarkFile file) async {
-    final controller = TextEditingController(text: file.fileName);
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('重命名'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 1,
-          decoration: const InputDecoration(hintText: '输入新名称'),
-          onSubmitted: (v) => Navigator.pop(ctx, v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            child: const Text('确定'),
-          ),
-        ],
-      ),
+    final newName = await miuixInputDialog(
+      context,
+      title: '重命名',
+      hint: '输入新名称',
+      initialText: file.fileName,
     );
-    controller.dispose();
     if (newName == null || !mounted) return;
     final trimmed = newName.trim();
     if (trimmed.isEmpty) {
@@ -319,26 +288,12 @@ class _DrivePageState extends State<DrivePage>
 
   Future<void> _deleteFiles(Set<String> fids) async {
     if (fids.isEmpty || _busy) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('删除确认'),
-        content: Text('确定删除选中的 ${fids.length} 项吗？删除后将移入回收站。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
+    final ok = await confirmMiuix(
+      context,
+      title: '删除确认',
+      content: '确定删除选中的 ${fids.length} 项吗？删除后将移入回收站。',
+      confirmText: '删除',
+      danger: true,
     );
     if (ok != true) return;
     setState(() => _busy = true);
@@ -356,31 +311,12 @@ class _DrivePageState extends State<DrivePage>
 
   Future<void> _createFolder() async {
     if (!AppState.I.isLoggedIn || _busy) return;
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('新建文件夹'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 1,
-          decoration: const InputDecoration(hintText: '输入文件夹名称'),
-          onSubmitted: (v) => Navigator.pop(ctx, v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            child: const Text('创建'),
-          ),
-        ],
-      ),
+    final name = await miuixInputDialog(
+      context,
+      title: '新建文件夹',
+      hint: '输入文件夹名称',
+      confirmText: '创建',
     );
-    controller.dispose();
     if (name == null || !mounted) return;
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
@@ -473,151 +409,150 @@ class _DrivePageState extends State<DrivePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('夸克网盘'),
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixScaffold(
+      topBar: MiuixTopAppBar(
+        title: '夸克网盘',
+        navigationIcon: _selectMode
+            ? null
+            : MiuixIconButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                child: MiuixIcon(
+                    icon: Icons.arrow_back_ios_new_rounded,
+                    tint: colors.onSurfaceVariant,
+                    size: 20),
+              ),
         actions: _selectMode
             ? [
-                TextButton(
+                MiuixTextButton(
+                  '全选',
                   onPressed: _selectAllFiles,
-                  child: Text('全选',
-                      style: TextStyle(color: AppColors.accent)),
+                  colors: MiuixButtonColors(color: colors.primary),
                 ),
-                IconButton(
+                MiuixIconButton(
                   onPressed: _exitSelectMode,
-                  icon: Icon(Icons.close_rounded,
-                      color: AppColors.accent),
+                  child: MiuixIcon(
+                      icon: Icons.close_rounded, tint: colors.primary),
                 ),
               ]
             : [
-                IconButton(
+                MiuixIconButton(
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SearchPage()),
                   ),
-                  icon: Icon(Icons.search_rounded,
-                      color: AppColors.accent),
-                  tooltip: '搜索',
+                  child: MiuixIcon(icon: Icons.search_rounded, tint: colors.primary),
                 ),
-                IconButton(
+                MiuixIconButton(
                   onPressed: _showUploadMenu,
-                  icon: Icon(Icons.upload_rounded,
-                      color: AppColors.accent),
-                  tooltip: '上传',
+                  child: MiuixIcon(icon: Icons.upload_rounded, tint: colors.primary),
                 ),
-                IconButton(
+                MiuixIconButton(
                   onPressed: _load,
-                  icon: Icon(Icons.refresh_rounded,
-                      color: AppColors.accent),
-                  tooltip: '刷新',
+                  child: MiuixIcon(icon: Icons.refresh_rounded, tint: colors.primary),
                 ),
-                IconButton(
+                MiuixIconButton(
                   onPressed: _confirmLogout,
-                  icon: Icon(Icons.logout_rounded,
-                      color: AppColors.accent),
-                  tooltip: '退出登录',
+                  child: MiuixIcon(icon: Icons.logout_rounded, tint: colors.primary),
                 ),
               ],
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_crumbs.length > 1)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (var i = 0; i < _crumbs.length; i++) ...[
-                      if (i > 0)
-                        Icon(Icons.chevron_right_rounded,
-                            size: 16, color: AppColors.textSecondary),
-                      InkWell(
-                        onTap: () => _toBreadcrumb(i),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 4),
-                          child: Text(
-                            _crumbs[i].$2,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: i == _crumbs.length - 1
-                                  ? AppColors.accent
-                                  : AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+      content: (padding) => Padding(
+        padding: padding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_crumbs.length > 1) _buildBreadcrumb(context, colors),
+            Expanded(child: _buildBody()),
+            if (_selectMode) _buildSelectBar(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBreadcrumb(BuildContext context, MiuixColors colors) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (var i = 0; i < _crumbs.length; i++) ...[
+              if (i > 0)
+                MiuixIcon(
+                    icon: Icons.chevron_right_rounded,
+                    size: 16,
+                    tint: colors.onSurfaceSecondary),
+              MiuixPressable(
+                onPressed: () => _toBreadcrumb(i),
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: MiuixText(
+                    _crumbs[i].$2,
+                    fontSize: 13,
+                    color: i == _crumbs.length - 1
+                        ? colors.primary
+                        : colors.onSurfaceSecondary,
+                  ),
                 ),
               ),
-            ),
-          Expanded(child: _buildBody()),
-          if (_selectMode) _buildSelectBar(),
-        ],
+            ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildSelectBar() {
     final count = _selected.length;
+    final colors = MiuixTheme.of(context).colors;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: BoxDecoration(
-        color: AppColors.bottomBar,
-        border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
+        color: colors.surfaceContainer,
+        border: Border(top: BorderSide(color: colors.dividerLine, width: 0.5)),
       ),
       child: SafeArea(
         top: false,
         child: Row(
           children: [
-            Text('已选 $count 项',
-                style: TextStyle(
-                    color: AppColors.textPrimary, fontSize: 14)),
+            MiuixText('已选 $count 项',
+                fontSize: 14, color: colors.onSurfaceVariant),
             const Spacer(),
-            OutlinedButton.icon(
+            MiuixTextButton(
+              '删除',
               onPressed: _busy || count == 0 ? null : () => _deleteFiles(_selected),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.red,
-                side: BorderSide(color: AppColors.red),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.delete_outline_rounded, size: 18),
-              label: const Text('删除'),
+              colors: MiuixButtonColors(color: AppColors.red),
             ),
             const SizedBox(width: 10),
-            OutlinedButton.icon(
+            MiuixTextButton(
+              '移动到',
               onPressed: _busy || count == 0 ? null : () => _moveFiles(_selected),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.accent,
-                side: BorderSide(color: AppColors.accent),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.drive_file_move_rounded, size: 18),
-              label: const Text('移动到'),
+              colors: MiuixButtonColors(color: colors.primary),
             ),
             const SizedBox(width: 10),
-            FilledButton.icon(
+            MiuixButton(
               onPressed: _downloading || count == 0 ? null : _batchDownload,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.accentDeep,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+              colors: MiuixButtonColors(
+                color: colors.primary,
+                disabledColor: colors.primaryVariant,
+                contentColor: Colors.white,
+                disabledContentColor: Colors.white,
               ),
-              icon: _downloading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
+              child: _downloading
+                  ? const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: MiuixCircularProgressIndicator(
+                          size: 16,
+                          colors: MiuixProgressIndicatorColors(
+                            foregroundColor: Colors.white,
+                            disabledForegroundColor: Colors.white,
+                            backgroundColor: Colors.white24,
+                          )),
                     )
-                  : const Icon(Icons.download_rounded, size: 18),
-              label: Text('下载($count)'),
+                  : MiuixText('下载($count)',
+                      color: Colors.white, fontSize: 14),
             ),
           ],
         ),
@@ -630,15 +565,16 @@ class _DrivePageState extends State<DrivePage>
       return BodySwitcher(child: const EmptyView(icon: Icons.lock_outline_rounded, text: '登录后查看网盘文件', subText: '请在「我的」页面登录夸克账号'));
     }
     if (_error != null && _files.isEmpty) {
-      return BodySwitcher(child: EmptyView(icon: Icons.cloud_off_rounded, text: '加载失败', subText: _error, action: OutlinedButton(onPressed: _load, child: const Text('重试'))));
+      return BodySwitcher(child: EmptyView(icon: Icons.cloud_off_rounded, text: '加载失败', subText: _error, action: MiuixTextButton('重试', onPressed: _load)));
     }
     if (_loading && _files.isEmpty) {
-      return BodySwitcher(child: const Center(child: CircularProgressIndicator()));
+      return BodySwitcher(child: const Center(child: MiuixCircularProgressIndicator()));
     }
     if (_files.isEmpty) {
       return BodySwitcher(child: const EmptyView(icon: Icons.folder_open_rounded, text: '这里空空如也'));
     }
-    final content = RefreshIndicator(
+    final content = MiuixPullToRefresh(
+      isRefreshing: _loading,
       onRefresh: _load,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -652,8 +588,9 @@ class _DrivePageState extends State<DrivePage>
 
   Widget _buildItem(QuarkFile file) {
     final selected = _selected.contains(file.fid);
-    return InkWell(
-      onTap: () {
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixCard(
+      onPressed: () {
         if (_selectMode) {
           _toggleSelect(file);
         } else if (file.isDir) {
@@ -663,13 +600,8 @@ class _DrivePageState extends State<DrivePage>
         }
       },
       onLongPress: _selectMode ? null : () => _enterSelectMode(file),
-      borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.accentDeep : AppColors.card,
-          borderRadius: BorderRadius.circular(14),
-        ),
         child: Row(
           children: [
             FileIcon(isDir: file.isDir, name: file.fileName),
@@ -678,35 +610,36 @@ class _DrivePageState extends State<DrivePage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  MiuixText(
                     file.fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500),
+                    color: colors.onSurfaceVariant,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  MiuixText(
                     file.isDir ? '文件夹' : formatBytes(file.size),
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    color: colors.onSurfaceSecondary,
+                    fontSize: 12,
                   ),
                 ],
               ),
             ),
             if (_selectMode)
-              Icon(
-                selected
+              MiuixIcon(
+                icon: selected
                     ? Icons.check_circle_rounded
                     : Icons.radio_button_unchecked_rounded,
-                color: selected ? AppColors.accent : AppColors.textSecondary,
+                tint: selected ? colors.primary : colors.onSurfaceSecondary,
                 size: 22,
               )
             else
-              Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary, size: 20),
+              MiuixIcon(
+                  icon: Icons.chevron_right_rounded,
+                  tint: colors.onSurfaceSecondary,
+                  size: 20),
           ],
         ),
       ),
@@ -714,96 +647,28 @@ class _DrivePageState extends State<DrivePage>
   }
 
   void _showFileActions(QuarkFile file) {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            FileIcon(isDir: false, name: file.fileName, size: 52),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                file.fileName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(formatBytes(file.size),
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: Icon(Icons.download_rounded, color: AppColors.accent),
-              title: const Text('立即下载'),
-              subtitle: const Text('提取直链，多线程不限速下载'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _downloadFile(file);
-              },
-            ),
-            const SizedBox(height: 8),
-            _actionTile(
-              icon: Icons.drive_file_move_rounded,
-              title: '移动到',
-              subtitle: '转移到其他文件夹',
-              onTap: () {
-                Navigator.pop(ctx);
-                _moveFiles({file.fid});
-              },
-            ),
-            const Divider(height: 1),
-            _actionTile(
-              icon: Icons.drive_file_rename_outline_rounded,
-              title: '重命名',
-              subtitle: null,
-              onTap: () {
-                Navigator.pop(ctx);
-                _renameFile(file);
-              },
-            ),
-            _actionTile(
-              icon: Icons.delete_outline_rounded,
-              title: '删除',
-              subtitle: null,
-              color: AppColors.red,
-              onTap: () {
-                Navigator.pop(ctx);
-                _deleteFiles({file.fid});
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _actionTile({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    Color? color,
-    required VoidCallback onTap,
-  }) {
-    color ??= AppColors.accent;
-    return ListTile(
-      leading: Icon(icon, color: color),
-      title: Text(title, style: TextStyle(color: color)),
-      subtitle: subtitle == null
-          ? null
-          : Text(subtitle,
-              style: TextStyle(color: AppColors.textSecondary)),
-      onTap: onTap,
-    );
+    MiuixActionSheet.show<String>(
+      context,
+      title: file.fileName,
+      actions: [
+        (icon: Icons.download_rounded, text: '立即下载', value: 'download', color: null),
+        (icon: Icons.drive_file_move_rounded, text: '移动到', value: 'move', color: null),
+        (icon: Icons.drive_file_rename_outline_rounded, text: '重命名', value: 'rename', color: null),
+        (icon: Icons.delete_outline_rounded, text: '删除', value: 'delete', color: AppColors.red),
+      ],
+    ).then((v) {
+      if (v == null) return;
+      switch (v) {
+        case 'download':
+          _downloadFile(file);
+        case 'move':
+          _moveFiles({file.fid});
+        case 'rename':
+          _renameFile(file);
+        case 'delete':
+          _deleteFiles({file.fid});
+      }
+    });
   }
 
   Future<void> _downloadFile(QuarkFile file) async {
@@ -811,27 +676,14 @@ class _DrivePageState extends State<DrivePage>
     final ok = await app.canWriteDownload();
     if (!ok) {
       if (!mounted) return;
-      final granted = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('需要存储权限'),
-          content: const Text('下载文件需要「所有文件访问」权限，请授权后继续。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(ctx, true);
-                app.openAllFilesAccess();
-              },
-              child: const Text('去授权'),
-            ),
-          ],
-        ),
+      final granted = await confirmMiuix(
+        context,
+        title: '需要存储权限',
+        content: '下载文件需要「所有文件访问」权限，请授权后继续。',
+        confirmText: '去授权',
       );
       if (granted != true) return;
+      app.openAllFilesAccess();
       _toast('授权完成后请重新点击下载');
       return;
     }
@@ -862,48 +714,25 @@ class _DrivePageState extends State<DrivePage>
       _toast('请先登录夸克账号');
       return;
     }
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            ListTile(
-              leading: Icon(Icons.create_new_folder_rounded,
-                  color: AppColors.accent),
-              title: const Text('新建文件夹'),
-              subtitle: const Text('在当前目录创建新文件夹'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _createFolder();
-              },
-            ),
-            ListTile(
-              leading:
-                  Icon(Icons.upload_file_rounded, color: AppColors.accent),
-              title: const Text('上传文件'),
-              subtitle: const Text('支持一次选择多个文件，上传到当前目录'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _pickFiles();
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.create_new_folder_rounded,
-                  color: AppColors.accent),
-              title: const Text('上传文件夹'),
-              subtitle: const Text('保持目录结构上传到当前目录'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _pickFolder();
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
+    MiuixActionSheet.show<String>(
+      context,
+      title: '上传到「${_crumbs.last.$2}」',
+      actions: [
+        (icon: Icons.create_new_folder_rounded, text: '新建文件夹', value: 'folder', color: null),
+        (icon: Icons.upload_file_rounded, text: '上传文件', value: 'file', color: null),
+        (icon: Icons.create_new_folder_rounded, text: '上传文件夹', value: 'dir', color: null),
+      ],
+    ).then((v) {
+      if (v == null) return;
+      switch (v) {
+        case 'folder':
+          _createFolder();
+        case 'file':
+          _pickFiles();
+        case 'dir':
+          _pickFolder();
+      }
+    });
   }
 
   Future<void> _pickFiles() async {
@@ -952,26 +781,16 @@ class _DrivePageState extends State<DrivePage>
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    MiuixToast.show(msg);
   }
 
   Future<void> _confirmLogout() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('退出夸克网盘'),
-        content: const Text('确定退出登录吗？退出后需要重新登录才能访问网盘文件。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('退出'),
-          ),
-        ],
-      ),
+    final ok = await confirmMiuix(
+      context,
+      title: '退出夸克网盘',
+      content: '确定退出登录吗？退出后需要重新登录才能访问网盘文件。',
+      confirmText: '退出',
+      danger: true,
     );
     if (ok == true) {
       await AppState.I.logout();

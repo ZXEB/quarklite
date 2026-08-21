@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_miuix/miuix.dart';
 
 import '../theme/app_theme.dart';
 
@@ -25,7 +26,7 @@ class FileIcon extends StatelessWidget {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(size * 0.28),
       ),
-      child: Icon(icon, color: color, size: size * 0.52),
+      child: MiuixIcon(icon: icon, color: color, size: size * 0.52),
     );
   }
 

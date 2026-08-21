@@ -12,6 +12,7 @@ import '../../utils/quark_image.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/file_list_anim.dart';
+import '../../widgets/miuix_common.dart';
 import 'search_page.dart';
 
 enum AlbumFilter { all, photo, screenshot, live }
@@ -301,25 +302,31 @@ class _AlbumPageState extends State<AlbumPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('相册'),
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixScaffold(
+      topBar: MiuixTopAppBar(
+        title: '相册',
+        navigationIcon: MiuixIconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: MiuixIcon(
+              icon: Icons.arrow_back_ios_new_rounded,
+              tint: colors.onSurfaceVariant,
+              size: 20),
+        ),
         actions: [
-          IconButton(
+          MiuixIconButton(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const SearchPage()),
             ),
-            icon: Icon(Icons.search_rounded, color: AppColors.accent),
-            tooltip: '搜索照片内容',
+            child: MiuixIcon(icon: Icons.search_rounded, tint: colors.primary),
           ),
-          IconButton(
+          MiuixIconButton(
             onPressed: _loading ? null : _loadFirst,
-            icon: Icon(Icons.refresh_rounded, color: AppColors.accent),
-            tooltip: '刷新',
+            child: MiuixIcon(icon: Icons.refresh_rounded, tint: colors.primary),
           ),
         ],
       ),
-      body: _buildBody(),
+      content: (padding) => Padding(padding: padding, child: _buildBody()),
     );
   }
 
@@ -336,13 +343,14 @@ class _AlbumPageState extends State<AlbumPage> {
       return BodySwitcher(
         child: EmptyView(
           icon: Icons.cloud_off_rounded,
-        text: '加载失败',
-        subText: _error,
-        action: OutlinedButton(onPressed: _loadFirst, child: const Text('重试')),
-      ));
+          text: '加载失败',
+          subText: _error,
+          action: MiuixTextButton('重试', onPressed: _loadFirst),
+        ),
+      );
     }
     if (_loading && _photos.isEmpty) {
-      return BodySwitcher(child: const Center(child: CircularProgressIndicator()));
+      return BodySwitcher(child: const Center(child: MiuixCircularProgressIndicator()));
     }
     if (_photos.isEmpty) {
       return BodySwitcher(
@@ -359,21 +367,16 @@ class _AlbumPageState extends State<AlbumPage> {
         Column(
           children: [
             _buildFilterBar(liveCount),
-            if (_scanningScreenshots)
+                if (_scanningScreenshots)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
+                    const MiuixCircularProgressIndicator(size: 14, strokeWidth: 2),
                     const SizedBox(width: 8),
-                    Text('正在筛选中… 已找到 $_screenshotCount 张截图',
-                        style: TextStyle(
-                            color: AppColors.textSecondary, fontSize: 12)),
+                    MiuixText('正在筛选中… 已找到 $_screenshotCount 张截图',
+                        color: AppColors.textSecondary, fontSize: 12),
                   ],
                 ),
               ),
@@ -386,7 +389,7 @@ class _AlbumPageState extends State<AlbumPage> {
           ],
         ),
         // 滚动中的月份气泡
-        if (_liveMonth.isNotEmpty && _axisDragMonth.isEmpty)
+            if (_liveMonth.isNotEmpty && _axisDragMonth.isEmpty)
           Positioned(
             top: 12,
             left: 12,
@@ -397,8 +400,8 @@ class _AlbumPageState extends State<AlbumPage> {
                 color: AppColors.cardLight,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Text(_liveMonth,
-                  style: const TextStyle(color: Colors.white, fontSize: 12)),
+              child: MiuixText(_liveMonth,
+                  color: Colors.white, fontSize: 12),
             ),
           ),
         // 拖动时间轴时的气泡
@@ -417,11 +420,10 @@ class _AlbumPageState extends State<AlbumPage> {
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child: Text(_axisDragMonth,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700)),
+                    child: MiuixText(_axisDragMonth,
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -448,31 +450,31 @@ class _AlbumPageState extends State<AlbumPage> {
         children: [
           for (final (f, label, count) in items) ...[
             if (f != AlbumFilter.all) const SizedBox(width: 8),
-            InkWell(
-              onTap: () => _setFilter(f),
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _filter == f ? AppColors.accent : AppColors.card,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  _filter == f ? '$label $count' : label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _filter == f
-                        ? Colors.white
-                        : AppColors.textSecondary,
-                    fontWeight:
-                        _filter == f ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ),
-            ),
+            _filterChip(f, _filter == f ? '$label $count' : label, _filter == f),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _filterChip(AlbumFilter f, String label, bool selected) {
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixPressable(
+      onPressed: () => _setFilter(f),
+      borderRadius: BorderRadius.circular(16),
+      feedbackType: MiuixPressFeedbackType.sink,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : colors.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: MiuixText(
+          label,
+          fontSize: 12,
+          color: selected ? Colors.white : colors.onSurfaceSecondary,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+        ),
       ),
     );
   }
@@ -528,11 +530,8 @@ class _AlbumPageState extends State<AlbumPage> {
                   child: Padding(
                     padding: EdgeInsets.all(16),
                     child: Center(
-                      child: SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
+                      child: MiuixCircularProgressIndicator(
+                          size: 22, strokeWidth: 2),
                     ),
                   ),
                 ),
@@ -546,15 +545,15 @@ class _AlbumPageState extends State<AlbumPage> {
   }
 
   Widget _buildMonthHeader(String label) {
+    final colors = MiuixTheme.of(context).colors;
     return Container(
       height: _headerH,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       alignment: Alignment.centerLeft,
-      child: Text(label,
-          style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-              fontWeight: FontWeight.w600)),
+      child: MiuixText(label,
+          color: colors.onSurfaceSecondary,
+          fontSize: 13,
+          fontWeight: FontWeight.w600),
     );
   }
 
@@ -587,16 +586,14 @@ class _AlbumPageState extends State<AlbumPage> {
                     SizedBox(
                       height: itemH,
                       child: Center(
-                        child: Text(
+                        child: MiuixText(
                           _shortMonth(m.key),
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: _axisDragFraction > 0 &&
-                                    _monthLabel(m.key) == _axisDragMonth
-                                ? AppColors.accent
-                                : AppColors.textSecondary,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          fontSize: 9,
+                          color: _axisDragFraction > 0 &&
+                                  _monthLabel(m.key) == _axisDragMonth
+                              ? AppColors.accent
+                              : AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -618,8 +615,8 @@ class _AlbumPageState extends State<AlbumPage> {
   Widget _buildTile(QuarkFile photo, int index) {
     final live = photo.isLivePhoto;
     final shot = photo.isScreenshot;
-    return InkWell(
-      onTap: () => Navigator.of(context).push(
+    return MiuixPressable(
+      onPressed: () => Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => PhotoViewerPage(
             photos: _filtered,
@@ -670,8 +667,8 @@ class Badge2 extends StatelessWidget {
         color: Colors.black54,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(label,
-          style: const TextStyle(color: Colors.white, fontSize: 10)),
+      child: MiuixText(label,
+          color: Colors.white, fontSize: 10),
     );
   }
 }
@@ -737,7 +734,7 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
     if (!mounted) return;
     setState(() => _loadingOrig = false);
     if (_origUrls[f.fid] == null) {
-      toast(context, '原图获取失败');
+      MiuixToast.show('原图获取失败');
     }
   }
 
@@ -783,10 +780,10 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
         fileName: f.fileName);
     if (!mounted) return;
     if (err != null) {
-      toast(context, err);
+      MiuixToast.show(err);
       return;
     }
-    toast(context, '已加入下载队列');
+    MiuixToast.show('已加入下载队列');
     DownloadManager.I.startPolling();
   }
 
@@ -794,39 +791,42 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
   Widget build(BuildContext context) {
     final photo = _photo;
     final isLive = photo.isLivePhoto;
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: Text(
-          '${_current + 1} / ${widget.photos.length}',
-          style: const TextStyle(color: Colors.white, fontSize: 15),
+    return MiuixScaffold(
+      containerColor: Colors.black,
+      topBar: MiuixTopAppBar(
+        title: '${_current + 1} / ${widget.photos.length}',
+        titleColor: Colors.white,
+        color: Colors.black,
+        navigationIcon: MiuixIconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: const MiuixIcon(
+              icon: Icons.arrow_back_ios_new_rounded,
+              tint: Colors.white,
+              size: 20),
         ),
         actions: [
           if (!isLive)
-            TextButton(
+            MiuixTextButton(
+              _loadingOrig
+                  ? '…'
+                  : ((_origUrls[photo.fid]?.isNotEmpty ?? false)
+                      ? '原图'
+                      : '查看原图'),
               onPressed: _loadingOrig ? null : _viewOriginal,
-              child: _loadingOrig
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : Text(
-                      (_origUrls[photo.fid]?.isNotEmpty ?? false)
-                          ? '原图'
-                          : '查看原图',
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                    ),
+              textStyle: const TextStyle(color: Colors.white, fontSize: 13),
+              colors: MiuixButtonColors(
+                color: Colors.white,
+                contentColor: Colors.white,
+              ),
             ),
-          IconButton(
+          MiuixIconButton(
             onPressed: _download,
-            icon: const Icon(Icons.download_rounded, color: Colors.white),
+            child: const MiuixIcon(
+                icon: Icons.download_rounded, tint: Colors.white),
           ),
         ],
       ),
-      body: Column(
+      content: (padding) => Column(
         children: [
           Expanded(
             child: PageView.builder(
@@ -848,12 +848,13 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Text(
+              child: MiuixText(
                 photo.fileName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                color: Colors.white70,
+                fontSize: 12,
               ),
             ),
           ),
@@ -891,10 +892,10 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
                                 progress == null
                                     ? child
                                     : const Center(
-                                        child: CircularProgressIndicator()),
-                            errorBuilder: (_, _, _) => const Icon(
+                                        child: MiuixCircularProgressIndicator()),
+                            errorBuilder: (_, _, _) => const MiuixIcon(
                                 Icons.broken_image_rounded,
-                                color: Colors.white54,
+                                tint: Colors.white54,
                                 size: 56),
                           )
                         : QuarkImage(
@@ -902,11 +903,11 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
                             fit: BoxFit.contain,
                             fileName: f.fileName,
                             placeholder: (_) => const Center(
-                                child: CircularProgressIndicator()),
+                                child: MiuixCircularProgressIndicator()),
                           ),
                   )
-                : const Icon(Icons.broken_image_rounded,
-                    color: Colors.white54, size: 56),
+                : const MiuixIcon(Icons.broken_image_rounded,
+                    tint: Colors.white54, size: 56),
           ),
           if (isLive && !_videoReady)
             Center(
@@ -914,12 +915,11 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
                   ? const Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.error_outline,
-                            color: Colors.white54, size: 40),
+                        MiuixIcon(Icons.error_outline,
+                            tint: Colors.white54, size: 40),
                         SizedBox(height: 8),
-                        Text('动态照片播放失败',
-                            style: TextStyle(
-                                color: Colors.white70, fontSize: 12)),
+                        MiuixText('动态照片播放失败',
+                            color: Colors.white70, fontSize: 12),
                       ],
                     )
                   : Container(
@@ -929,8 +929,8 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
                         color: Colors.black45,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.play_arrow_rounded,
-                          color: Colors.white, size: 40),
+                      child: const MiuixIcon(Icons.play_arrow_rounded,
+                          tint: Colors.white, size: 40),
                     ),
             ),
         ],

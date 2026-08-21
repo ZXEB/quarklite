@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_miuix/miuix.dart';
 
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
@@ -21,6 +22,7 @@ class StorageCapacityRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
     final valid = _valid;
     final ratio = valid ? (usedSize / totalSize).clamp(0.0, 1.0) : 0.0;
     final color = ratio >= 0.9 ? AppColors.orange : AppColors.green;
@@ -31,32 +33,37 @@ class StorageCapacityRow extends StatelessWidget {
         if (valid) ...[
           ClipRRect(
             borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: ratio,
-              minHeight: 6,
-              backgroundColor: AppColors.cardLight,
-              valueColor: AlwaysStoppedAnimation<Color>(color),
+            child: MiuixLinearProgressIndicator(
+              progress: ratio,
+              height: 6,
+              colors: MiuixProgressIndicatorColors(
+                foregroundColor: color,
+                disabledForegroundColor: color,
+                backgroundColor: AppColors.cardLight,
+              ),
             ),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              Text(
+              MiuixText(
                 formatCapacity(usedSize, totalSize),
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12),
+                fontSize: 12,
+                color: colors.onSurfaceSecondary,
               ),
               const Spacer(),
-              Text(
+              MiuixText(
                 '剩余 ${formatBytes(totalSize - usedSize)}',
-                style: TextStyle(color: color, fontSize: 12),
+                fontSize: 12,
+                color: color,
               ),
             ],
           ),
         ] else ...[
-          Text(
+          MiuixText(
             '容量信息暂不可用',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            fontSize: 12,
+            color: colors.onSurfaceSecondary,
           ),
         ],
       ],

@@ -43,7 +43,9 @@ add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
 # of modifying this function.
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_17)
-  target_compile_options(${TARGET} PRIVATE /W4 /WX /wd"4100")
+  # /utf-8：源码与执行字符集均按 UTF-8 解释，保证 UTF-8 编码的
+  # 中文字面量（如托盘菜单文本）不按本机 ANSI 代码页乱码
+  target_compile_options(${TARGET} PRIVATE /W4 /WX /wd"4100" /utf-8)
   target_compile_options(${TARGET} PRIVATE /EHsc)
   target_compile_definitions(${TARGET} PRIVATE "_HAS_EXCEPTIONS=0")
   target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG>")

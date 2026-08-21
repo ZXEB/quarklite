@@ -34,22 +34,41 @@ class _Netdisk123PayPageState extends State<Netdisk123PayPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('流量包充值'),
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixScaffold(
+      topBar: MiuixTopAppBar(
+        title: '流量包充值',
+        navigationIcon: MiuixIconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: MiuixIcon(
+              icon: Icons.arrow_back_ios_new_rounded,
+              tint: colors.onSurfaceVariant,
+              size: 20),
+        ),
         actions: [
-          IconButton(
+          MiuixIconButton(
             onPressed: () => _controller?.reload(),
-            icon: Icon(Icons.refresh_rounded, color: AppColors.accent),
-            tooltip: '刷新',
+            child: MiuixIcon(icon: Icons.refresh_rounded, tint: colors.primary),
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          if (_controller != null) WebViewWidget(controller: _controller!),
-          if (_loading) LinearProgressIndicator(minHeight: 2, color: AppColors.accent),
-        ],
+      content: (padding) => Padding(
+        padding: padding,
+        child: Stack(
+          children: [
+            if (_controller != null) WebViewWidget(controller: _controller!),
+            if (_loading)
+              MiuixLinearProgressIndicator(
+                progress: null,
+                height: 2,
+                colors: MiuixProgressIndicatorColors(
+                  foregroundColor: colors.primary,
+                  disabledForegroundColor: colors.primary,
+                  backgroundColor: Colors.transparent,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

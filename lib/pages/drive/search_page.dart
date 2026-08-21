@@ -13,6 +13,7 @@ import '../../utils/permission.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/file_list_anim.dart';
+import '../../widgets/miuix_common.dart';
 import 'album_page.dart';
 import 'drive_page.dart';
 
@@ -103,82 +104,90 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 0,
-        title: Container(
-          height: 38,
-          margin: const EdgeInsets.only(right: 16),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: AppColors.card,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: TextField(
-            controller: _controller,
-            autofocus: true,
-            onChanged: _onChanged,
-            onSubmitted: _search,
-            style:
-                TextStyle(color: AppColors.textPrimary, fontSize: 14),
-            decoration: InputDecoration(
-              hintText: '搜索文件名或照片内容',
-              hintStyle:
-                  TextStyle(color: AppColors.textSecondary, fontSize: 13),
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              isDense: true,
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixScaffold(
+      topBar: MiuixTopAppBar(
+        title: '搜索',
+        navigationIcon: MiuixIconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: MiuixIcon(
+              icon: Icons.arrow_back_ios_new_rounded,
+              tint: colors.onSurfaceVariant,
+              size: 20),
         ),
-        actions: [
-          IconButton(
-            onPressed: () {
-              _controller.clear();
-              _search('');
-            },
-            icon: Icon(Icons.close_rounded, color: AppColors.accent),
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(44),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildScopeChip(0, '全部'),
-                const SizedBox(width: 10),
-                _buildScopeChip(2, '照片'),
-              ],
-            ),
+        bottomContent: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 40,
+                  child: MiuixTextField(
+                    controller: _controller,
+                    onChanged: _onChanged,
+                    onSubmitted: _search,
+                    label: '搜索文件名或照片内容',
+                    useLabelAsPlaceholder: true,
+                    singleLine: true,
+                    leadingIcon: MiuixIcon(
+                        icon: Icons.search_rounded,
+                        tint: colors.onSurfaceSecondary,
+                        size: 18),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              MiuixIconButton(
+                onPressed: () {
+                  _controller.clear();
+                  _search('');
+                },
+                child: MiuixIcon(icon: Icons.close_rounded, tint: colors.primary),
+              ),
+            ],
           ),
         ),
       ),
-      body: _buildBody(),
+      content: (padding) => Padding(
+        padding: padding,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildScopeChip(0, '全部'),
+                  const SizedBox(width: 10),
+                  _buildScopeChip(2, '照片'),
+                ],
+              ),
+            ),
+            Expanded(child: _buildBody()),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildScopeChip(int scope, String label) {
     final selected = _scope == scope;
-    return InkWell(
-      onTap: () => _setScope(scope),
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixPressable(
+      onPressed: () => _setScope(scope),
       borderRadius: BorderRadius.circular(16),
+      feedbackType: MiuixPressFeedbackType.sink,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? AppColors.accent : AppColors.card,
+          color: selected ? AppColors.accent : colors.surface,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Text(
+        child: MiuixText(
           label,
-          style: TextStyle(
-            fontSize: 12,
-            color: selected ? Colors.white : AppColors.textSecondary,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          ),
+          fontSize: 12,
+          color: selected ? Colors.white : colors.onSurfaceSecondary,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
         ),
       ),
     );
@@ -186,7 +195,7 @@ class _SearchPageState extends State<SearchPage> {
 
   Widget _buildBody() {
     if (_searching) {
-      return BodySwitcher(child: const Center(child: CircularProgressIndicator()));
+      return BodySwitcher(child: const Center(child: MiuixCircularProgressIndicator()));
     }
     if (_error != null) {
       return BodySwitcher(
@@ -194,7 +203,8 @@ class _SearchPageState extends State<SearchPage> {
           icon: Icons.cloud_off_rounded,
           text: '搜索失败',
           subText: _error,
-          action: OutlinedButton(onPressed: () => _search(_controller.text), child: const Text('重试')),
+          action: MiuixTextButton('重试',
+              onPressed: () => _search(_controller.text)),
         ),
       );
     }
@@ -216,7 +226,8 @@ class _SearchPageState extends State<SearchPage> {
         ),
       );
     }
-    final content = RefreshIndicator(
+    final content = MiuixPullToRefresh(
+      isRefreshing: _searching,
       onRefresh: () => _search(_keyword),
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -229,8 +240,9 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildItem(QuarkFile file) {
-    return InkWell(
-      onTap: () {
+    final colors = MiuixTheme.of(context).colors;
+    return MiuixCard(
+      onPressed: () {
         if (file.isDir) {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => DrivePage(
@@ -249,13 +261,8 @@ class _SearchPageState extends State<SearchPage> {
           _showFileActions(file);
         }
       },
-      borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(14),
-        ),
         child: Row(
           children: [
             FileIcon(isDir: file.isDir, name: file.fileName),
@@ -264,26 +271,27 @@ class _SearchPageState extends State<SearchPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  MiuixText(
                     file.fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500),
+                    color: colors.onSurfaceVariant,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  MiuixText(
                     file.isDir ? '文件夹' : formatBytes(file.size),
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    color: colors.onSurfaceSecondary,
+                    fontSize: 12,
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary, size: 20),
+            MiuixIcon(
+                icon: Icons.chevron_right_rounded,
+                tint: colors.onSurfaceSecondary,
+                size: 20),
           ],
         ),
       ),
@@ -291,47 +299,19 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   void _showFileActions(QuarkFile file) {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            FileIcon(isDir: false, name: file.fileName, size: 52),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                file.fileName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(formatBytes(file.size),
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: Icon(Icons.download_rounded, color: AppColors.accent),
-              title: const Text('立即下载'),
-              subtitle: const Text('提取直链，多线程不限速下载'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _downloadFile(file);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
+    MiuixActionSheet.show<String>(
+      context,
+      title: file.fileName,
+      actions: [
+        (icon: Icons.download_rounded, text: '立即下载', value: 'download', color: null),
+      ],
+    ).then((v) {
+      if (v == null) return;
+      switch (v) {
+        case 'download':
+          _downloadFile(file);
+      }
+    });
   }
 
   Future<void> _downloadFile(QuarkFile file) async {
@@ -342,10 +322,10 @@ class _SearchPageState extends State<SearchPage> {
         await DownloadService.downloadQuarkFile(file.fid, fileName: file.fileName);
     if (!mounted) return;
     if (err != null) {
-      toast(context, err);
+      MiuixToast.show(err);
       return;
     }
-    toast(context, '已加入下载队列');
+    MiuixToast.show('已加入下载队列');
     DownloadManager.I.startPolling();
   }
 }
