@@ -220,7 +220,7 @@ class _ParsePageState extends State<ParsePage> {
                     ),
                     child: Row(
                       children: [
-                        MiuixIcon(Icons.history_rounded,
+                        MiuixIcon(icon: Icons.history_rounded,
                             tint: colors.primary, size: 18),
                         const SizedBox(width: 6),
                         MiuixText('历史', color: colors.primary, fontSize: 13),
@@ -268,12 +268,12 @@ class _ParsePageState extends State<ParsePage> {
                   color: AppColors.accentDeep,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: MiuixIcon(Icons.paste_rounded,
+                child: MiuixIcon(icon: Icons.paste_rounded,
                     tint: colors.primary, size: 19),
               ),
               const SizedBox(width: 10),
               MiuixText('粘贴内容',
-                  color: colors.onSurfaceVariant,
+                  color: colors.onSurfaceContainer,
                   fontSize: 15,
                   fontWeight: FontWeight.w600),
               const Spacer(),
@@ -314,8 +314,8 @@ class _ParsePageState extends State<ParsePage> {
                   _btMode ? '关闭 BT 输入' : '+ 添加BT',
                   onPressed: () => setState(() => _btMode = !_btMode),
                   colors: _btMode
-                      ? MiuixButtonColors(color: colors.primary)
-                      : MiuixButtonColors(color: colors.onSurfaceSecondary),
+                      ? MiuixButtonColors(color: colors.primary, disabledColor: colors.primary, contentColor: Colors.white, disabledContentColor: Colors.white)
+                      : MiuixButtonColors(color: colors.onSurfaceSecondary, disabledColor: colors.onSurfaceSecondary, contentColor: Colors.white, disabledContentColor: Colors.white),
                 ),
               ),
               const SizedBox(width: 12),
@@ -324,7 +324,9 @@ class _ParsePageState extends State<ParsePage> {
                   onPressed: _parsing ? null : _parse,
                   colors: MiuixButtonColors(
                     color: _parsing ? colors.primaryVariant : colors.primary,
+                    disabledColor: _parsing ? colors.primaryVariant : colors.primary,
                     contentColor: Colors.white,
+                    disabledContentColor: Colors.white,
                   ),
                   child: _parsing
                       ? const Padding(
@@ -363,7 +365,7 @@ class _ParsePageState extends State<ParsePage> {
                   color: AppColors.accentDeep,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: MiuixIcon(Icons.link_rounded,
+                child: MiuixIcon(icon: Icons.link_rounded,
                     tint: colors.primary, size: 18),
               ),
               const SizedBox(width: 12),
@@ -374,7 +376,7 @@ class _ParsePageState extends State<ParsePage> {
                     MiuixText(url,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        color: colors.onSurfaceVariant, fontSize: 13),
+                        color: colors.onSurfaceContainer, fontSize: 13),
                     const SizedBox(height: 3),
                     MiuixText(
                       pwd.isEmpty ? '无提取码' : '提取码: $pwd',
@@ -386,7 +388,7 @@ class _ParsePageState extends State<ParsePage> {
               ),
               MiuixIconButton(
                 onPressed: () => _removeHistory(url),
-                child: MiuixIcon(Icons.close_rounded,
+                child: MiuixIcon(icon: Icons.close_rounded,
                     tint: colors.onSurfaceSecondary, size: 18),
               ),
             ],

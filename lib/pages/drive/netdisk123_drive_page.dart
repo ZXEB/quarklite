@@ -282,7 +282,7 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
           onPressed: () => Navigator.of(context).maybePop(),
           child: MiuixIcon(
               icon: Icons.arrow_back_ios_new_rounded,
-              tint: colors.onSurfaceVariant,
+              tint: colors.onSurfaceContainer,
               size: 20),
         ),
         actions: [
@@ -358,7 +358,7 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
         child: Row(
           children: [
             MiuixText('已选 $count 项',
-                fontSize: 14, color: colors.onSurfaceVariant),
+                fontSize: 14, color: colors.onSurfaceContainer),
             const Spacer(),
             MiuixButton(
               onPressed: _downloading || count == 0 ? null : _batchDownload,
@@ -441,7 +441,7 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
                     file.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    color: colors.onSurfaceVariant,
+                    color: colors.onSurfaceContainer,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),

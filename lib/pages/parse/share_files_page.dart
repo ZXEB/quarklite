@@ -225,7 +225,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
           },
           child: MiuixIcon(
               icon: Icons.arrow_back_ios_new_rounded,
-              tint: colors.onSurfaceVariant,
+              tint: colors.onSurfaceContainer,
               size: 20),
         ),
         actions: [
@@ -233,7 +233,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
             MiuixTextButton(
               '全选',
               onPressed: _selectAllFiles,
-              colors: MiuixButtonColors(color: colors.primary),
+              colors: MiuixButtonColors(color: colors.primary, disabledColor: colors.primary, contentColor: Colors.white, disabledContentColor: Colors.white),
             ),
         ],
       ),
@@ -263,12 +263,12 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
         child: Row(
           children: [
             MiuixText('已选 $count 项',
-                fontSize: 14, color: colors.onSurfaceVariant),
+                fontSize: 14, color: colors.onSurfaceContainer),
             const Spacer(),
             MiuixTextButton(
               '转存',
               onPressed: _busy || count == 0 ? null : _batchSave,
-              colors: MiuixButtonColors(color: AppColors.green),
+              colors: MiuixButtonColors(color: AppColors.green, disabledColor: AppColors.green, contentColor: Colors.white, disabledContentColor: Colors.white),
             ),
             const SizedBox(width: 10),
             MiuixButton(
@@ -356,7 +356,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
                     file.fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    color: colors.onSurfaceVariant,
+                    color: colors.onSurfaceContainer,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),

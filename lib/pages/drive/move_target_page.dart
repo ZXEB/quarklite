@@ -89,7 +89,7 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
           onPressed: () => Navigator.pop(context),
           child: MiuixIcon(
               icon: Icons.arrow_back_ios_new_rounded,
-              tint: colors.onSurfaceVariant,
+              tint: colors.onSurfaceContainer,
               size: 20),
         ),
       ),
@@ -181,7 +181,7 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
                     overflow: TextOverflow.ellipsis,
                     color: blocked
                         ? colors.onSurfaceSecondary
-                        : colors.onSurfaceVariant,
+                        : colors.onSurfaceContainer,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -216,7 +216,7 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
                 '移动到「${_crumbs.last.$2}」',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                color: colors.onSurfaceVariant,
+                color: colors.onSurfaceContainer,
                 fontSize: 14,
               ),
             ),
@@ -225,7 +225,9 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
               onPressed: () => Navigator.pop(context, _dirFid),
               colors: MiuixButtonColors(
                 color: colors.primary,
+                disabledColor: colors.primary,
                 contentColor: Colors.white,
+                disabledContentColor: Colors.white,
               ),
               child: MiuixText('移动到此处', color: Colors.white, fontSize: 14),
             ),

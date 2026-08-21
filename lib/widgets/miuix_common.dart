@@ -438,7 +438,7 @@ class _MiuixChoiceDialogState<T> extends State<_MiuixChoiceDialog<T>> {
                       ),
                       const SizedBox(width: 12),
                       MiuixText(widget.labelOf(o),
-                          fontSize: 14, color: colors.onSurfaceVariant),
+                          fontSize: 14, color: colors.onSurfaceContainer),
                     ],
                   ),
                 ),

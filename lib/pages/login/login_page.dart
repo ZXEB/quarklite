@@ -29,7 +29,7 @@ class _LoginPageState extends State<LoginPage> {
           onPressed: () => Navigator.of(context).maybePop(),
           child: MiuixIcon(
               icon: Icons.arrow_back_ios_new_rounded,
-              tint: colors.onSurfaceVariant,
+              tint: colors.onSurfaceContainer,
               size: 20),
         ),
       ),
@@ -165,7 +165,7 @@ class _QrLoginViewState extends State<_QrLoginView> {
                 ),
               )
             else
-              MiuixIcon(Icons.qr_code_2_rounded,
+              MiuixIcon(icon: Icons.qr_code_2_rounded,
                   size: 120, tint: AppColors.cardLight),
             const SizedBox(height: 20),
             MiuixText(
@@ -185,7 +185,7 @@ class _QrLoginViewState extends State<_QrLoginView> {
             MiuixTextButton(
               '刷新二维码',
               onPressed: _refresh,
-              colors: MiuixButtonColors(color: colors.primary),
+              colors: MiuixButtonColors(color: colors.primary, disabledColor: colors.primary, contentColor: Colors.white, disabledContentColor: Colors.white),
             ),
           ],
         ),
@@ -239,7 +239,9 @@ class _CookieLoginViewState extends State<_CookieLoginView> {
             onPressed: _submitting ? null : _submit,
             colors: MiuixButtonColors(
               color: colors.primary,
+              disabledColor: colors.primary,
               contentColor: Colors.white,
+              disabledContentColor: Colors.white,
             ),
             child: _submitting
                 ? const Padding(

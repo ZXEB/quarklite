@@ -310,7 +310,7 @@ class _AlbumPageState extends State<AlbumPage> {
           onPressed: () => Navigator.of(context).maybePop(),
           child: MiuixIcon(
               icon: Icons.arrow_back_ios_new_rounded,
-              tint: colors.onSurfaceVariant,
+              tint: colors.onSurfaceContainer,
               size: 20),
         ),
         actions: [
@@ -816,7 +816,9 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
               textStyle: const TextStyle(color: Colors.white, fontSize: 13),
               colors: MiuixButtonColors(
                 color: Colors.white,
+                disabledColor: Colors.white,
                 contentColor: Colors.white,
+                disabledContentColor: Colors.white,
               ),
             ),
           MiuixIconButton(
@@ -906,7 +908,7 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
                                 child: MiuixCircularProgressIndicator()),
                           ),
                   )
-                : const MiuixIcon(Icons.broken_image_rounded,
+                : const MiuixIcon(icon: Icons.broken_image_rounded,
                     tint: Colors.white54, size: 56),
           ),
           if (isLive && !_videoReady)
@@ -915,7 +917,7 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
                   ? const Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        MiuixIcon(Icons.error_outline,
+                        MiuixIcon(icon: Icons.error_outline,
                             tint: Colors.white54, size: 40),
                         SizedBox(height: 8),
                         MiuixText('动态照片播放失败',
@@ -929,7 +931,7 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
                         color: Colors.black45,
                         shape: BoxShape.circle,
                       ),
-                      child: const MiuixIcon(Icons.play_arrow_rounded,
+                      child: const MiuixIcon(icon: Icons.play_arrow_rounded,
                           tint: Colors.white, size: 40),
                     ),
             ),

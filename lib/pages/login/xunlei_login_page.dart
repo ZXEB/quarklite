@@ -144,7 +144,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
           onPressed: () => Navigator.of(context).maybePop(),
           child: MiuixIcon(
               icon: Icons.arrow_back_ios_new_rounded,
-              tint: colors.onSurfaceVariant,
+              tint: colors.onSurfaceContainer,
               size: 20),
         ),
       ),
@@ -165,7 +165,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
               label: '手机号 / 邮箱',
               useLabelAsPlaceholder: true,
               singleLine: true,
-              leadingIcon: MiuixIcon(Icons.person_outline_rounded,
+              leadingIcon: MiuixIcon(icon: Icons.person_outline_rounded,
                   tint: colors.onSurfaceSecondary, size: 20),
             ),
             const SizedBox(height: 14),
@@ -176,7 +176,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
               useLabelAsPlaceholder: true,
               singleLine: true,
               onSubmitted: (_) => _submit(),
-              leadingIcon: MiuixIcon(Icons.lock_outline_rounded,
+              leadingIcon: MiuixIcon(icon: Icons.lock_outline_rounded,
                   tint: colors.onSurfaceSecondary, size: 20),
               trailingIcon: MiuixIconButton(
                 onPressed: () => setState(() => _obscure = !_obscure),
@@ -194,7 +194,9 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
               onPressed: _submitting ? null : _submit,
               colors: MiuixButtonColors(
                 color: colors.primary,
+                disabledColor: colors.primary,
                 contentColor: Colors.white,
+                disabledContentColor: Colors.white,
               ),
               child: _submitting
                   ? const Padding(
@@ -298,13 +300,13 @@ class _ReviewKeyDialogState extends State<_ReviewKeyDialog> {
                     ),
                     MiuixIconButton(
                       onPressed: widget.onCopy,
-                      child: MiuixIcon(Icons.copy_rounded,
+                      child: MiuixIcon(icon: Icons.copy_rounded,
                           tint: colors.primary, size: 18),
                     ),
                     if (!kIsWeb && Platform.isWindows)
                       MiuixIconButton(
                         onPressed: widget.onOpenBrowser,
-                        child: MiuixIcon(Icons.open_in_browser_rounded,
+                        child: MiuixIcon(icon: Icons.open_in_browser_rounded,
                             tint: colors.primary, size: 18),
                       ),
                   ],
@@ -337,7 +339,9 @@ class _ReviewKeyDialogState extends State<_ReviewKeyDialog> {
                       onPressed: widget.onSubmit,
                       colors: MiuixButtonColors(
                         color: colors.primary,
+                        disabledColor: colors.primary,
                         contentColor: Colors.white,
+                        disabledContentColor: Colors.white,
                       ),
                       insideMargin: const EdgeInsets.symmetric(vertical: 8),
                     ),

@@ -26,7 +26,7 @@ class FileIcon extends StatelessWidget {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(size * 0.28),
       ),
-      child: MiuixIcon(icon: icon, color: color, size: size * 0.52),
+      child: MiuixIcon(icon: icon, tint: color, size: size * 0.52),
     );
   }
 

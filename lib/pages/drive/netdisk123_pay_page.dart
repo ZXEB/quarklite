@@ -42,7 +42,7 @@ class _Netdisk123PayPageState extends State<Netdisk123PayPage> {
           onPressed: () => Navigator.of(context).maybePop(),
           child: MiuixIcon(
               icon: Icons.arrow_back_ios_new_rounded,
-              tint: colors.onSurfaceVariant,
+              tint: colors.onSurfaceContainer,
               size: 20),
         ),
         actions: [

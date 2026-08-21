@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_miuix/miuix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../widgets/miuix_common.dart';
@@ -158,7 +159,9 @@ class _CloseChoiceDialogState extends State<_CloseChoiceDialog> {
                     onPressed: widget.onMinimize,
                     colors: MiuixButtonColors(
                       color: colors.primary,
+                      disabledColor: colors.primary,
                       contentColor: Colors.white,
+                      disabledContentColor: Colors.white,
                     ),
                     insideMargin: const EdgeInsets.symmetric(vertical: 8),
                   ),

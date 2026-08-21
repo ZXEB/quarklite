@@ -86,7 +86,11 @@ class _UploadsPageState extends State<UploadsPage>
                               }
                             }),
                             colors: MiuixButtonColors(
-                                color: MiuixTheme.of(context).colors.primary),
+                              color: MiuixTheme.of(context).colors.primary,
+                              disabledColor: MiuixTheme.of(context).colors.primary,
+                              contentColor: Colors.white,
+                              disabledContentColor: Colors.white,
+                            ),
                           ),
                           MiuixIconButton(
                             onPressed: _exitSelectMode,
@@ -301,7 +305,7 @@ class _UploadsPageState extends State<UploadsPage>
         child: Row(
           children: [
             MiuixText('已选 $count 项',
-                fontSize: 14, color: colors.onSurfaceVariant),
+                fontSize: 14, color: colors.onSurfaceContainer),
             const Spacer(),
             MiuixIconButton(
               onPressed: _busy || !hasPause ? null : _batchPause,
@@ -371,7 +375,7 @@ class _UploadsPageState extends State<UploadsPage>
                         task.fileName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        color: colors.onSurfaceVariant,
+                        color: colors.onSurfaceContainer,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),

@@ -182,7 +182,7 @@ class _DriveCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
     final titleWidget = MiuixText(title,
-        color: colors.onSurfaceVariant, fontSize: 16, fontWeight: FontWeight.w700);
+        color: colors.onSurfaceContainer, fontSize: 16, fontWeight: FontWeight.w700);
     final subtitleWidget = MiuixText(subtitle,
         maxLines: 1, overflow: TextOverflow.ellipsis, color: statusColor, fontSize: 12);
     final iconBox = iconWidget;

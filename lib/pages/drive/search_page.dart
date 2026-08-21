@@ -112,7 +112,7 @@ class _SearchPageState extends State<SearchPage> {
           onPressed: () => Navigator.of(context).maybePop(),
           child: MiuixIcon(
               icon: Icons.arrow_back_ios_new_rounded,
-              tint: colors.onSurfaceVariant,
+              tint: colors.onSurfaceContainer,
               size: 20),
         ),
         bottomContent: Padding(
@@ -275,7 +275,7 @@ class _SearchPageState extends State<SearchPage> {
                     file.fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    color: colors.onSurfaceVariant,
+                    color: colors.onSurfaceContainer,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),

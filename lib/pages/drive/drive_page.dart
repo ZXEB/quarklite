@@ -419,7 +419,7 @@ class _DrivePageState extends State<DrivePage>
                 onPressed: () => Navigator.of(context).maybePop(),
                 child: MiuixIcon(
                     icon: Icons.arrow_back_ios_new_rounded,
-                    tint: colors.onSurfaceVariant,
+                    tint: colors.onSurfaceContainer,
                     size: 20),
               ),
         actions: _selectMode
@@ -427,7 +427,7 @@ class _DrivePageState extends State<DrivePage>
                 MiuixTextButton(
                   '全选',
                   onPressed: _selectAllFiles,
-                  colors: MiuixButtonColors(color: colors.primary),
+                  colors: MiuixButtonColors(color: colors.primary, disabledColor: colors.primary, contentColor: Colors.white, disabledContentColor: Colors.white),
                 ),
                 MiuixIconButton(
                   onPressed: _exitSelectMode,
@@ -518,18 +518,18 @@ class _DrivePageState extends State<DrivePage>
         child: Row(
           children: [
             MiuixText('已选 $count 项',
-                fontSize: 14, color: colors.onSurfaceVariant),
+                fontSize: 14, color: colors.onSurfaceContainer),
             const Spacer(),
             MiuixTextButton(
               '删除',
               onPressed: _busy || count == 0 ? null : () => _deleteFiles(_selected),
-              colors: MiuixButtonColors(color: AppColors.red),
+              colors: MiuixButtonColors(color: AppColors.red, disabledColor: AppColors.red, contentColor: Colors.white, disabledContentColor: Colors.white),
             ),
             const SizedBox(width: 10),
             MiuixTextButton(
               '移动到',
               onPressed: _busy || count == 0 ? null : () => _moveFiles(_selected),
-              colors: MiuixButtonColors(color: colors.primary),
+              colors: MiuixButtonColors(color: colors.primary, disabledColor: colors.primary, contentColor: Colors.white, disabledContentColor: Colors.white),
             ),
             const SizedBox(width: 10),
             MiuixButton(
@@ -614,7 +614,7 @@ class _DrivePageState extends State<DrivePage>
                     file.fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    color: colors.onSurfaceVariant,
+                    color: colors.onSurfaceContainer,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),

@@ -29,7 +29,7 @@ class _Netdisk123AccountsPageState extends State<Netdisk123AccountsPage> {
               onPressed: () => Navigator.of(context).maybePop(),
               child: MiuixIcon(
                   icon: Icons.arrow_back_ios_new_rounded,
-                  tint: colors.onSurfaceVariant,
+                  tint: colors.onSurfaceContainer,
                   size: 20),
             ),
             actions: [
@@ -56,7 +56,7 @@ class _Netdisk123AccountsPageState extends State<Netdisk123AccountsPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       child: Row(
                         children: [
-                          MiuixIcon(Icons.info_outline_rounded,
+                          MiuixIcon(icon: Icons.info_outline_rounded,
                               tint: colors.primary, size: 18),
                           const SizedBox(width: 10),
                           Expanded(
@@ -81,7 +81,7 @@ class _Netdisk123AccountsPageState extends State<Netdisk123AccountsPage> {
                                   width: 88,
                                   height: 88,
                                   child: Center(
-                                    child: MiuixIcon(Icons.account_circle_outlined,
+                                    child: MiuixIcon(icon: Icons.account_circle_outlined,
                                         size: 42, tint: colors.onSurfaceSecondary),
                                   ),
                                 ),
@@ -96,12 +96,14 @@ class _Netdisk123AccountsPageState extends State<Netdisk123AccountsPage> {
                                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const Netdisk123LoginPage())),
                                 colors: MiuixButtonColors(
                                   color: colors.primary,
+                                  disabledColor: colors.primary,
                                   contentColor: Colors.white,
+                                  disabledContentColor: Colors.white,
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const MiuixIcon(Icons.person_add_rounded,
+                                    const MiuixIcon(icon: Icons.person_add_rounded,
                                         tint: Colors.white, size: 18),
                                     const SizedBox(width: 8),
                                     MiuixText('添加账号', color: Colors.white, fontSize: 14),
@@ -150,7 +152,7 @@ class _Netdisk123AccountsPageState extends State<Netdisk123AccountsPage> {
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               MiuixText(a.username,
-                                                  color: colors.onSurfaceVariant,
+                                                  color: colors.onSurfaceContainer,
                                                   fontWeight: FontWeight.w700,
                                                   fontSize: 14),
                                               const SizedBox(height: 2),
@@ -159,7 +161,7 @@ class _Netdisk123AccountsPageState extends State<Netdisk123AccountsPage> {
                                             ],
                                           ),
                                         ),
-                                        MiuixIcon(Icons.chevron_right_rounded,
+                                        MiuixIcon(icon: Icons.chevron_right_rounded,
                                             tint: colors.onSurfaceSecondary, size: 20),
                                         const SizedBox(width: 4),
                                         MiuixIconButton(
@@ -174,7 +176,7 @@ class _Netdisk123AccountsPageState extends State<Netdisk123AccountsPage> {
                                               if (mounted) setState(() {});
                                             }
                                           },
-                                          child: MiuixIcon(Icons.delete_outline_rounded,
+                                          child: MiuixIcon(icon: Icons.delete_outline_rounded,
                                               tint: colors.onSurfaceSecondary, size: 18),
                                         ),
                                       ],
@@ -203,7 +205,9 @@ class _Netdisk123AccountsPageState extends State<Netdisk123AccountsPage> {
                         },
                         colors: MiuixButtonColors(
                           color: colors.primary,
+                          disabledColor: colors.primary,
                           contentColor: Colors.white,
+                          disabledContentColor: Colors.white,
                         ),
                         child: MiuixText(
                           s.accounts.isEmpty ? '添加第一个账号' : '添加账号',

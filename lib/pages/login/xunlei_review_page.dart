@@ -153,14 +153,14 @@ class _XunleiReviewPageState extends State<XunleiReviewPage> {
           onPressed: () => Navigator.of(context).maybePop(),
           child: MiuixIcon(
               icon: Icons.arrow_back_ios_new_rounded,
-              tint: colors.onSurfaceVariant,
+              tint: colors.onSurfaceContainer,
               size: 20),
         ),
         actions: [
           MiuixTextButton(
             '取消',
             onPressed: () => Navigator.of(context).pop(null),
-            colors: MiuixButtonColors(color: colors.onSurfaceSecondary),
+            colors: MiuixButtonColors(color: colors.onSurfaceSecondary, disabledColor: colors.onSurfaceSecondary, contentColor: Colors.white, disabledContentColor: Colors.white),
           ),
         ],
       ),
