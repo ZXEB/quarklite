@@ -219,12 +219,13 @@ class MiuixActionSheet {
     required List<({IconData icon, String text, T value, Color? color})> actions,
   }) {
     final completer = Completer<T?>();
-    unawaited(_showImpl(
+    // ignore: unawaited_futures
+    _showImpl(
       context: context,
       title: title,
       actions: actions,
       completer: completer,
-    ));
+    );
     return completer.future;
   }
 

@@ -1,0 +1,301 @@
+{
+  "total_count": 2,
+  "jobs": [
+    {
+      "id": 96881793465,
+      "run_id": 32517331821,
+      "workflow_name": "Build",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/ZXEB/quarklite/actions/runs/32517331821",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOT09CG88AAAAWjprZuQ",
+      "head_sha": "d9146c004e090db87a630a07f28c82df43f3cd42",
+      "url": "https://api.github.com/repos/ZXEB/quarklite/actions/jobs/96881793465",
+      "html_url": "https://github.com/ZXEB/quarklite/actions/runs/32517331821/job/96881793465",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-08-21T19:13:14Z",
+      "started_at": "2026-08-21T19:13:16Z",
+      "completed_at": null,
+      "name": "build-android",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-21T19:13:17Z",
+          "completed_at": "2026-08-21T19:13:22Z"
+        },
+        {
+          "name": "Checkout",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-21T19:13:22Z",
+          "completed_at": "2026-08-21T19:13:24Z"
+        },
+        {
+          "name": "Setup Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-21T19:13:24Z",
+          "completed_at": "2026-08-21T19:13:27Z"
+        },
+        {
+          "name": "Setup Java",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-21T19:13:27Z",
+          "completed_at": "2026-08-21T19:13:35Z"
+        },
+        {
+          "name": "Setup Flutter",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-21T19:13:35Z",
+          "completed_at": "2026-08-21T19:14:41Z"
+        },
+        {
+          "name": "Cache gopeed source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-21T19:14:41Z",
+          "completed_at": "2026-08-21T19:14:43Z"
+        },
+        {
+          "name": "Build libgopeed.aar",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-08-21T19:14:43Z",
+          "completed_at": "2026-08-21T19:18:50Z"
+        },
+        {
+          "name": "Keystore (generate + cache)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-08-21T19:18:50Z",
+          "completed_at": "2026-08-21T19:18:51Z"
+        },
+        {
+          "name": "Cache keystore",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-08-21T19:18:51Z",
+          "completed_at": "2026-08-21T19:18:52Z"
+        },
+        {
+          "name": "Build release APK",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 10,
+          "started_at": "2026-08-21T19:18:52Z",
+          "completed_at": null
+        },
+        {
+          "name": "Upload APK artifacts",
+          "status": "pending",
+          "conclusion": null,
+          "number": 11,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Cache keystore",
+          "status": "pending",
+          "conclusion": null,
+          "number": 17,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Cache gopeed source",
+          "status": "pending",
+          "conclusion": null,
+          "number": 18,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Setup Flutter",
+          "status": "pending",
+          "conclusion": null,
+          "number": 19,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Setup Java",
+          "status": "pending",
+          "conclusion": null,
+          "number": 20,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Setup Go",
+          "status": "pending",
+          "conclusion": null,
+          "number": 21,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Checkout",
+          "status": "pending",
+          "conclusion": null,
+          "number": 22,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/ZXEB/quarklite/check-runs/96881793465",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000000556,
+      "runner_name": "GitHub Actions 1000000556",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 96881793733,
+      "run_id": 32517331821,
+      "workflow_name": "Build",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/ZXEB/quarklite/actions/runs/32517331821",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOT09CG88AAAAWjpraxQ",
+      "head_sha": "d9146c004e090db87a630a07f28c82df43f3cd42",
+      "url": "https://api.github.com/repos/ZXEB/quarklite/actions/jobs/96881793733",
+      "html_url": "https://github.com/ZXEB/quarklite/actions/runs/32517331821/job/96881793733",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-08-21T19:13:14Z",
+      "started_at": "2026-08-21T19:13:17Z",
+      "completed_at": "2026-08-21T19:17:21Z",
+      "name": "build-windows",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-21T19:13:18Z",
+          "completed_at": "2026-08-21T19:13:21Z"
+        },
+        {
+          "name": "Checkout",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-21T19:13:21Z",
+          "completed_at": "2026-08-21T19:13:27Z"
+        },
+        {
+          "name": "Setup Flutter",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-21T19:13:27Z",
+          "completed_at": "2026-08-21T19:15:15Z"
+        },
+        {
+          "name": "Download gopeed engine",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-21T19:15:15Z",
+          "completed_at": "2026-08-21T19:15:22Z"
+        },
+        {
+          "name": "Build Windows release",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 5,
+          "started_at": "2026-08-21T19:15:22Z",
+          "completed_at": "2026-08-21T19:17:16Z"
+        },
+        {
+          "name": "Package",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-08-21T19:17:16Z",
+          "completed_at": "2026-08-21T19:17:16Z"
+        },
+        {
+          "name": "Upload Windows artifacts",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-08-21T19:17:16Z",
+          "completed_at": "2026-08-21T19:17:16Z"
+        },
+        {
+          "name": "Install Inno Setup",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-08-21T19:17:16Z",
+          "completed_at": "2026-08-21T19:17:16Z"
+        },
+        {
+          "name": "Build installer",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 9,
+          "started_at": "2026-08-21T19:17:16Z",
+          "completed_at": "2026-08-21T19:17:16Z"
+        },
+        {
+          "name": "Upload installer artifacts",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-08-21T19:17:16Z",
+          "completed_at": "2026-08-21T19:17:16Z"
+        },
+        {
+          "name": "Post Setup Flutter",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-08-21T19:17:16Z",
+          "completed_at": "2026-08-21T19:17:16Z"
+        },
+        {
+          "name": "Post Checkout",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-08-21T19:17:16Z",
+          "completed_at": "2026-08-21T19:17:19Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-08-21T19:17:19Z",
+          "completed_at": "2026-08-21T19:17:19Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/ZXEB/quarklite/check-runs/96881793733",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 1000000557,
+      "runner_name": "GitHub Actions 1000000557",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}
