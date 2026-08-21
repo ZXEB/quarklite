@@ -41,13 +41,3 @@ flutter:
 
   assets:
     - assets/icons/
-
-  fonts:
-    - family: MiSansPro
-      fonts:
-        - asset: assets/fonts/MiSansPro-Regular.ttf
-          weight: 400
-        - asset: assets/fonts/MiSansPro-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/MiSansPro-Bold.ttf
-          weight: 700

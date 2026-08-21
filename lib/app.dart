@@ -89,13 +89,15 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
     // 全局 Snackbar：供 pages 通过 MiuixToast.show(context, msg) 调用
     SnackbarRegistry.globalHost = _snackbarHost;
     return MiuixThemeController(
-      colorSchemeMode: MiuixColorSchemeMode.light,
+      colorSchemeMode: MiuixColorSchemeMode.system,
+      textStyles: _appTextStyles,
       child: MaterialApp(
         title: 'Quarklite',
         debugShowCheckedModeBanner: false,
         navigatorKey: widget.navigatorKey,
-        // Material 主题仅提供文字/转场基座；颜色由外层 MiuixTheme 主导
+        // Material 主题提供文字/转场基座 + 暗色模式；Miuix 配色由外层跟随系统
         theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
         home: _ready
             ? RootPage(snackbarHost: _snackbarHost)
             : _BootView(error: _bootError, snackbarHost: _snackbarHost),
@@ -105,6 +107,25 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
 }
 
 /// 全局 Snackbar 注册表：让业务代码不依赖页面直接拿到 host。
+/// 全局文本样式：跟随系统默认字体，不含任何装饰（下划线等），
+/// 供 MiuixThemeController 注入，消除个别平台出现的默认下划线。
+final MiuixTextStyles _appTextStyles = MiuixTextStyles(
+  main: const TextStyle(fontSize: 17),
+  paragraph: const TextStyle(fontSize: 17, height: 1.2),
+  body1: const TextStyle(fontSize: 16),
+  body2: const TextStyle(fontSize: 14),
+  button: const TextStyle(fontSize: 17),
+  footnote1: const TextStyle(fontSize: 13),
+  footnote2: const TextStyle(fontSize: 11),
+  headline1: const TextStyle(fontSize: 17),
+  headline2: const TextStyle(fontSize: 16),
+  subtitle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+  title1: const TextStyle(fontSize: 32),
+  title2: const TextStyle(fontSize: 24),
+  title3: const TextStyle(fontSize: 20),
+  title4: const TextStyle(fontSize: 18),
+);
+
 class SnackbarRegistry {
   SnackbarRegistry._();
   static MiuixSnackbarHostState globalHost = MiuixSnackbarHostState();

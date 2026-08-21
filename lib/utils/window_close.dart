@@ -129,46 +129,50 @@ class _CloseChoiceDialogState extends State<_CloseChoiceDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
-    return MiuixOverlayDialog(
-      show: false,
-      title: '关闭 Quarklite',
-      onDismissRequest: _close,
-      content: MiuixDismissScope(
+    return MiuixDialogLayout(
+      controller: _controller,
+      renderInRoot: false,
+      content: (_) => MiuixOverlayDialog(
+        show: true,
+        title: '关闭 Quarklite',
         onDismissRequest: _close,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            MiuixText('关闭窗口后要继续在后台下载吗？',
-                textAlign: TextAlign.center,
-                color: colors.onSurfaceSecondary,
-                fontSize: 14),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: MiuixTextButton(
-                    '退出',
-                    onPressed: widget.onExit,
-                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: MiuixTextButton(
-                    '最小化到托盘',
-                    onPressed: widget.onMinimize,
-                    colors: MiuixButtonColors(
-                      color: colors.primary,
-                      disabledColor: colors.primary,
-                      contentColor: Colors.white,
-                      disabledContentColor: Colors.white,
+        content: MiuixDismissScope(
+          onDismissRequest: _close,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              MiuixText('关闭窗口后要继续在后台下载吗？',
+                  textAlign: TextAlign.center,
+                  color: colors.onSurfaceSecondary,
+                  fontSize: 14),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: MiuixTextButton(
+                      '退出',
+                      onPressed: widget.onExit,
+                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
                     ),
-                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: MiuixTextButton(
+                      '最小化到托盘',
+                      onPressed: widget.onMinimize,
+                      colors: MiuixButtonColors(
+                        color: colors.primary,
+                        disabledColor: colors.primary,
+                        contentColor: Colors.white,
+                        disabledContentColor: Colors.white,
+                      ),
+                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

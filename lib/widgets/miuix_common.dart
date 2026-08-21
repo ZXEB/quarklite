@@ -45,6 +45,8 @@ Future<bool> confirmMiuix(
 
 /// 基于 MiuixOverlayDialog 的确认框（挂在 Navigator 之上，行为等同旧对话框）。
 /// 仅在确认/取消或点遮罩关闭时返回。
+/// 渲染依赖根 Scaffold 的 popupHost，故包裹一层 MiuixDialogLayout：当宿主
+/// popupHost 缺失时（如未经过 RootPage 的场景），弹窗通过 Dialog 兜底显示。
 class _MiuixConfirmDialog extends StatefulWidget {
   final String title;
   final String content;
@@ -93,43 +95,47 @@ class _MiuixConfirmDialogState extends State<_MiuixConfirmDialog> {
       contentColor: Colors.white,
       disabledContentColor: Colors.white,
     );
-    return MiuixOverlayDialog(
-      show: false,
-      onDismissRequest: () => _finish(false),
-      title: widget.title,
-      content: MiuixDismissScope(
+    return MiuixDialogLayout(
+      controller: _controller,
+      renderInRoot: false,
+      content: (_) => MiuixOverlayDialog(
+        show: true,
         onDismissRequest: () => _finish(false),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            MiuixText(
-              widget.content,
-              textAlign: TextAlign.center,
-              color: colors.onSurfaceSecondary,
-              fontSize: 14,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: MiuixTextButton(
-                    '取消',
-                    onPressed: () => _finish(false),
-                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
+        title: widget.title,
+        content: MiuixDismissScope(
+          onDismissRequest: () => _finish(false),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              MiuixText(
+                widget.content,
+                textAlign: TextAlign.center,
+                color: colors.onSurfaceSecondary,
+                fontSize: 14,
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: MiuixTextButton(
+                      '取消',
+                      onPressed: () => _finish(false),
+                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: MiuixTextButton(
-                    widget.confirmText,
-                    onPressed: () => _finish(true),
-                    colors: confirmColors,
-                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: MiuixTextButton(
+                      widget.confirmText,
+                      onPressed: () => _finish(true),
+                      colors: confirmColors,
+                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -284,46 +290,50 @@ class _MiuixInputDialogState extends State<_MiuixInputDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return MiuixOverlayDialog(
-      show: false,
-      title: widget.title,
-      onDismissRequest: () => _finish(null),
-      content: MiuixDismissScope(
+    return MiuixDialogLayout(
+      controller: _controller,
+      renderInRoot: false,
+      content: (_) => MiuixOverlayDialog(
+        show: true,
+        title: widget.title,
         onDismissRequest: () => _finish(null),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            MiuixTextField(
-              controller: _field,
-              label: widget.hint ?? widget.title,
-              useLabelAsPlaceholder: true,
-              singleLine: true,
-              autofocus: true,
-              onSubmitted: (_) =>
-                  _finish(_field.text.trim().isEmpty ? null : _field.text.trim()),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: MiuixTextButton(
-                    '取消',
-                    onPressed: () => _finish(null),
-                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
+        content: MiuixDismissScope(
+          onDismissRequest: () => _finish(null),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              MiuixTextField(
+                controller: _field,
+                label: widget.hint ?? widget.title,
+                useLabelAsPlaceholder: true,
+                singleLine: true,
+                autofocus: true,
+                onSubmitted: (_) =>
+                    _finish(_field.text.trim().isEmpty ? null : _field.text.trim()),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: MiuixTextButton(
+                      '取消',
+                      onPressed: () => _finish(null),
+                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: MiuixTextButton(
-                    widget.confirmText,
-                    onPressed: () => _finish(
-                        _field.text.trim().isEmpty ? null : _field.text.trim()),
-                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: MiuixTextButton(
+                      widget.confirmText,
+                      onPressed: () => _finish(
+                          _field.text.trim().isEmpty ? null : _field.text.trim()),
+                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -398,53 +408,57 @@ class _MiuixChoiceDialogState<T> extends State<_MiuixChoiceDialog<T>> {
   @override
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
-    return MiuixOverlayDialog(
-      show: false,
-      title: widget.title,
-      onDismissRequest: () => _finish(null),
-      content: MiuixDismissScope(
+    return MiuixDialogLayout(
+      controller: _controller,
+      renderInRoot: false,
+      content: (_) => MiuixOverlayDialog(
+        show: true,
+        title: widget.title,
         onDismissRequest: () => _finish(null),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.hint != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: MiuixText(
-                  widget.hint!,
-                  color: AppColors.orange,
-                  fontSize: 12,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            for (final o in widget.options)
-              MiuixPressable(
-                onPressed: () => _finish(o),
-                borderRadius: BorderRadius.circular(10),
-                feedbackType: MiuixPressFeedbackType.sink,
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                  child: Row(
-                    children: [
-                      MiuixIcon(
-                        icon: o == widget.current
-                            ? Icons.radio_button_checked_rounded
-                            : Icons.radio_button_off_rounded,
-                        size: 20,
-                        tint: o == widget.current
-                            ? colors.primary
-                            : colors.onSurfaceSecondary,
-                      ),
-                      const SizedBox(width: 12),
-                      MiuixText(widget.labelOf(o),
-                          fontSize: 14, color: colors.onSurfaceContainer),
-                    ],
+        content: MiuixDismissScope(
+          onDismissRequest: () => _finish(null),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.hint != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: MiuixText(
+                    widget.hint!,
+                    color: AppColors.orange,
+                    fontSize: 12,
+                    textAlign: TextAlign.center,
                   ),
                 ),
-              ),
-            const SizedBox(height: 8),
-          ],
+              for (final o in widget.options)
+                MiuixPressable(
+                  onPressed: () => _finish(o),
+                  borderRadius: BorderRadius.circular(10),
+                  feedbackType: MiuixPressFeedbackType.sink,
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    child: Row(
+                      children: [
+                        MiuixIcon(
+                          icon: o == widget.current
+                              ? Icons.radio_button_checked_rounded
+                              : Icons.radio_button_off_rounded,
+                          size: 20,
+                          tint: o == widget.current
+                              ? colors.primary
+                              : colors.onSurfaceSecondary,
+                        ),
+                        const SizedBox(width: 12),
+                        MiuixText(widget.labelOf(o),
+                            fontSize: 14, color: colors.onSurfaceContainer),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );

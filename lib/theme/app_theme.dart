@@ -102,22 +102,31 @@ class MiuixPageTransitionsBuilder extends PageTransitionsBuilder {
 }
 
 class AppTheme {
-  /// Material 主题：`MaterialApp.theme` 需要的主题基座。
-  /// 颜色/外观由外层 `MiuixTheme` 提供，此处仅配置文字、转场与基础色标，
-  /// 使 `MaterialPageRoute` 与文本默认样式稳定可用。
-  static ThemeData light() {
+  /// 构建 Material 主题基座（明/暗共用）。
+  /// 颜色/外观由外层 Miuix 主题主导，此处仅配置转场、文字与基础色标，
+  /// 使 `MaterialPageRoute` 运行时稳定可用。
+  static ThemeData _base(Brightness brightness) {
+    final dark = brightness == Brightness.dark;
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.light,
-      scaffoldBackgroundColor: AppColors.bg,
-      colorScheme: const ColorScheme.light(
-        primary: AppColors.accent,
-        secondary: AppColors.accent,
-        surface: AppColors.card,
-        onSurface: AppColors.textPrimary,
-        onPrimary: Colors.white,
-      ),
-      fontFamily: 'MiSansPro',
+      brightness: brightness,
+      scaffoldBackgroundColor: dark ? const Color(0xFF101014) : AppColors.bg,
+      colorScheme: dark
+          ? const ColorScheme.dark(
+              primary: Color(0xFF7C9FFF),
+              secondary: Color(0xFF7C9FFF),
+              surface: Color(0xFF1B1B21),
+              onSurface: Color(0xFFE6E6EB),
+              onPrimary: Color(0xFF101014),
+            )
+          : const ColorScheme.light(
+              primary: AppColors.accent,
+              secondary: AppColors.accent,
+              surface: AppColors.card,
+              onSurface: AppColors.textPrimary,
+              onPrimary: Colors.white,
+            ),
+      // 跟随系统默认字体（不强制绑定 MiSansPro，避免包内无该字体出现兜底/异常）
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
           TargetPlatform.android: MiuixPageTransitionsBuilder(),
@@ -127,14 +136,17 @@ class AppTheme {
           TargetPlatform.linux: MiuixPageTransitionsBuilder(),
         },
       ),
-      textTheme: const TextTheme(
-        bodyMedium: TextStyle(color: AppColors.textPrimary),
-        bodyLarge: TextStyle(color: AppColors.textPrimary),
+      textTheme: TextTheme(
+        bodyMedium: TextStyle(color: dark ? const Color(0xFFE6E6EB) : AppColors.textPrimary),
+        bodyLarge: TextStyle(color: dark ? const Color(0xFFE6E6EB) : AppColors.textPrimary),
       ),
-      dialogTheme: const DialogThemeData(
-        backgroundColor: AppColors.card,
+      dialogTheme: DialogThemeData(
+        backgroundColor: dark ? const Color(0xFF1B1B21) : AppColors.card,
       ),
-      dividerTheme: const DividerThemeData(color: AppColors.divider),
+      dividerTheme: DividerThemeData(color: dark ? const Color(0xFF2A2A31) : AppColors.divider),
     );
   }
+
+  static ThemeData light() => _base(Brightness.light);
+  static ThemeData dark() => _base(Brightness.dark);
 }
