@@ -219,7 +219,8 @@ class MiuixActionSheet {
     required List<({IconData icon, String text, T value, Color? color})> actions,
   }) {
     final completer = Completer<T?>();
-    // ignore: unawaited_futures
+    // 弹出后立即返回 future；关闭时由 _showImpl 里的 onDismissFinished/onPick
+    // 完成 completer（异步调用不阻塞调用方，也不 await）。
     _showImpl(
       context: context,
       title: title,
