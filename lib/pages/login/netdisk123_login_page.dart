@@ -138,8 +138,7 @@ class _PasswordLoginViewState extends State<_PasswordLoginView> {
               tint: colors.onSurfaceSecondary, size: 20),
           trailingIcon: MiuixIconButton(
             onPressed: () => setState(() => _obscure = !_obscure),
-            child: MiuixIcon(
-              _obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+            child: MiuixIcon(icon: _obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded,
               tint: colors.onSurfaceSecondary,
               size: 20,
             ),

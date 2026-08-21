@@ -896,7 +896,7 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
                                     : const Center(
                                         child: MiuixCircularProgressIndicator()),
                             errorBuilder: (_, _, _) => const MiuixIcon(
-                                Icons.broken_image_rounded,
+                                icon: Icons.broken_image_rounded,
                                 tint: Colors.white54,
                                 size: 56),
                           )

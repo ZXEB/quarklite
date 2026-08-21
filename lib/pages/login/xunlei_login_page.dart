@@ -181,7 +181,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
               trailingIcon: MiuixIconButton(
                 onPressed: () => setState(() => _obscure = !_obscure),
                 child: MiuixIcon(
-                  _obscure
+                  icon: _obscure
                       ? Icons.visibility_off_rounded
                       : Icons.visibility_rounded,
                   tint: colors.onSurfaceSecondary,

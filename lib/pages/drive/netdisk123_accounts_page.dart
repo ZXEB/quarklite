@@ -140,8 +140,7 @@ class _Netdisk123AccountsPageState extends State<Netdisk123AccountsPage> {
                                             color: isActive ? AppColors.accent : colors.surfaceContainer,
                                             borderRadius: BorderRadius.circular(12),
                                           ),
-                                          child: MiuixIcon(
-                                            isActive ? Icons.check_circle_rounded : Icons.account_circle_rounded,
+                                          child: MiuixIcon(icon: isActive ? Icons.check_circle_rounded : Icons.account_circle_rounded,
                                             tint: isActive ? Colors.white : colors.onSurfaceSecondary,
                                             size: 22,
                                           ),
