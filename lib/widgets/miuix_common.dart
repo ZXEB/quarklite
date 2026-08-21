@@ -46,13 +46,13 @@ class MiuixOverlayPanel {
     late OverlayEntry entry;
     entry = OverlayEntry(
       opaque: false,
-      builder: (_) => MiuixDialogLayout(
+      builder: (overlayContext) => MiuixDialogLayout(
         controller: controller,
         renderInRoot: false,
         onDismissFinished: () {
           completer.complete();
         },
-        content: (_) => builder(_),
+        content: (dialogContext) => builder(dialogContext),
       ),
     );
     _entry = entry;
