@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_miuix/miuix.dart';
@@ -68,14 +70,21 @@ class WindowCloseHandler {
       await minimize();
       return;
     }
-    final choice = await showDialog<String>(
+    final completer = Completer<String>();
+    await MiuixOverlayPanel.show(
       context: ctx,
-      builder: (ctx) => _CloseChoiceDialog(
-        onExit: () => Navigator.pop(ctx, 'exit'),
-        onMinimize: () => Navigator.pop(ctx, 'minimize'),
+      builder: (_) => _CloseChoiceDialog(
+        onExit: () {
+          completer.complete('exit');
+          MiuixOverlayPanel.hide();
+        },
+        onMinimize: () {
+          completer.complete('minimize');
+          MiuixOverlayPanel.hide();
+        },
       ),
     );
-    final action = choice ?? 'minimize';
+    final action = await completer.future;
     if (remember) {
       // 首次选择后记住，下次直接按此行为执行
       await saveAction(action);
@@ -116,63 +125,51 @@ class _CloseChoiceDialog extends StatefulWidget {
 }
 
 class _CloseChoiceDialogState extends State<_CloseChoiceDialog> {
-  final MiuixPopupController _controller = MiuixPopupController(visible: false);
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _controller.show());
-  }
-
-  void _close() => Navigator.of(context).pop('minimize');
+  void _close() => MiuixOverlayPanel.hide();
 
   @override
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
-    return MiuixDialogLayout(
-      controller: _controller,
-      renderInRoot: false,
-      content: (_) => MiuixOverlayDialog(
-        show: true,
-        title: '关闭 Quarklite',
+    return MiuixOverlayDialog(
+      show: true,
+      title: '关闭 Quarklite',
+      onDismissRequest: _close,
+      content: MiuixDismissScope(
         onDismissRequest: _close,
-        content: MiuixDismissScope(
-          onDismissRequest: _close,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              MiuixText('关闭窗口后要继续在后台下载吗？',
-                  textAlign: TextAlign.center,
-                  color: colors.onSurfaceSecondary,
-                  fontSize: 14),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: MiuixTextButton(
-                      '退出',
-                      onPressed: widget.onExit,
-                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
-                    ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MiuixText('关闭窗口后要继续在后台下载吗？',
+                textAlign: TextAlign.center,
+                color: colors.onSurfaceSecondary,
+                fontSize: 14),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: MiuixTextButton(
+                    '退出',
+                    onPressed: widget.onExit,
+                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: MiuixTextButton(
-                      '最小化到托盘',
-                      onPressed: widget.onMinimize,
-                      colors: MiuixButtonColors(
-                        color: colors.primary,
-                        disabledColor: colors.primary,
-                        contentColor: Colors.white,
-                        disabledContentColor: Colors.white,
-                      ),
-                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: MiuixTextButton(
+                    '最小化到托盘',
+                    onPressed: widget.onMinimize,
+                    colors: MiuixButtonColors(
+                      color: colors.primary,
+                      disabledColor: colors.primary,
+                      contentColor: Colors.white,
+                      disabledContentColor: Colors.white,
                     ),
+                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

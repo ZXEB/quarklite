@@ -180,6 +180,8 @@ class MePage extends StatelessWidget {
     Widget arrowPref({required String title, required String summary, required IconData icon, required VoidCallback onClick}) => MiuixArrowPreference(title: title, summary: summary, startAction: leading(icon), insideMargin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), onClick: onClick);
     return MiuixCard(
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          arrowPref(title: '外观模式', summary: _themeModeLabel(app.themeMode), icon: Icons.dark_mode_rounded, onClick: () => _editThemeMode(context, app)),
+          const MiuixHorizontalDivider(),
           arrowPref(title: '下载目录', summary: app.downloadDir, icon: Icons.folder_rounded, onClick: () => _editDownloadDir(context, app)),
           const MiuixHorizontalDivider(),
           arrowPref(title: '夸克下载线程', summary: '单任务最大 ${app.connections} 线程', icon: Icons.speed_rounded, onClick: () => _editConnections(context, app)),
@@ -198,7 +200,35 @@ class MePage extends StatelessWidget {
     );
   }
 
-    String _closeActionLabel(String action) {
+    String _themeModeLabel(String mode) {
+    switch (mode) {
+      case 'light':
+        return '浅色';
+      case 'dark':
+        return '深色';
+      default:
+        return '跟随系统';
+    }
+  }
+
+  void _editThemeMode(BuildContext context, AppState app) {
+    final options = <(String, String)>[
+      ('system', '跟随系统'),
+      ('light', '浅色'),
+      ('dark', '深色'),
+    ];
+    miuixChoiceDialog<String>(
+      context,
+      title: '外观模式',
+      options: options.map((e) => e.$1).toList(),
+      current: app.themeMode,
+      labelOf: (v) => options.firstWhere((e) => e.$1 == v).$2,
+    ).then((v) {
+      if (v != null) app.setThemeMode(v);
+    });
+  }
+
+  String _closeActionLabel(String action) {
     switch (action) {
       case 'minimize':
         return '最小化到托盘（后台继续下载）';
@@ -244,26 +274,24 @@ class MePage extends StatelessWidget {
     final path = await AppLogger.I.logPath();
     final content = await AppLogger.I.readLog();
     if (!context.mounted) return;
-    await showDialog<void>(
+    await MiuixOverlayPanel.show(
       context: context,
-      builder: (ctx) => _LogDialog(
+      builder: (_) => _LogDialog(
         path: path,
         content: content,
-        onOpenDir: () async {
+        onOpenDir: () {
           final dir = path.contains(Platform.pathSeparator)
               ? path.substring(0, path.lastIndexOf(Platform.pathSeparator))
               : '.';
           try {
-            await Process.start('explorer.exe', [dir]);
+            Process.start('explorer.exe', [dir]);
           } catch (_) {}
-          if (ctx.mounted) Navigator.pop(ctx);
+          MiuixOverlayPanel.hide();
         },
         onCopy: () async {
           await Clipboard.setData(ClipboardData(text: content));
-          if (ctx.mounted) {
-            Navigator.pop(ctx);
-            MiuixToast.show('日志已复制，请直接粘贴发送给开发者');
-          }
+          MiuixOverlayPanel.hide();
+          MiuixToast.show('日志已复制，请直接粘贴发送给开发者');
         },
       ),
     );
@@ -449,15 +477,7 @@ class _LogDialog extends StatefulWidget {
 }
 
 class _LogDialogState extends State<_LogDialog> {
-  final MiuixPopupController _controller = MiuixPopupController(visible: false);
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _controller.show());
-  }
-
-  void _close() => Navigator.of(context).pop();
+  void _close() => MiuixOverlayPanel.hide();
 
   @override
   Widget build(BuildContext context) {
@@ -465,70 +485,70 @@ class _LogDialogState extends State<_LogDialog> {
     final content = widget.content.length > 3000
         ? '…${widget.content.substring(widget.content.length - 3000)}'
         : widget.content;
-    return MiuixDialogLayout(
-      controller: _controller,
-      renderInRoot: false,
-      content: (_) => MiuixOverlayDialog(
-        show: true,
-        title: '运行日志',
+    return MiuixOverlayDialog(
+      show: true,
+      title: '运行日志',
+      onDismissRequest: _close,
+      content: MiuixDismissScope(
         onDismissRequest: _close,
-        content: MiuixDismissScope(
-          onDismissRequest: _close,
-          child: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+        child: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
                 MiuixText('日志文件位置：',
                     color: colors.onSurfaceSecondary, fontSize: 12),
                 SelectableText(
                   widget.path,
-                  style: TextStyle(fontSize: 12, color: colors.primary),
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: colors.primary,
+                      decoration: TextDecoration.none),
                 ),
                 const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  height: 200,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainer,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: SelectableText(
-                    content,
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: colors.onSurfaceSecondary,
-                        height: 1.5),
-                  ),
+              Container(
+                width: double.infinity,
+                height: 200,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainer,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (!kIsWeb && Platform.isWindows)
-                      MiuixTextButton(
-                        '打开目录',
-                        onPressed: widget.onOpenDir,
-                        colors: MiuixButtonColors(color: colors.primary, disabledColor: colors.primary, contentColor: Colors.white, disabledContentColor: Colors.white),
-                      ),
-                    const SizedBox(width: 8),
+                child: SelectableText(
+                  content,
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: colors.onSurfaceSecondary,
+                      height: 1.5,
+                      decoration: TextDecoration.none),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (!kIsWeb && Platform.isWindows)
                     MiuixTextButton(
-                      '关闭',
-                      onPressed: _close,
-                      colors: MiuixButtonColors(color: colors.onSurfaceSecondary, disabledColor: colors.onSurfaceSecondary, contentColor: Colors.white, disabledContentColor: Colors.white),
-                    ),
-                    const SizedBox(width: 8),
-                    MiuixTextButton(
-                      '复制日志',
-                      onPressed: widget.onCopy,
+                      '打开目录',
+                      onPressed: widget.onOpenDir,
                       colors: MiuixButtonColors(color: colors.primary, disabledColor: colors.primary, contentColor: Colors.white, disabledContentColor: Colors.white),
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  const SizedBox(width: 8),
+                  MiuixTextButton(
+                    '关闭',
+                    onPressed: _close,
+                    colors: MiuixButtonColors(color: colors.onSurfaceSecondary, disabledColor: colors.onSurfaceSecondary, contentColor: Colors.white, disabledContentColor: Colors.white),
+                  ),
+                  const SizedBox(width: 8),
+                  MiuixTextButton(
+                    '复制日志',
+                    onPressed: widget.onCopy,
+                    colors: MiuixButtonColors(color: colors.primary, disabledColor: colors.primary, contentColor: Colors.white, disabledContentColor: Colors.white),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),

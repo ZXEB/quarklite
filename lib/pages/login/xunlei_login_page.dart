@@ -90,9 +90,9 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
   Future<void> _showReviewDialog(String account, String password) async {
     final reviewUrl = XunleiState.I.client.reviewUrl;
     final controller = TextEditingController();
-    await showDialog<void>(
+    await MiuixOverlayPanel.show(
       context: context,
-      builder: (ctx) => _ReviewKeyDialog(
+      builder: (_) => _ReviewKeyDialog(
         reviewUrl: reviewUrl,
         controller: controller,
         onCopy: () {
@@ -110,7 +110,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
             _toast('请先粘贴验证密钥');
             return;
           }
-          Navigator.pop(ctx);
+          MiuixOverlayPanel.hide();
           setState(() => _submitting = true);
           final err = await XunleiState.I
               .loginWithCreditKey(account, password, key);
@@ -247,112 +247,102 @@ class _ReviewKeyDialog extends StatefulWidget {
 }
 
 class _ReviewKeyDialogState extends State<_ReviewKeyDialog> {
-  final MiuixPopupController _controller = MiuixPopupController(visible: false);
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _controller.show());
-  }
-
   void _close() {
-    Navigator.of(context).pop();
+    MiuixOverlayPanel.hide();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
-    return MiuixDialogLayout(
-      controller: _controller,
-      renderInRoot: false,
-      content: (_) => MiuixOverlayDialog(
-        show: true,
-        title: '需要短信验证',
+    return MiuixOverlayDialog(
+      show: true,
+      title: '需要短信验证',
+      onDismissRequest: _close,
+      content: MiuixDismissScope(
         onDismissRequest: _close,
-        content: MiuixDismissScope(
-          onDismissRequest: _close,
-          child: SizedBox(
-            width: 360,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                MiuixText(
-                  '本次登录触发了风控，请按以下步骤完成验证：',
-                  color: colors.onSurfaceSecondary,
-                  fontSize: 13,
+        child: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              MiuixText(
+                '本次登录触发了风控，请按以下步骤完成验证：',
+                color: colors.onSurfaceSecondary,
+                fontSize: 13,
+              ),
+              const SizedBox(height: 10),
+              MiuixText('① 打开下面的验证链接（在浏览器中完成短信/滑块验证）',
+                  fontSize: 13),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainer,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 10),
-                MiuixText('① 打开下面的验证链接（在浏览器中完成短信/滑块验证）',
-                    fontSize: 13),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainer,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: SelectableText(
-                          widget.reviewUrl,
-                          style:
-                              TextStyle(fontSize: 11, color: colors.primary),
-                        ),
-                      ),
-                      MiuixIconButton(
-                        onPressed: widget.onCopy,
-                        child: MiuixIcon(icon: Icons.copy_rounded,
-                            tint: colors.primary, size: 18),
-                      ),
-                      if (!kIsWeb && Platform.isWindows)
-                        MiuixIconButton(
-                          onPressed: widget.onOpenBrowser,
-                          child: MiuixIcon(icon: Icons.open_in_browser_rounded,
-                              tint: colors.primary, size: 18),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                MiuixText('② 验证完成后，复制页面显示的验证密钥（creditkey），粘贴到下面',
-                    fontSize: 13),
-                const SizedBox(height: 8),
-                MiuixTextField(
-                  controller: widget.controller,
-                  label: '粘贴验证密钥 creditkey',
-                  useLabelAsPlaceholder: true,
-                  singleLine: true,
-                ),
-                const SizedBox(height: 16),
-                Row(
+                child: Row(
                   children: [
                     Expanded(
-                      child: MiuixTextButton(
-                        '取消',
-                        onPressed: _close,
-                        insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                      child: SelectableText(
+                        widget.reviewUrl,
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: colors.primary,
+                            decoration: TextDecoration.none),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: MiuixTextButton(
-                        '完成验证并登录',
-                        onPressed: widget.onSubmit,
-                        colors: MiuixButtonColors(
-                          color: colors.primary,
-                          disabledColor: colors.primary,
-                          contentColor: Colors.white,
-                          disabledContentColor: Colors.white,
-                        ),
-                        insideMargin: const EdgeInsets.symmetric(vertical: 8),
-                      ),
+                    MiuixIconButton(
+                      onPressed: widget.onCopy,
+                      child: MiuixIcon(icon: Icons.copy_rounded,
+                          tint: colors.primary, size: 18),
                     ),
+                    if (!kIsWeb && Platform.isWindows)
+                      MiuixIconButton(
+                        onPressed: widget.onOpenBrowser,
+                        child: MiuixIcon(icon: Icons.open_in_browser_rounded,
+                            tint: colors.primary, size: 18),
+                      ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 12),
+              MiuixText('② 验证完成后，复制页面显示的验证密钥（creditkey），粘贴到下面',
+                  fontSize: 13),
+              const SizedBox(height: 8),
+              MiuixTextField(
+                controller: widget.controller,
+                label: '粘贴验证密钥 creditkey',
+                useLabelAsPlaceholder: true,
+                singleLine: true,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: MiuixTextButton(
+                      '取消',
+                      onPressed: _close,
+                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: MiuixTextButton(
+                      '完成验证并登录',
+                      onPressed: widget.onSubmit,
+                      colors: MiuixButtonColors(
+                        color: colors.primary,
+                        disabledColor: colors.primary,
+                        contentColor: Colors.white,
+                        disabledContentColor: Colors.white,
+                      ),
+                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),

@@ -21,6 +21,59 @@ class MiuixToast {
   }
 }
 
+/// 基于 [Overlay] 的命令式 Miuix 弹层（替代 showDialog/MiuixDialogLayout）。
+///
+/// 之前两版分别依赖 `MiuixPopupHost`（根 Scaffold popupHost 绑在一条
+/// `MiuixPopupScope` 链上，我们的弹窗注册不到）与 `showDialog` 包
+/// `MiuixDialogLayout`（Navigator 弹层里没有可用的 popupHost，show 后内容
+/// 仍不出现）。本实现直接往 `Overlay.of(context, rootOverlay: true)` 插入
+/// 一个 OverlayEntry，内容用 `MiuixOverlayDialog(show: true)` 渲染，
+/// 遮罩/动画一切正常，不依赖任何宿主。
+class MiuixOverlayPanel {
+  MiuixOverlayPanel._();
+
+  static OverlayEntry? _entry;
+  static MiuixPopupController? _controller;
+
+  static Future<void> show({
+    required BuildContext context,
+    required Widget Function(BuildContext dialogContext) builder,
+  }) async {
+    hide();
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final completer = Completer<void>();
+    final controller = MiuixPopupController(visible: false);
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      opaque: false,
+      builder: (_) => MiuixDialogLayout(
+        controller: controller,
+        renderInRoot: false,
+        onDismissFinished: () {
+          completer.complete();
+        },
+        content: (_) => builder(_),
+      ),
+    );
+    _entry = entry;
+    _controller = controller;
+    overlay.insert(entry);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_controller == controller) controller.show();
+    });
+    await completer.future;
+  }
+
+  static void hide() {
+    final e = _entry;
+    final c = _controller;
+    _entry = null;
+    _controller = null;
+    if (c != null && c.visible) c.dismiss();
+    if (e != null && e.mounted) e.remove();
+  }
+}
+
 /// 便捷确认对话框：返回 [Future<bool>]，true 表示用户确认。
 Future<bool> confirmMiuix(
   BuildContext context, {
@@ -30,7 +83,7 @@ Future<bool> confirmMiuix(
   bool danger = false,
 }) {
   final completer = Completer<bool>();
-  showDialog<bool>(
+  MiuixOverlayPanel.show(
     context: context,
     builder: (_) => _MiuixConfirmDialog(
       title: title,
@@ -43,10 +96,8 @@ Future<bool> confirmMiuix(
   return completer.future;
 }
 
-/// 基于 MiuixOverlayDialog 的确认框（挂在 Navigator 之上，行为等同旧对话框）。
+/// 确认框内容；挂载在 MiuixOverlayPanel 之上（MiuixOverlayDialog show:true）。
 /// 仅在确认/取消或点遮罩关闭时返回。
-/// 渲染依赖根 Scaffold 的 popupHost，故包裹一层 MiuixDialogLayout：当宿主
-/// popupHost 缺失时（如未经过 RootPage 的场景），弹窗通过 Dialog 兜底显示。
 class _MiuixConfirmDialog extends StatefulWidget {
   final String title;
   final String content;
@@ -68,21 +119,13 @@ class _MiuixConfirmDialog extends StatefulWidget {
 }
 
 class _MiuixConfirmDialogState extends State<_MiuixConfirmDialog> {
-  final MiuixPopupController _controller = MiuixPopupController(visible: false);
   bool _closed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _controller.show());
-  }
 
   void _finish(bool ok) {
     if (_closed) return;
     _closed = true;
-    _controller.dismiss();
     widget.completer.complete(ok);
-    Navigator.of(context).pop();
+    MiuixOverlayPanel.hide();
   }
 
   @override
@@ -95,47 +138,43 @@ class _MiuixConfirmDialogState extends State<_MiuixConfirmDialog> {
       contentColor: Colors.white,
       disabledContentColor: Colors.white,
     );
-    return MiuixDialogLayout(
-      controller: _controller,
-      renderInRoot: false,
-      content: (_) => MiuixOverlayDialog(
-        show: true,
+    return MiuixOverlayDialog(
+      show: true,
+      onDismissRequest: () => _finish(false),
+      title: widget.title,
+      content: MiuixDismissScope(
         onDismissRequest: () => _finish(false),
-        title: widget.title,
-        content: MiuixDismissScope(
-          onDismissRequest: () => _finish(false),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              MiuixText(
-                widget.content,
-                textAlign: TextAlign.center,
-                color: colors.onSurfaceSecondary,
-                fontSize: 14,
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: MiuixTextButton(
-                      '取消',
-                      onPressed: () => _finish(false),
-                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
-                    ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MiuixText(
+              widget.content,
+              textAlign: TextAlign.center,
+              color: colors.onSurfaceSecondary,
+              fontSize: 14,
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: MiuixTextButton(
+                    '取消',
+                    onPressed: () => _finish(false),
+                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: MiuixTextButton(
-                      widget.confirmText,
-                      onPressed: () => _finish(true),
-                      colors: confirmColors,
-                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
-                    ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: MiuixTextButton(
+                    widget.confirmText,
+                    onPressed: () => _finish(true),
+                    colors: confirmColors,
+                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -229,7 +268,7 @@ Future<String?> miuixInputDialog(
   String initialText = '',
 }) {
   final completer = Completer<String?>();
-  showDialog<String>(
+  MiuixOverlayPanel.show(
     context: context,
     builder: (_) => _MiuixInputDialog(
       title: title,
@@ -263,16 +302,9 @@ class _MiuixInputDialog extends StatefulWidget {
 }
 
 class _MiuixInputDialogState extends State<_MiuixInputDialog> {
-  final MiuixPopupController _controller = MiuixPopupController(visible: false);
   late final TextEditingController _field =
       TextEditingController(text: widget.initialText);
   bool _closed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _controller.show());
-  }
 
   @override
   void dispose() {
@@ -283,57 +315,52 @@ class _MiuixInputDialogState extends State<_MiuixInputDialog> {
   void _finish(String? value) {
     if (_closed) return;
     _closed = true;
-    _controller.dismiss();
     widget.completer.complete(value);
-    Navigator.of(context).pop();
+    MiuixOverlayPanel.hide();
   }
 
   @override
   Widget build(BuildContext context) {
-    return MiuixDialogLayout(
-      controller: _controller,
-      renderInRoot: false,
-      content: (_) => MiuixOverlayDialog(
-        show: true,
-        title: widget.title,
+    return MiuixOverlayDialog(
+      show: true,
+      title: widget.title,
+      onDismissRequest: () => _finish(null),
+      content: MiuixDismissScope(
         onDismissRequest: () => _finish(null),
-        content: MiuixDismissScope(
-          onDismissRequest: () => _finish(null),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              MiuixTextField(
-                controller: _field,
-                label: widget.hint ?? widget.title,
-                useLabelAsPlaceholder: true,
-                singleLine: true,
-                autofocus: true,
-                onSubmitted: (_) =>
-                    _finish(_field.text.trim().isEmpty ? null : _field.text.trim()),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: MiuixTextButton(
-                      '取消',
-                      onPressed: () => _finish(null),
-                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
-                    ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MiuixTextField(
+              controller: _field,
+              label: widget.hint ?? widget.title,
+              useLabelAsPlaceholder: true,
+              singleLine: true,
+              autofocus: true,
+              onSubmitted: (_) =>
+                  _finish(_field.text.trim().isEmpty ? null : _field.text.trim()),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: MiuixTextButton(
+                    '取消',
+                    onPressed: () => _finish(null),
+                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: MiuixTextButton(
-                      widget.confirmText,
-                      onPressed: () => _finish(
-                          _field.text.trim().isEmpty ? null : _field.text.trim()),
-                      insideMargin: const EdgeInsets.symmetric(vertical: 8),
-                    ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: MiuixTextButton(
+                    widget.confirmText,
+                    onPressed: () => _finish(
+                        _field.text.trim().isEmpty ? null : _field.text.trim()),
+                    insideMargin: const EdgeInsets.symmetric(vertical: 8),
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -351,7 +378,7 @@ Future<T?> miuixChoiceDialog<T>(
   String? hint,
 }) {
   final completer = Completer<T?>();
-  showDialog<T>(
+  MiuixOverlayPanel.show(
     context: context,
     builder: (_) => _MiuixChoiceDialog(
       title: title,
@@ -388,77 +415,65 @@ class _MiuixChoiceDialog<T> extends StatefulWidget {
 }
 
 class _MiuixChoiceDialogState<T> extends State<_MiuixChoiceDialog<T>> {
-  final MiuixPopupController _controller = MiuixPopupController(visible: false);
   bool _closed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _controller.show());
-  }
 
   void _finish(T? value) {
     if (_closed) return;
     _closed = true;
-    _controller.dismiss();
     widget.completer.complete(value);
-    Navigator.of(context).pop();
+    MiuixOverlayPanel.hide();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
-    return MiuixDialogLayout(
-      controller: _controller,
-      renderInRoot: false,
-      content: (_) => MiuixOverlayDialog(
-        show: true,
-        title: widget.title,
+    return MiuixOverlayDialog(
+      show: true,
+      title: widget.title,
+      onDismissRequest: () => _finish(null),
+      content: MiuixDismissScope(
         onDismissRequest: () => _finish(null),
-        content: MiuixDismissScope(
-          onDismissRequest: () => _finish(null),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (widget.hint != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: MiuixText(
-                    widget.hint!,
-                    color: AppColors.orange,
-                    fontSize: 12,
-                    textAlign: TextAlign.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.hint != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: MiuixText(
+                  widget.hint!,
+                  color: AppColors.orange,
+                  fontSize: 12,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            for (final o in widget.options)
+              MiuixPressable(
+                onPressed: () => _finish(o),
+                borderRadius: BorderRadius.circular(10),
+                feedbackType: MiuixPressFeedbackType.sink,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                  child: Row(
+                    children: [
+                      MiuixIcon(
+                        icon: o == widget.current
+                            ? Icons.radio_button_checked_rounded
+                            : Icons.radio_button_off_rounded,
+                        size: 20,
+                        tint: o == widget.current
+                            ? colors.primary
+                            : colors.onSurfaceSecondary,
+                      ),
+                      const SizedBox(width: 12),
+                      MiuixText(widget.labelOf(o),
+                          fontSize: 14, color: colors.onSurfaceContainer),
+                    ],
                   ),
                 ),
-              for (final o in widget.options)
-                MiuixPressable(
-                  onPressed: () => _finish(o),
-                  borderRadius: BorderRadius.circular(10),
-                  feedbackType: MiuixPressFeedbackType.sink,
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                    child: Row(
-                      children: [
-                        MiuixIcon(
-                          icon: o == widget.current
-                              ? Icons.radio_button_checked_rounded
-                              : Icons.radio_button_off_rounded,
-                          size: 20,
-                          tint: o == widget.current
-                              ? colors.primary
-                              : colors.onSurfaceSecondary,
-                        ),
-                        const SizedBox(width: 12),
-                        MiuixText(widget.labelOf(o),
-                            fontSize: 14, color: colors.onSurfaceContainer),
-                      ],
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 8),
-            ],
-          ),
+              ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );

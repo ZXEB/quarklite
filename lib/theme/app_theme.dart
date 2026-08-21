@@ -139,6 +139,11 @@ class AppTheme {
       textTheme: TextTheme(
         bodyMedium: TextStyle(color: dark ? const Color(0xFFE6E6EB) : AppColors.textPrimary),
         bodyLarge: TextStyle(color: dark ? const Color(0xFFE6E6EB) : AppColors.textPrimary),
+        labelMedium: const TextStyle(decoration: TextDecoration.none),
+        labelSmall: const TextStyle(decoration: TextDecoration.none),
+        labelLarge: const TextStyle(decoration: TextDecoration.none),
+        titleSmall: const TextStyle(decoration: TextDecoration.none),
+        titleMedium: const TextStyle(decoration: TextDecoration.none),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: dark ? const Color(0xFF1B1B21) : AppColors.card,

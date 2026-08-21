@@ -88,8 +88,15 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
   Widget build(BuildContext context) {
     // 全局 Snackbar：供 pages 通过 MiuixToast.show(context, msg) 调用
     SnackbarRegistry.globalHost = _snackbarHost;
+    final mode = AppState.I.themeMode;
+    final isDark = switch (mode) {
+      'light' => false,
+      'dark' => true,
+      _ => null, // system：跟随系统亮度
+    };
     return MiuixThemeController(
       colorSchemeMode: MiuixColorSchemeMode.system,
+      isDark: isDark,
       textStyles: _appTextStyles,
       child: MaterialApp(
         title: 'Quarklite',

@@ -24,6 +24,10 @@ class AppState extends ChangeNotifier {
   static const _kMaxRunning = 'max_running';
   static const _kConnectionBudget = 'connection_budget';
   static const _kCloseAction = 'window_close_action';
+  static const _kThemeMode = 'app_theme_mode';
+
+  /// 应用外观模式：system（跟随系统）/ light / dark
+  String themeMode = 'system';
 
   static AppState? _instance;
   static AppState get I => _instance ??= AppState._();
@@ -158,6 +162,7 @@ class AppState extends ChangeNotifier {
       maxRunning = prefs.getInt(_kMaxRunning) ?? 4;
       connectionBudget = prefs.getInt(_kConnectionBudget) ?? 256;
       closeAction = prefs.getString(_kCloseAction) ?? 'ask_once';
+      themeMode = prefs.getString(_kThemeMode) ?? 'system';
       notifyListeners();
     });
   }
@@ -252,6 +257,14 @@ class AppState extends ChangeNotifier {
     closeAction = action;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kCloseAction, action);
+    notifyListeners();
+  }
+
+  /// 设置应用外观模式：system / light / dark（持久化并通知全局重建）
+  Future<void> setThemeMode(String mode) async {
+    themeMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kThemeMode, mode);
     notifyListeners();
   }
 
