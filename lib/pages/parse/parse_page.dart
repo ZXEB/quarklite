@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_miuix/miuix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/quark_client.dart';
@@ -8,7 +9,6 @@ import '../../theme/app_theme.dart';
 import '../../widgets/file_list_anim.dart';
 import '../drive/netdisk123_accounts_page.dart';
 import '../drive/xunlei_drive_page.dart';
-import '../../widgets/file_list_anim.dart';
 import 'share_files_page.dart';
 
 enum ShareType { quark, netdisk123, xunlei, magnet, unknown }
@@ -31,7 +31,6 @@ class _ParsePageState extends State<ParsePage> {
   ShareType _detected = ShareType.unknown;
   String _detectedUrl = '';
 
-  @override
   @override
   void initState() {
     super.initState();
@@ -258,13 +257,8 @@ class _ParsePageState extends State<ParsePage> {
   }
 
   Widget _buildInputCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
+    return MiuixCard(
+      child: Padding(padding: const EdgeInsets.all(16), child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -365,6 +359,7 @@ class _ParsePageState extends State<ParsePage> {
             ],
           ),
         ],
+        ),
       ),
     );
   }
@@ -374,20 +369,7 @@ class _ParsePageState extends State<ParsePage> {
     final pwd = item['pwd'] ?? '';
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        onTap: () async {
-          _urlController.text = url;
-          _pwdController.text = pwd;
-          await _parse();
-        },
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.card,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
+      child: MiuixCard(onPressed: () async { _urlController.text = url; _pwdController.text = pwd; await _parse(); }, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12), child: Row(
             children: [
               Container(
                 width: 36,

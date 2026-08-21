@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_miuix/miuix.dart';
 
 import '../../state/upload_manager.dart';
 import '../../theme/app_theme.dart';
@@ -165,12 +166,7 @@ class _UploadsPageState extends State<UploadsPage>
     final canceled = task.status == UploadStatus.canceled;
     final active = task.status == UploadStatus.uploading;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(14),
-      ),
+    return MiuixCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

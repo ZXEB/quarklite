@@ -13,30 +13,25 @@ import 'drive_page.dart';
 import 'netdisk123_accounts_page.dart';
 import 'xunlei_drive_page.dart';
 
-/// 多网盘入口页：列出所有支持的网盘，点击进入对应文件浏览；
-/// 未登录时点击先进入登录页。
 class DriveHubPage extends StatelessWidget {
   const DriveHubPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge(
-          [AppState.I, XunleiState.I, Netdisk123State.I, AppStyleState.I]),
+      listenable: Listenable.merge([AppState.I, XunleiState.I, Netdisk123State.I]),
       builder: (context, _) {
         return SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 16, 20, 12),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 16, 20, 12),
                 child: Text('网盘',
                     style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
-                        color: AppStyleState.I.style.isMiuix
-                            ? AppColors.textPrimary
-                            : null)),
+                        color: AppColors.textPrimary)),
               ),
               Expanded(
                 child: ListView(
@@ -52,8 +47,7 @@ class DriveHubPage extends StatelessWidget {
                       padding: EdgeInsets.symmetric(horizontal: 4),
                       child: Text(
                         '更多网盘陆续接入中…',
-                        style: TextStyle(
-                            color: AppColors.textSecondary, fontSize: 12),
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                       ),
                     ),
                   ],
@@ -74,29 +68,20 @@ class DriveHubPage extends StatelessWidget {
       icon: Icons.folder_special_rounded,
       iconBg: const Color(0xFF1E3D75),
       title: '夸克网盘',
-      subtitle: logged
-          ? (nickname.isNotEmpty ? '$nickname · 已连接' : '已连接')
-          : '未登录，点击登录',
+      subtitle: logged ? (nickname.isNotEmpty ? '$nickname · 已连接' : '已连接') : '未登录，点击登录',
       statusColor: logged ? AppColors.green : AppColors.textSecondary,
       trailing: logged && app.user != null && app.user!.totalSize > 0
           ? Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: StorageCapacityRow(
-                totalSize: app.user!.totalSize,
-                usedSize: app.user!.usedSize,
-              ),
+              child: StorageCapacityRow(totalSize: app.user!.totalSize, usedSize: app.user!.usedSize),
             )
           : null,
       onTap: () {
         if (!logged) {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const LoginPage()),
-          );
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginPage()));
           return;
         }
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const DrivePage()),
-        );
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DrivePage()));
       },
     );
   }
@@ -109,29 +94,20 @@ class DriveHubPage extends StatelessWidget {
       icon: Icons.bolt_rounded,
       iconBg: const Color(0xFF1E3D75),
       title: '迅雷云盘',
-      subtitle: logged
-          ? (account.isNotEmpty ? '$account · 已连接' : '已连接')
-          : '未登录，点击登录',
+      subtitle: logged ? (account.isNotEmpty ? '$account · 已连接' : '已连接') : '未登录，点击登录',
       statusColor: logged ? AppColors.green : AppColors.textSecondary,
       trailing: logged && x.hasQuota
           ? Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: StorageCapacityRow(
-                totalSize: x.totalSize,
-                usedSize: x.usedSize,
-              ),
+              child: StorageCapacityRow(totalSize: x.totalSize, usedSize: x.usedSize),
             )
           : null,
       onTap: () {
         if (!logged) {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const XunleiLoginPage()),
-          );
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const XunleiLoginPage()));
           return;
         }
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const XunleiDrivePage()),
-        );
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const XunleiDrivePage()));
       },
       onLongPress: logged
           ? () async {
@@ -141,20 +117,12 @@ class DriveHubPage extends StatelessWidget {
                   title: const Text('退出迅雷云盘'),
                   content: Text('确定退出账号${account.isEmpty ? '' : '「$account」'}吗？'),
                   actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('取消'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('退出'),
-                    ),
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('退出')),
                   ],
                 ),
               );
-              if (ok == true) {
-                await XunleiState.I.logout();
-              }
+              if (ok == true) await XunleiState.I.logout();
             }
           : null,
     );
@@ -179,26 +147,18 @@ class DriveHubPage extends StatelessWidget {
       trailing: logged && n.hasQuota
           ? Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: StorageCapacityRow(
-                totalSize: n.totalSize,
-                usedSize: n.usedSize,
-              ),
+              child: StorageCapacityRow(totalSize: n.totalSize, usedSize: n.usedSize),
             )
           : null,
       onTap: () {
         if (!logged) {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const Netdisk123LoginPage()),
-          );
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const Netdisk123LoginPage()));
           return;
         }
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const Netdisk123AccountsPage()),
-        );
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const Netdisk123AccountsPage()));
       },
     );
   }
-
 }
 
 class _DriveCard extends StatelessWidget {
@@ -209,8 +169,6 @@ class _DriveCard extends StatelessWidget {
   final Color statusColor;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
-
-  /// 容量信息等附加内容（放在标题与副标题下方）
   final Widget? trailing;
 
   const _DriveCard({
@@ -226,87 +184,33 @@ class _DriveCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Miuix 风格用 MiuixCard + MiuixText，其余用原有 Material 卡片
-    final isMiuix = AppStyleState.I.style.isMiuix;
     final titleWidget = Text(title,
-        style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.w700));
+        style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700));
     final subtitleWidget = Text(subtitle,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: statusColor, fontSize: 12));
+        maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: statusColor, fontSize: 12));
     final iconBox = Container(
       width: 52,
       height: 52,
-      decoration: BoxDecoration(
-        color: iconBg,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Icon(icon, color: AppColors.accent, size: 28),
+      decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(14)),
+      child: Icon(icon, color: Colors.white, size: 28),
     );
-    final chevron = Icon(Icons.chevron_right_rounded,
-        color: AppColors.textSecondary, size: 22);
-
-    if (isMiuix) {
-      return MiuixCard(
-        onPressed: onTap,
-        onLongPress: onLongPress,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              iconBox,
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    titleWidget,
-                    const SizedBox(height: 4),
-                    subtitleWidget,
-                    if (trailing != null) ...[
-                      const SizedBox(height: 10),
-                      trailing!,
-                    ],
-                  ],
-                ),
-              ),
-              chevron,
-            ],
-          ),
-        ),
-      );
-    }
-
-    return InkWell(
-      onTap: onTap,
+    final chevron = Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary, size: 22);
+    return MiuixCard(
+      onPressed: onTap,
       onLongPress: onLongPress,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
+      child: Padding(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(18),
-        ),
         child: Row(
           children: [
             iconBox,
             const SizedBox(width: 14),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  titleWidget,
-                  const SizedBox(height: 4),
-                  subtitleWidget,
-                  if (trailing != null) ...[
-                    const SizedBox(height: 10),
-                    trailing!,
-                  ],
-                ],
-              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                titleWidget,
+                const SizedBox(height: 4),
+                subtitleWidget,
+                if (trailing != null) ...[const SizedBox(height: 10), trailing!],
+              ]),
             ),
             chevron,
           ],

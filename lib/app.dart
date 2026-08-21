@@ -42,21 +42,15 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
     AppLogger.I.i('app', '应用启动 bootstrap 开始');
     try {
       await DownloadNotifier.init().timeout(const Duration(seconds: 10));
-    } catch (_) {
-      // 通知初始化失败不影响主流程
-    }
+    } catch (_) {}
     try {
       await AppState.I.init().timeout(const Duration(seconds: 10));
     } catch (e) {
       _bootError = e.toString();
       AppLogger.I.e('app', 'AppState 初始化失败: $e');
     }
-    try {
-      await AppStyleState.I.init();
-    } catch (_) {}
     unawaited(XunleiState.I.init());
     unawaited(Netdisk123State.I.init());
-    // 引擎后台异步启动，不阻塞界面（失败时下载页可重试/查看原因）
     unawaited(_bootEngine());
     DownloadManager.I.startPolling();
     if (mounted) {
@@ -78,7 +72,6 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
       );
     } catch (e) {
       AppLogger.I.e('app', '后台启动引擎失败: $e');
-      // 引擎启动失败不阻塞应用：下载页可手动重试，添加任务时也会自动拉起
     }
   }
 
@@ -90,15 +83,12 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: AppStyleState.I,
-      builder: (context, _) => MaterialApp(
-        title: 'Quarklite',
-        debugShowCheckedModeBanner: false,
-        navigatorKey: widget.navigatorKey,
-        theme: AppTheme.dark(),
-        home: _ready ? const RootPage() : _BootView(error: _bootError),
-      ),
+    return MaterialApp(
+      title: 'Quarklite',
+      debugShowCheckedModeBanner: false,
+      navigatorKey: widget.navigatorKey,
+      theme: AppTheme.light(),
+      home: _ready ? const RootPage() : _BootView(error: _bootError),
     );
   }
 }
@@ -111,16 +101,18 @@ class _BootView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.bg,
       body: Center(
         child: error == null
             ? const CircularProgressIndicator()
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.error_outline,
-                      color: AppColors.red, size: 48),
+                  Icon(Icons.error_outline, color: AppColors.red, size: 48),
                   const SizedBox(height: 16),
-                  const Text('下载引擎启动失败', style: TextStyle(fontSize: 16)),
+                  Text('下载引擎启动失败',
+                      style: TextStyle(
+                          color: AppColors.textPrimary, fontSize: 16)),
                   const SizedBox(height: 8),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -158,30 +150,17 @@ class _RootPageState extends State<RootPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Miuix 风格：底部导航用 MiuixNavigationBar；否则用原有 Material 底栏。
-    return ListenableBuilder(
-      listenable: AppStyleState.I,
-      builder: (context, _) {
-        final isMiuix = AppStyleState.I.style.isMiuix;
-        return Scaffold(
-          backgroundColor: AppColors.bg,
-          body: _AnimatedPageView(index: _index, children: _pages),
-          bottomNavigationBar: isMiuix
-              ? _MiuixBottomBar(
-                  index: _index,
-                  onTap: (i) => setState(() => _index = i),
-                )
-              : _BottomBar(
-                  index: _index,
-                  onTap: (i) => setState(() => _index = i),
-                ),
-        );
-      },
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      body: _AnimatedPageView(index: _index, children: _pages),
+      bottomNavigationBar: _MiuixBottomBar(
+        index: _index,
+        onTap: (i) => setState(() => _index = i),
+      ),
     );
   }
 }
 
-/// 保留页面状态的 Tab 切换动画（淡入淡出 + 轻微位移动效）
 class _AnimatedPageView extends StatelessWidget {
   final int index;
   final List<Widget> children;
@@ -216,110 +195,6 @@ class _AnimatedPageView extends StatelessWidget {
   }
 }
 
-class _BottomBar extends StatelessWidget {
-  final int index;
-  final ValueChanged<int> onTap;
-
-  const _BottomBar({required this.index, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      (Icons.link_rounded, '解析'),
-      (Icons.folder_rounded, '网盘'),
-      (Icons.download_rounded, '下载'),
-      (Icons.upload_rounded, '上传'),
-      (Icons.person_outline_rounded, '我的'),
-    ];
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.bottomBar,
-        border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: List.generate(items.length, (i) {
-            final selected = i == index;
-            final color = selected ? AppColors.accent : AppColors.textSecondary;
-            return Expanded(
-              child: InkWell(
-                onTap: () => onTap(i),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 240),
-                        curve: Curves.easeOutCubic,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: selected ? 14 : 0,
-                          vertical: selected ? 3 : 0,
-                        ),
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? AppColors.accentDeep
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 200),
-                          transitionBuilder: (child, anim) => ScaleTransition(
-                            scale: anim,
-                            child: child,
-                          ),
-                          child: _buildTabIcon(i, items[i].$1, selected),
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        items[i].$2,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: color,
-                          fontWeight:
-                              selected ? FontWeight.w600 : FontWeight.w400,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
-      ),
-    );
-  }
-
-  /// 上传 Tab 图标：有进行中任务时显示小红点
-  Widget _buildTabIcon(int i, IconData icon, bool selected) {
-    final base = Icon(
-      icon,
-      key: ValueKey(selected),
-      size: 22,
-      color: selected ? AppColors.accent : AppColors.textSecondary,
-    );
-    if (i != 3) return base;
-    return ListenableBuilder(
-      listenable: UploadManager.I,
-      builder: (context, _) => Stack(
-        clipBehavior: Clip.none,
-        children: [
-          base,
-          if (UploadManager.I.hasActive)
-            const Positioned(
-              right: -4,
-              top: -4,
-              child: _ActiveDot(),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ActiveDot extends StatelessWidget {
   const _ActiveDot();
 
@@ -337,14 +212,12 @@ class _ActiveDot extends StatelessWidget {
   }
 }
 
-/// Miuix 风格底部导航栏（HyperOS 灵动风格）
 class _MiuixBottomBar extends StatelessWidget {
   final int index;
   final ValueChanged<int> onTap;
 
   const _MiuixBottomBar({required this.index, required this.onTap});
 
-  /// 上传 Tab 图标：有进行中任务时显示小红点
   Widget _tabIcon(int i, IconData icon) {
     if (i != 3) return Icon(icon, size: 26);
     return ListenableBuilder(

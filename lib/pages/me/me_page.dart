@@ -19,23 +19,16 @@ class MePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge(
-          [AppState.I, XunleiState.I, Netdisk123State.I, AppStyleState.I]),
+      listenable: Listenable.merge([AppState.I, XunleiState.I, Netdisk123State.I]),
       builder: (context, _) {
         final app = AppState.I;
         return SafeArea(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 12),
-                child: Text('我的',
-                    style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: AppStyleState.I.style.isMiuix
-                            ? AppColors.textPrimary
-                            : null)),
+              const Padding(
+                padding: EdgeInsets.only(left: 4, bottom: 12),
+                child: Text('我的', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
               ),
               _buildAccountCard(context, app),
               const SizedBox(height: 16),
@@ -49,18 +42,8 @@ class MePage extends StatelessWidget {
     );
   }
 
-  /// Miuix 风格下滑界面风格的跳转
-  Future<void> _switchUiStyle(BuildContext context, bool isMiuix) async {
-    await AppStyleState.I.setStyle(isMiuix ? UIStyle.dark : UIStyle.miuix);
-  }
-
-  /// 账号管理卡片：夸克网盘 / 迅雷云盘 登录状态与退出入口
   Widget _buildAccountCard(BuildContext context, AppState app) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(18),
-      ),
+    return MiuixCard(
       child: Column(
         children: [
           _buildAccountRow(
@@ -87,7 +70,7 @@ class MePage extends StatelessWidget {
                   )
                 : null,
           ),
-          const Divider(height: 1, indent: 56),
+          const MiuixHorizontalDivider(),
           _buildAccountRow(
             context: context,
             icon: Icons.bolt_rounded,
@@ -110,7 +93,7 @@ class MePage extends StatelessWidget {
                   )
                 : null,
           ),
-          const Divider(height: 1, indent: 56),
+          const MiuixHorizontalDivider(),
           _buildAccountRow(
             context: context,
             icon: Icons.cloud_upload_rounded,
@@ -197,202 +180,29 @@ class MePage extends StatelessWidget {
   }
 
   Widget _buildSettingsCard(BuildContext context, AppState app) {
-    final isMiuix = AppStyleState.I.style.isMiuix;
-    if (isMiuix) {
-      return _buildMiuixSettingsCard(context, app);
-    }
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        children: [
-          ListTile(
-            leading: Icon(Icons.palette_rounded, color: AppColors.accent),
-            title: const Text('界面风格'),
-            subtitle: Text(isMiuix ? 'Miuix 灵动（当前）' : 'Material 深色（当前）'),
-            trailing: Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
-            onTap: () => _switchUiStyle(context, isMiuix),
-          ),
-          const Divider(height: 1, indent: 56),
-          ListTile(
-            leading: Icon(Icons.folder_rounded, color: AppColors.accent),
-            title: const Text('下载目录'),
-            subtitle: Text(app.downloadDir,
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
-            onTap: () => _editDownloadDir(context, app),
-          ),
-          const Divider(height: 1, indent: 56),
-          ListTile(
-            leading:
-                Icon(Icons.speed_rounded, color: AppColors.accent),
-            title: const Text('夸克下载线程'),
-            subtitle: Text('单任务最大 ${app.connections} 线程'),
-            trailing: Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
-            onTap: () => _editConnections(context, app),
-          ),
-          const Divider(height: 1, indent: 56),
-          ListTile(
-            leading: Icon(Icons.bolt_rounded, color: AppColors.accent),
-            title: const Text('迅雷下载线程'),
-            subtitle: Text('单任务最大 ${app.xunleiConnections} 线程'),
-            trailing: Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
-            onTap: () => _editXunleiConnections(context, app),
-          ),
-          const Divider(height: 1, indent: 56),
-          ListTile(
-            leading: Icon(Icons.cloud_upload_rounded,
-                color: AppColors.accent),
-            title: const Text('123下载线程'),
-            subtitle: Text('单任务最大 ${app.netdisk123Connections} 线程'),
-            trailing: Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
-            onTap: () => _editNetdisk123Connections(context, app),
-          ),
-          const Divider(height: 1, indent: 56),
-          ListTile(
-            leading: Icon(Icons.low_priority_rounded,
-                color: AppColors.accent),
-            title: const Text('同时下载任务数'),
-            subtitle: Text('最多 ${app.maxRunning} 个任务并发，其余排队'),
-            trailing: Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
-            onTap: () => _editMaxRunning(context, app),
-          ),
-          const Divider(height: 1, indent: 56),
-          ListTile(
-            leading: Icon(Icons.tune_rounded, color: AppColors.accent),
-            title: const Text('连接预算'),
-            subtitle: Text('所有任务总连接数上限 ${app.connectionBudget}，防系统卡顿'),
-            trailing: Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
-            onTap: () => _editConnectionBudget(context, app),
-          ),
-          const Divider(height: 1, indent: 56),
-          ListTile(
-            leading: Icon(Icons.storage_rounded, color: AppColors.accent),
-            title: const Text('存储权限'),
-            subtitle: const Text('访问下载目录所需权限'),
-            trailing: Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
-            onTap: () => app.openAllFilesAccess(),
-          ),
-          if (!kIsWeb && Platform.isWindows) ...[
-            const Divider(height: 1, indent: 56),
-            ListTile(
-              leading: Icon(Icons.close_fullscreen_rounded,
-                  color: AppColors.accent),
-              title: const Text('关闭窗口时'),
-              subtitle: Text(_closeActionLabel(app.closeAction)),
-              trailing: Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary),
-              onTap: () => _editCloseAction(context, app),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// Miuix 风格下的设置卡片（用 Preference 组件呈现，顶部含界面风格开关）
-  Widget _buildMiuixSettingsCard(BuildContext context, AppState app) {
-    final current = AppStyleState.I.style.isMiuix;
-
-    Widget leading(IconData icon) =>
-        Icon(icon, size: 22, color: MiuixTheme.of(context).colors.primary);
-
-    Widget arrowPref({
-      required String title,
-      required String summary,
-      required IconData icon,
-      required VoidCallback onClick,
-    }) =>
-        MiuixArrowPreference(
-          title: title,
-          summary: summary,
-          startAction: leading(icon),
-          insideMargin: const EdgeInsets.symmetric(
-              horizontal: 16, vertical: 12),
-          onClick: onClick,
-        );
-
+    Widget leading(IconData icon) => Icon(icon, size: 22, color: MiuixTheme.of(context).colors.primary);
+    Widget arrowPref({required String title, required String summary, required IconData icon, required VoidCallback onClick}) => MiuixArrowPreference(title: title, summary: summary, startAction: leading(icon), insideMargin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), onClick: onClick);
     return MiuixCard(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          MiuixSwitchPreference(
-            title: '界面风格',
-            summary: current ? 'Miuix 灵动（当前）' : 'Material 深色（当前）',
-            value: current,
-            onChanged: (v) =>
-                AppStyleState.I.setStyle(v ? UIStyle.miuix : UIStyle.dark),
-            startAction: leading(Icons.palette_rounded),
-            insideMargin: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 12),
-          ),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          arrowPref(title: '下载目录', summary: app.downloadDir, icon: Icons.folder_rounded, onClick: () => _editDownloadDir(context, app)),
           const MiuixHorizontalDivider(),
-          arrowPref(
-              title: '下载目录',
-              summary: app.downloadDir,
-              icon: Icons.folder_rounded,
-              onClick: () => _editDownloadDir(context, app)),
+          arrowPref(title: '夸克下载线程', summary: '单任务最大 ${app.connections} 线程', icon: Icons.speed_rounded, onClick: () => _editConnections(context, app)),
           const MiuixHorizontalDivider(),
-          arrowPref(
-              title: '夸克下载线程',
-              summary: '单任务最大 ${app.connections} 线程',
-              icon: Icons.speed_rounded,
-              onClick: () => _editConnections(context, app)),
+          arrowPref(title: '迅雷下载线程', summary: '单任务最大 ${app.xunleiConnections} 线程', icon: Icons.bolt_rounded, onClick: () => _editXunleiConnections(context, app)),
           const MiuixHorizontalDivider(),
-          arrowPref(
-              title: '迅雷下载线程',
-              summary: '单任务最大 ${app.xunleiConnections} 线程',
-              icon: Icons.bolt_rounded,
-              onClick: () => _editXunleiConnections(context, app)),
+          arrowPref(title: '123下载线程', summary: '单任务最大 ${app.netdisk123Connections} 线程', icon: Icons.cloud_upload_rounded, onClick: () => _editNetdisk123Connections(context, app)),
           const MiuixHorizontalDivider(),
-          arrowPref(
-              title: '123下载线程',
-              summary: '单任务最大 ${app.netdisk123Connections} 线程',
-              icon: Icons.cloud_upload_rounded,
-              onClick: () => _editNetdisk123Connections(context, app)),
+          arrowPref(title: '同时下载任务数', summary: '最多 ${app.maxRunning} 个任务并发，其余排队', icon: Icons.low_priority_rounded, onClick: () => _editMaxRunning(context, app)),
           const MiuixHorizontalDivider(),
-          arrowPref(
-              title: '同时下载任务数',
-              summary: '最多 ${app.maxRunning} 个任务并发，其余排队',
-              icon: Icons.low_priority_rounded,
-              onClick: () => _editMaxRunning(context, app)),
+          arrowPref(title: '连接预算', summary: '所有任务总连接数上限 ${app.connectionBudget}，防系统卡顿', icon: Icons.tune_rounded, onClick: () => _editConnectionBudget(context, app)),
           const MiuixHorizontalDivider(),
-          arrowPref(
-              title: '连接预算',
-              summary: '所有任务总连接数上限 ${app.connectionBudget}，防系统卡顿',
-              icon: Icons.tune_rounded,
-              onClick: () => _editConnectionBudget(context, app)),
-          const MiuixHorizontalDivider(),
-          arrowPref(
-              title: '存储权限',
-              summary: '访问下载目录所需权限',
-              icon: Icons.storage_rounded,
-              onClick: () => app.openAllFilesAccess()),
-          if (!kIsWeb && Platform.isWindows) ...[
-            const MiuixHorizontalDivider(),
-            arrowPref(
-                title: '关闭窗口时',
-                summary: _closeActionLabel(app.closeAction),
-                icon: Icons.close_fullscreen_rounded,
-                onClick: () => _editCloseAction(context, app)),
-          ],
-        ],
-      ),
+          arrowPref(title: '存储权限', summary: '访问下载目录所需权限', icon: Icons.storage_rounded, onClick: () => app.openAllFilesAccess()),
+          if (!kIsWeb && Platform.isWindows) ...[const MiuixHorizontalDivider(), arrowPref(title: '关闭窗口时', summary: _closeActionLabel(app.closeAction), icon: Icons.close_fullscreen_rounded, onClick: () => _editCloseAction(context, app))],
+        ]),
     );
   }
 
-  String _closeActionLabel(String action) {
+    String _closeActionLabel(String action) {
     switch (action) {
       case 'minimize':
         return '最小化到托盘（后台继续下载）';
@@ -448,32 +258,13 @@ class MePage extends StatelessWidget {
   }
 
   Widget _buildAboutCard(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        children: [
-          ListTile(
-            leading: Icon(Icons.bug_report_rounded,
-                color: AppColors.accent),
-            title: const Text('日志'),
-            subtitle: const Text('查看/复制运行日志，排查下载问题'),
-            trailing: Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
-            onTap: () => _showLog(context),
-          ),
-          const Divider(height: 1, indent: 56),
-          ListTile(
-            leading: Icon(Icons.info_outline_rounded,
-                color: AppColors.accent),
-            title: const Text('关于'),
-            subtitle: const Text('Quarklite v1.3.1  ·  基于 Gopeed 下载引擎'),
-            onTap: () => _showAbout(context),
-          ),
-        ],
-      ),
+    Widget leading(IconData icon) => Icon(icon, size: 22, color: MiuixTheme.of(context).colors.primary);
+    return MiuixCard(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+          MiuixArrowPreference(title: '日志', summary: '查看/复制运行日志，排查下载问题', startAction: leading(Icons.bug_report_rounded), insideMargin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), onClick: () => _showLog(context)),
+          const MiuixHorizontalDivider(),
+          MiuixArrowPreference(title: '关于', summary: 'Quarklite v1.3.1  ·  基于 Gopeed 下载引擎', startAction: leading(Icons.info_outline_rounded), insideMargin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), onClick: () => _showAbout(context)),
+        ]),
     );
   }
 

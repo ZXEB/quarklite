@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_miuix/miuix.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../api/quark_models.dart';

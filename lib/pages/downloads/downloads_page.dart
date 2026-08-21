@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_miuix/miuix.dart';
 
 import '../../core/gopeed/gopeed_boot.dart';
 import '../../core/gopeed/gopeed_models.dart';
@@ -152,12 +153,7 @@ class _DownloadsPageState extends State<DownloadsPage>
     final failed = task.status == GopeedStatus.error;
     final paused = task.status == GopeedStatus.pause;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(14),
-      ),
+    return MiuixCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
