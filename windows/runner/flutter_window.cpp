@@ -3,6 +3,7 @@
 #include <cwchar>
 #include <optional>
 #include <shellapi.h>
+#include <windows.h>
 
 #include "flutter/generated_plugin_registrant.h"
 #include "resource.h"
@@ -139,14 +140,17 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     case WM_DROPFILES: {
       // 拖放文件/文件夹：收集路径并发给 Dart（一次最多 kMaxDropPaths 项）
       HDROP hdrop = reinterpret_cast<HDROP>(wparam);
-      const UINT count = DragQueryFileW(hdrop, 0xFFFFFFFF, nullptr, 0);
+      UINT count = DragQueryFileW(hdrop, 0xFFFFFFFF, nullptr, 0);
+      count = count > kMaxDropPaths ? kMaxDropPaths : count;
       std::vector<flutter::EncodableValue> paths;
-      for (UINT i = 0; i < count && i < kMaxDropPaths; i++) {
+      for (UINT i = 0; i < count; i++) {
         const UINT len = DragQueryFileW(hdrop, i, nullptr, 0);
         std::wstring wpath(len, L'\0');
-        DragQueryFileW(hdrop, i, wpath.data(), len + 1);
-        paths.emplace_back(
-            flutter::EncodableValue(std::wstring(wpath.data(), len)));
+        if (len > 0) {
+          DragQueryFileW(hdrop, i, wpath.data(), len + 1);
+        }
+        paths.emplace_back(flutter::EncodableValue(
+            static_cast<std::wstring>(wpath)));
       }
       DragFinish(hdrop);
       if (drop_channel_ != nullptr && !paths.empty()) {
