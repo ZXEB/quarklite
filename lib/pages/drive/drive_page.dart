@@ -1,4 +1,8 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_miuix/miuix.dart';
 
 import '../../api/quark_models.dart';
@@ -48,6 +52,9 @@ class _DrivePageState extends State<DrivePage>
   bool _downloading = false;
   bool _busy = false;
 
+  /// Windows 窗口级拖放通道：把 explorer 拖入的文件/文件夹路径交给上传
+  static const _dropChannel = MethodChannel('quarklite.com/drop');
+
   @override
   bool get wantKeepAlive => true;
 
@@ -56,12 +63,94 @@ class _DrivePageState extends State<DrivePage>
     super.initState();
     AppState.I.addListener(_onLoginChanged);
     _load();
+    if (!kIsWeb && Platform.isWindows) {
+      _dropChannel.setMethodCallHandler(_onDrop);
+    }
   }
 
   @override
   void dispose() {
     AppState.I.removeListener(_onLoginChanged);
     super.dispose();
+  }
+
+  Future<dynamic> _onDrop(MethodCall call) async {
+    if (call.method != 'onDropped') return null;
+    if (!AppState.I.isLoggedIn) {
+      _toast('请先登录夸克账号');
+      return null;
+    }
+    final raw = call.arguments as List<dynamic>?;
+    if (raw == null || raw.isEmpty) return null;
+    final paths = raw.map((e) => e.toString()).toList();
+    if (!mounted) return null;
+    // 过滤不存在的路径，按文件/文件夹分流后直接上传到当前网盘目录
+    final files = <UploadSource>[];
+    final folders = <String>[];
+    for (final p in paths) {
+      try {
+        if (FileSystemEntity.isDirectorySync(p)) {
+          folders.add(p);
+        } else if (FileSystemEntity.isFileSync(p)) {
+          final f = File(p);
+          final st = await f.stat();
+          files.add(UploadSource(
+            path: p,
+            name: _basename(p),
+            size: st.size,
+            modified: st.modified.millisecondsSinceEpoch,
+          ));
+        }
+      } catch (_) {
+        // 单个路径不可访问时跳过
+      }
+    }
+    if (files.isEmpty && folders.isEmpty) return null;
+    if (folders.isNotEmpty) {
+      await _uploadDraggedFolders(folders);
+    } else {
+      UploadManager.I.addFiles(files, _pdirFid);
+      _toast('已加入 ${files.length} 个上传任务，可在「上传」页查看进度');
+    }
+    return null;
+  }
+
+  static String _basename(String path) {
+    final norm = path.replaceAll('\\', '/');
+    final idx = norm.lastIndexOf('/');
+    return idx < 0 ? norm : norm.substring(idx + 1);
+  }
+
+  Future<void> _uploadDraggedFolders(List<String> folders) async {
+    var files = <UploadSource>[];
+    var emptyDirs = <String>[];
+    var total = 0;
+    for (final f in folders) {
+      final root = Directory(f);
+      if (!await root.exists()) continue;
+      final collected = <UploadSource>[];
+      final empties = <String>[];
+      try {
+        await _walkDrag(root, '', collected, empties, depth: 0);
+      } catch (_) {}
+      if (collected.isEmpty && empties.isEmpty) {
+        _toast('「${_basename(f)}」为空或不可读');
+        continue;
+      }
+      total += collected.length;
+      // 每个拖入的文件夹作为独立批次上传（各自建同名根目录）
+      UploadManager.I.addFolderBatch(
+        files: collected,
+        emptyDirs: empties,
+        targetDirFid: _pdirFid,
+        rootFolderName: _basename(f),
+      );
+      files = [...files, ...collected];
+      emptyDirs = [...emptyDirs, ...empties];
+    }
+    if (total > 0) {
+      _toast('已加入 $total 个上传任务，可在「上传」页查看进度');
+    }
   }
 
   void _onLoginChanged() {
@@ -807,6 +896,47 @@ class _DrivePageState extends State<DrivePage>
         });
         Navigator.of(context).pop();
       }
+    }
+  }
+}
+
+/// 拖入文件夹的递归遍历：收集文件与空目录（复用 UploadPicker 的规则）。
+/// 限制深度/数量，超大目录自动截断避免卡死。
+Future<void> _walkDrag(
+  Directory dir,
+  String rel,
+  List<UploadSource> files,
+  List<String> emptyDirs, {
+  required int depth,
+}) async {
+  if (depth > UploadPicker.maxDepth || files.length >= UploadPicker.maxFiles) {
+    return;
+  }
+  final children = <FileSystemEntity>[];
+  await for (final e in dir.list(followLinks: false)) {
+    children.add(e);
+  }
+  if (children.isEmpty) {
+    if (rel.isNotEmpty) emptyDirs.add(rel);
+    return;
+  }
+  for (final e in children) {
+    if (files.length >= UploadPicker.maxFiles) break;
+    final name = _DrivePageState._basename(e.path);
+    if (e is Directory) {
+      final childRel = rel.isEmpty ? name : '$rel/$name';
+      await _walkDrag(e, childRel, files, emptyDirs, depth: depth + 1);
+    } else if (e is File) {
+      try {
+        final st = await e.stat();
+        files.add(UploadSource(
+          path: e.path,
+          name: name,
+          size: st.size,
+          modified: st.modified.millisecondsSinceEpoch,
+          relDir: rel,
+        ));
+      } catch (_) {}
     }
   }
 }

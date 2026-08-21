@@ -30,11 +30,19 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
-  // 注册窗口控制通道：Dart 端通过它决定「关闭窗口」是退出还是最小化
+  // 注册窗口控制通道：Dart 端通过它决定「关闭窗口」是退出还是最小化。
   window_channel_ =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           flutter_controller_->engine()->messenger(), "quarklite.com/window",
           &flutter::StandardMethodCodec::GetInstance());
+  // 窗口级文件拖放通道：Windows 上把拖入的路径（文件/文件夹，可多个）
+  // 转成 EncodableList 发给 Dart 端直接上传。
+  drop_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "quarklite.com/drop",
+          &flutter::StandardMethodCodec::GetInstance());
+  // 接受文件拖放（WM_DROPFILES 来自 Explorer），不 InitializeShellHook。
+  DragAcceptFiles(GetHandle(), TRUE);
   window_channel_->SetMethodCallHandler(
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
@@ -95,6 +103,8 @@ void FlutterWindow::OnDestroy() {
     Shell_NotifyIconW(NIM_DELETE, &tray_icon_);
     tray_added_ = false;
   }
+  // 关闭拖放接收
+  DragAcceptFiles(GetHandle(), FALSE);
 
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
@@ -126,6 +136,27 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
+    case WM_DROPFILES: {
+      // 拖放文件/文件夹：收集路径并发给 Dart（一次最多 kMaxDropPaths 项）
+      HDROP hdrop = reinterpret_cast<HDROP>(wparam);
+      const UINT count = DragQueryFileW(hdrop, 0xFFFFFFFF, nullptr, 0);
+      std::vector<flutter::EncodableValue> paths;
+      for (UINT i = 0; i < count && i < kMaxDropPaths; i++) {
+        const UINT len = DragQueryFileW(hdrop, i, nullptr, 0);
+        std::wstring wpath(len, L'\0');
+        DragQueryFileW(hdrop, i, wpath.data(), len + 1);
+        paths.emplace_back(
+            flutter::EncodableValue(std::wstring(wpath.data(), len)));
+      }
+      DragFinish(hdrop);
+      if (drop_channel_ != nullptr && !paths.empty()) {
+        drop_channel_->InvokeMethod(
+            "onDropped",
+            std::make_unique<flutter::EncodableValue>(
+                flutter::EncodableValue(std::move(paths))));
+      }
+      return 0;
+    }
     case WM_CLOSE:
       // 不直接关闭：交给 Dart 端按用户设置决定「最小化」还是「退出」。
       // Dart 端通过 quarklite.com/window 通道调用 minimize / exit。

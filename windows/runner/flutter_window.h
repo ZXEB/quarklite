@@ -7,10 +7,16 @@
 #include <flutter/standard_method_codec.h>
 
 #include <memory>
+#include <optional>
+#include <string>
+#include <vector>
 #include <shellapi.h>
 
 #include "resource.h"
 #include "win32_window.h"
+
+// 窗口级文件拖放：一次最多收集的路径数
+constexpr int kMaxDropPaths = 2000;
 
 // A window that does nothing but host a Flutter view.
 class FlutterWindow : public Win32Window {
@@ -44,6 +50,10 @@ class FlutterWindow : public Win32Window {
 
   // 托盘回调消息号（WM_APP + 1）。
   static constexpr UINT kTrayCallbackMessage = WM_APP + 1;
+
+  // 窗口级文件拖放通道：Dart 端注册监听获取拖入的文件/文件夹路径。
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      drop_channel_;
 
   // 从托盘恢复窗口（SW_RESTORE + 置前）。
   void RestoreFromTray();

@@ -8,6 +8,7 @@ import 'package:flutter_miuix/miuix.dart';
 import '../../core/notify/download_notifier.dart';
 import '../../state/app_state.dart';
 import '../../state/netdisk123_state.dart';
+import '../../state/upload_manager.dart';
 import '../../state/xunlei_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
@@ -193,6 +194,8 @@ class MePage extends StatelessWidget {
           arrowPref(title: '123下载线程', summary: '单任务最大 ${app.netdisk123Connections} 线程', icon: Icons.cloud_upload_rounded, onClick: () => _editNetdisk123Connections(context, app)),
           const MiuixHorizontalDivider(),
           arrowPref(title: '同时下载任务数', summary: '最多 ${app.maxRunning} 个任务并发，其余排队', icon: Icons.low_priority_rounded, onClick: () => _editMaxRunning(context, app)),
+          const MiuixHorizontalDivider(),
+          arrowPref(title: '上传并行数', summary: '同时上传 ${app.uploadParallelism} 个文件', icon: Icons.cloud_upload_rounded, onClick: () => _editUploadParallelism(context, app)),
           const MiuixHorizontalDivider(),
           arrowPref(title: '连接预算', summary: '所有任务总连接数上限 ${app.connectionBudget}，防系统卡顿', icon: Icons.tune_rounded, onClick: () => _editConnectionBudget(context, app)),
           const MiuixHorizontalDivider(),
@@ -381,6 +384,23 @@ class MePage extends StatelessWidget {
       labelOf: (n) => '$n 个任务',
     ).then((n) {
       if (n != null) app.setMaxRunning(n);
+    });
+  }
+
+  void _editUploadParallelism(BuildContext context, AppState app) {
+    miuixChoiceDialog<int>(
+      context,
+      title: '上传并行数',
+      options: [1, 2, 3, 4],
+      current: app.uploadParallelism,
+      labelOf: (n) => '同时上传 $n 个文件',
+      hint: '并行数越高上传越快，但可能使页面卡顿或触发接口限流；\n默认为 1，请按网络与设备性能自行取舍。',
+    ).then((n) {
+      if (n != null) {
+        app.setUploadParallelism(n);
+        // 上传管理器立即获取新值（老的任务跑完按新并行数补充）
+        UploadManager.I.overrideParallelism = 0;
+      }
     });
   }
 

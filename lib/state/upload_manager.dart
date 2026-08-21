@@ -88,9 +88,10 @@ class UploadTask {
   int get committedBytes => (nextPartNumber - 1) * partSize;
 }
 
-/// 夸克网盘上传管理器：单例队列 + 顺序 worker。
-/// 每次同时上传 1 个文件（队列清晰、进度明确、避免打爆接口限流），
-/// 单个文件内部按服务端分片大小顺序直传 OSS。
+/// 夸克网盘上传管理器：单例队列 + 可并发的 worker 池。
+/// 同一时刻最多 [UploadManager.parallelism] 个任务并行上传（由「我的」页
+/// 设置的上传并行数决定），其余任务排队；单个文件内部按服务端分片大小
+/// 顺序直传 OSS。
 class UploadManager extends ChangeNotifier {
   static UploadManager? _instance;
   static UploadManager get I => _instance ??= UploadManager._();
@@ -101,6 +102,16 @@ class UploadManager extends ChangeNotifier {
   bool _running = false;
   Timer? _speedTimer;
   int _seq = 0;
+
+  /// 当前允许同时上传的任务数。0 表示使用全局 [AppState.uploadParallelism]。
+  int overrideParallelism = 0;
+
+  /// 实际生效的上传并行数。
+  int get parallelism {
+    if (overrideParallelism > 0) return overrideParallelism;
+    final g = AppState.I.uploadParallelism;
+    return g > 0 ? g : 1;
+  }
 
   // ---------------- 文件夹上传的目录 fid 缓存（一次批内有效） ----------------
   String _baseDirFid = '0';
@@ -297,23 +308,37 @@ class UploadManager extends ChangeNotifier {
 
   // ---------------- worker ----------------
 
+  /// 串行 worker 列表（每槽一个）。任务并发数 = [parallelism]。
+  final List<Future<void>> _workers = [];
+
+  /// 并发对数：同一时刻最多 [parallelism] 个任务同时上传，
+  /// 其余任务保持 pending 排队；每个 worker 依次取下一个 pending 任务。
   Future<void> _kick() async {
     if (_running) return;
     _running = true;
     _ensureSpeedTimer();
     try {
-      while (true) {
-        final task =
-            tasks.where((t) => t.status == UploadStatus.pending).firstOrNull;
-        if (task == null) break;
-        await _uploadOne(task);
+      final slots = parallelism.clamp(1, 8);
+      for (var i = 0; i < slots && _running; i++) {
+        _workers.add(_workerLoop());
       }
+      await Future.wait(_workers);
     } finally {
+      _workers.clear();
       _running = false;
       if (!hasActive) {
         _speedTimer?.cancel();
         _speedTimer = null;
       }
+    }
+  }
+
+  Future<void> _workerLoop() async {
+    while (_running) {
+      final task =
+          tasks.where((t) => t.status == UploadStatus.pending).firstOrNull;
+      if (task == null) break;
+      await _uploadOne(task);
     }
   }
 

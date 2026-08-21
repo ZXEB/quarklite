@@ -25,6 +25,7 @@ class AppState extends ChangeNotifier {
   static const _kConnectionBudget = 'connection_budget';
   static const _kCloseAction = 'window_close_action';
   static const _kThemeMode = 'app_theme_mode';
+  static const _kUploadParallelism = 'upload_parallelism';
 
   /// 应用外观模式：system（跟随系统）/ light / dark
   String themeMode = 'system';
@@ -63,6 +64,9 @@ class AppState extends ChangeNotifier {
 
   /// Windows 关闭窗口行为：ask_once（首次询问后记住）/ minimize / exit / ask
   String closeAction = 'ask_once';
+
+  /// 同时上传任务数（默认 1：一次一个文件，减少接口限流与内存占用）
+  int uploadParallelism = 1;
 
   Timer? _sessionTimer;
 
@@ -163,6 +167,7 @@ class AppState extends ChangeNotifier {
       connectionBudget = prefs.getInt(_kConnectionBudget) ?? 256;
       closeAction = prefs.getString(_kCloseAction) ?? 'ask_once';
       themeMode = prefs.getString(_kThemeMode) ?? 'system';
+      uploadParallelism = prefs.getInt(_kUploadParallelism) ?? 1;
       notifyListeners();
     });
   }
@@ -257,6 +262,14 @@ class AppState extends ChangeNotifier {
     closeAction = action;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kCloseAction, action);
+    notifyListeners();
+  }
+
+  /// 设置同时上传任务数（持久化；立即生效由 UploadManager 下一次 kick 读取）
+  Future<void> setUploadParallelism(int n) async {
+    uploadParallelism = n;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kUploadParallelism, n);
     notifyListeners();
   }
 
