@@ -193,7 +193,7 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: const BoxDecoration(
-        color: Color(0xFF12121A),
+        color: AppColors.bottomBar,
         border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
       ),
       child: SafeArea(

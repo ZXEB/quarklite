@@ -172,7 +172,7 @@ class _QrLoginViewState extends State<_QrLoginView> {
             const SizedBox(height: 8),
             Text(
               '二维码 5 分钟内有效，请用夸克 App「扫一扫」登录',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
@@ -180,7 +180,7 @@ class _QrLoginViewState extends State<_QrLoginView> {
               onPressed: _refresh,
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.accent,
-                side: const BorderSide(color: AppColors.accent),
+                side: BorderSide(color: AppColors.accent),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
               ),
@@ -228,7 +228,7 @@ class _CookieLoginViewState extends State<_CookieLoginView> {
               maxLines: null,
               expands: true,
               style:
-                  const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                  TextStyle(color: AppColors.textPrimary, fontSize: 13),
               decoration: const InputDecoration(
                 hintText: '粘贴 Cookie，形如 __pus=xxx; __puus=xxx; ...',
                 alignLabelWithHint: true,

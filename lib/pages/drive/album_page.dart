@@ -308,12 +308,12 @@ class _AlbumPageState extends State<AlbumPage> {
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const SearchPage()),
             ),
-            icon: const Icon(Icons.search_rounded, color: AppColors.accent),
+            icon: Icon(Icons.search_rounded, color: AppColors.accent),
             tooltip: '搜索照片内容',
           ),
           IconButton(
             onPressed: _loading ? null : _loadFirst,
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.accent),
+            icon: Icon(Icons.refresh_rounded, color: AppColors.accent),
             tooltip: '刷新',
           ),
         ],

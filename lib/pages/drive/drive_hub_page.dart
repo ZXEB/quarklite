@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_miuix/miuix.dart';
 
 import '../../state/app_state.dart';
 import '../../state/netdisk123_state.dart';
@@ -21,16 +22,21 @@ class DriveHubPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: Listenable.merge(
-          [AppState.I, XunleiState.I, Netdisk123State.I]),
+          [AppState.I, XunleiState.I, Netdisk123State.I, AppStyleState.I]),
       builder: (context, _) {
         return SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 16, 20, 12),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 16, 20, 12),
                 child: Text('网盘',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+                    style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: AppStyleState.I.style.isMiuix
+                            ? AppColors.textPrimary
+                            : null)),
               ),
               Expanded(
                 child: ListView(
@@ -220,6 +226,60 @@ class _DriveCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Miuix 风格用 MiuixCard + MiuixText，其余用原有 Material 卡片
+    final isMiuix = AppStyleState.I.style.isMiuix;
+    final titleWidget = Text(title,
+        style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w700));
+    final subtitleWidget = Text(subtitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: statusColor, fontSize: 12));
+    final iconBox = Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: iconBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Icon(icon, color: AppColors.accent, size: 28),
+    );
+    final chevron = Icon(Icons.chevron_right_rounded,
+        color: AppColors.textSecondary, size: 22);
+
+    if (isMiuix) {
+      return MiuixCard(
+        onPressed: onTap,
+        onLongPress: onLongPress,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              iconBox,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    titleWidget,
+                    const SizedBox(height: 4),
+                    subtitleWidget,
+                    if (trailing != null) ...[
+                      const SizedBox(height: 10),
+                      trailing!,
+                    ],
+                  ],
+                ),
+              ),
+              chevron,
+            ],
+          ),
+        ),
+      );
+    }
+
     return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -232,31 +292,15 @@ class _DriveCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, color: AppColors.accent, size: 28),
-            ),
+            iconBox,
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700)),
+                  titleWidget,
                   const SizedBox(height: 4),
-                  Text(subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          color: statusColor, fontSize: 12)),
+                  subtitleWidget,
                   if (trailing != null) ...[
                     const SizedBox(height: 10),
                     trailing!,
@@ -264,8 +308,7 @@ class _DriveCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary, size: 22),
+            chevron,
           ],
         ),
       ),

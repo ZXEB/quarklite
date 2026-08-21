@@ -39,7 +39,7 @@ class EmptyView extends StatelessWidget {
             const SizedBox(height: 6),
             Text(subText!,
                 style:
-                    const TextStyle(color: AppColors.divider, fontSize: 12)),
+                    TextStyle(color: AppColors.divider, fontSize: 12)),
           ],
           if (action != null) ...[
             const SizedBox(height: 20),

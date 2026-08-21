@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_miuix/miuix.dart';
 
 import 'core/gopeed/gopeed_boot.dart';
 import 'core/notify/download_notifier.dart';
@@ -50,6 +51,9 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
       _bootError = e.toString();
       AppLogger.I.e('app', 'AppState 初始化失败: $e');
     }
+    try {
+      await AppStyleState.I.init();
+    } catch (_) {}
     unawaited(XunleiState.I.init());
     unawaited(Netdisk123State.I.init());
     // 引擎后台异步启动，不阻塞界面（失败时下载页可重试/查看原因）
@@ -86,12 +90,15 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Quarklite',
-      debugShowCheckedModeBanner: false,
-      navigatorKey: widget.navigatorKey,
-      theme: AppTheme.dark(),
-      home: _ready ? const RootPage() : _BootView(error: _bootError),
+    return ListenableBuilder(
+      listenable: AppStyleState.I,
+      builder: (context, _) => MaterialApp(
+        title: 'Quarklite',
+        debugShowCheckedModeBanner: false,
+        navigatorKey: widget.navigatorKey,
+        theme: AppTheme.dark(),
+        home: _ready ? const RootPage() : _BootView(error: _bootError),
+      ),
     );
   }
 }
@@ -151,12 +158,25 @@ class _RootPageState extends State<RootPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _AnimatedPageView(index: _index, children: _pages),
-      bottomNavigationBar: _BottomBar(
-        index: _index,
-        onTap: (i) => setState(() => _index = i),
-      ),
+    // Miuix 风格：底部导航用 MiuixNavigationBar；否则用原有 Material 底栏。
+    return ListenableBuilder(
+      listenable: AppStyleState.I,
+      builder: (context, _) {
+        final isMiuix = AppStyleState.I.style.isMiuix;
+        return Scaffold(
+          backgroundColor: AppColors.bg,
+          body: _AnimatedPageView(index: _index, children: _pages),
+          bottomNavigationBar: isMiuix
+              ? _MiuixBottomBar(
+                  index: _index,
+                  onTap: (i) => setState(() => _index = i),
+                )
+              : _BottomBar(
+                  index: _index,
+                  onTap: (i) => setState(() => _index = i),
+                ),
+        );
+      },
     );
   }
 }
@@ -212,8 +232,8 @@ class _BottomBar extends StatelessWidget {
       (Icons.person_outline_rounded, '我的'),
     ];
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF12121A),
+      decoration: BoxDecoration(
+        color: AppColors.bottomBar,
         border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
       ),
       child: SafeArea(
@@ -311,8 +331,58 @@ class _ActiveDot extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.red,
         shape: BoxShape.circle,
-        border: Border.all(color: const Color(0xFF12121A), width: 1.5),
+        border: Border.all(color: AppColors.bottomBar, width: 1.5),
       ),
+    );
+  }
+}
+
+/// Miuix 风格底部导航栏（HyperOS 灵动风格）
+class _MiuixBottomBar extends StatelessWidget {
+  final int index;
+  final ValueChanged<int> onTap;
+
+  const _MiuixBottomBar({required this.index, required this.onTap});
+
+  /// 上传 Tab 图标：有进行中任务时显示小红点
+  Widget _tabIcon(int i, IconData icon) {
+    if (i != 3) return Icon(icon, size: 26);
+    return ListenableBuilder(
+      listenable: UploadManager.I,
+      builder: (context, _) => Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(icon, size: 26),
+          if (UploadManager.I.hasActive)
+            const Positioned(
+              right: -4,
+              top: -4,
+              child: _ActiveDot(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      (Icons.link_rounded, '解析'),
+      (Icons.folder_rounded, '网盘'),
+      (Icons.download_rounded, '下载'),
+      (Icons.upload_rounded, '上传'),
+      (Icons.person_outline_rounded, '我的'),
+    ];
+    return MiuixNavigationBar(
+      children: [
+        for (var i = 0; i < items.length; i++)
+          MiuixNavigationBarItem(
+            selected: i == index,
+            onPressed: () => onTap(i),
+            icon: _tabIcon(i, items[i].$1),
+            label: items[i].$2,
+          ),
+      ],
     );
   }
 }

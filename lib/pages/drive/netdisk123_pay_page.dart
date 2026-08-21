@@ -39,7 +39,7 @@ class _Netdisk123PayPageState extends State<Netdisk123PayPage> {
         actions: [
           IconButton(
             onPressed: () => _controller?.reload(),
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.accent),
+            icon: Icon(Icons.refresh_rounded, color: AppColors.accent),
             tooltip: '刷新',
           ),
         ],
@@ -47,7 +47,7 @@ class _Netdisk123PayPageState extends State<Netdisk123PayPage> {
       body: Stack(
         children: [
           if (_controller != null) WebViewWidget(controller: _controller!),
-          if (_loading) const LinearProgressIndicator(minHeight: 2, color: AppColors.accent),
+          if (_loading) LinearProgressIndicator(minHeight: 2, color: AppColors.accent),
         ],
       ),
     );

@@ -119,7 +119,7 @@ class _SearchPageState extends State<SearchPage> {
             onChanged: _onChanged,
             onSubmitted: _search,
             style:
-                const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: const InputDecoration(
               hintText: '搜索文件名或照片内容',
               hintStyle:
@@ -138,7 +138,7 @@ class _SearchPageState extends State<SearchPage> {
               _controller.clear();
               _search('');
             },
-            icon: const Icon(Icons.close_rounded, color: AppColors.accent),
+            icon: Icon(Icons.close_rounded, color: AppColors.accent),
           ),
         ],
         bottom: PreferredSize(
@@ -318,7 +318,7 @@ class _SearchPageState extends State<SearchPage> {
                     color: AppColors.textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.download_rounded, color: AppColors.accent),
+              leading: Icon(Icons.download_rounded, color: AppColors.accent),
               title: const Text('立即下载'),
               subtitle: const Text('提取直链，多线程不限速下载'),
               onTap: () {

@@ -113,7 +113,7 @@ class _PasswordLoginViewState extends State<_PasswordLoginView> {
         TextField(
           controller: _account,
           keyboardType: TextInputType.emailAddress,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
           decoration: const InputDecoration(
             hintText: '手机号 / 邮箱',
             prefixIcon: Icon(Icons.person_outline_rounded,
@@ -124,7 +124,7 @@ class _PasswordLoginViewState extends State<_PasswordLoginView> {
         TextField(
           controller: _password,
           obscureText: _obscure,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
           decoration: InputDecoration(
             hintText: '密码',
             prefixIcon: const Icon(Icons.lock_outline_rounded,
@@ -303,7 +303,7 @@ class _QrLoginViewState extends State<_QrLoginView> {
               onPressed: _refresh,
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.accent,
-                side: const BorderSide(color: AppColors.accent),
+                side: BorderSide(color: AppColors.accent),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
               ),

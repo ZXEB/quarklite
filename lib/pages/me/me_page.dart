@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_miuix/miuix.dart';
 
 import '../../core/notify/download_notifier.dart';
 import '../../state/app_state.dart';
@@ -19,18 +20,22 @@ class MePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: Listenable.merge(
-          [AppState.I, XunleiState.I, Netdisk123State.I]),
+          [AppState.I, XunleiState.I, Netdisk123State.I, AppStyleState.I]),
       builder: (context, _) {
         final app = AppState.I;
         return SafeArea(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
-              const Padding(
-                padding: EdgeInsets.only(left: 4, bottom: 12),
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 12),
                 child: Text('我的',
-                    style:
-                        TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+                    style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: AppStyleState.I.style.isMiuix
+                            ? AppColors.textPrimary
+                            : null)),
               ),
               _buildAccountCard(context, app),
               const SizedBox(height: 16),
@@ -42,6 +47,11 @@ class MePage extends StatelessWidget {
         );
       },
     );
+  }
+
+  /// Miuix 风格下滑界面风格的跳转
+  Future<void> _switchUiStyle(BuildContext context, bool isMiuix) async {
+    await AppStyleState.I.setStyle(isMiuix ? UIStyle.dark : UIStyle.miuix);
   }
 
   /// 账号管理卡片：夸克网盘 / 迅雷云盘 登录状态与退出入口
@@ -187,6 +197,10 @@ class MePage extends StatelessWidget {
   }
 
   Widget _buildSettingsCard(BuildContext context, AppState app) {
+    final isMiuix = AppStyleState.I.style.isMiuix;
+    if (isMiuix) {
+      return _buildMiuixSettingsCard(context, app);
+    }
     return Container(
       decoration: BoxDecoration(
         color: AppColors.card,
@@ -195,7 +209,16 @@ class MePage extends StatelessWidget {
       child: Column(
         children: [
           ListTile(
-            leading: const Icon(Icons.folder_rounded, color: AppColors.accent),
+            leading: Icon(Icons.palette_rounded, color: AppColors.accent),
+            title: const Text('界面风格'),
+            subtitle: Text(isMiuix ? 'Miuix 灵动（当前）' : 'Material 深色（当前）'),
+            trailing: const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textSecondary),
+            onTap: () => _switchUiStyle(context, isMiuix),
+          ),
+          const Divider(height: 1, indent: 56),
+          ListTile(
+            leading: Icon(Icons.folder_rounded, color: AppColors.accent),
             title: const Text('下载目录'),
             subtitle: Text(app.downloadDir,
                 maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -206,7 +229,7 @@ class MePage extends StatelessWidget {
           const Divider(height: 1, indent: 56),
           ListTile(
             leading:
-                const Icon(Icons.speed_rounded, color: AppColors.accent),
+                Icon(Icons.speed_rounded, color: AppColors.accent),
             title: const Text('夸克下载线程'),
             subtitle: Text('单任务最大 ${app.connections} 线程'),
             trailing: const Icon(Icons.chevron_right_rounded,
@@ -215,7 +238,7 @@ class MePage extends StatelessWidget {
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
-            leading: const Icon(Icons.bolt_rounded, color: AppColors.accent),
+            leading: Icon(Icons.bolt_rounded, color: AppColors.accent),
             title: const Text('迅雷下载线程'),
             subtitle: Text('单任务最大 ${app.xunleiConnections} 线程'),
             trailing: const Icon(Icons.chevron_right_rounded,
@@ -244,7 +267,7 @@ class MePage extends StatelessWidget {
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
-            leading: const Icon(Icons.tune_rounded, color: AppColors.accent),
+            leading: Icon(Icons.tune_rounded, color: AppColors.accent),
             title: const Text('连接预算'),
             subtitle: Text('所有任务总连接数上限 ${app.connectionBudget}，防系统卡顿'),
             trailing: const Icon(Icons.chevron_right_rounded,
@@ -253,7 +276,7 @@ class MePage extends StatelessWidget {
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
-            leading: const Icon(Icons.storage_rounded, color: AppColors.accent),
+            leading: Icon(Icons.storage_rounded, color: AppColors.accent),
             title: const Text('存储权限'),
             subtitle: const Text('访问下载目录所需权限'),
             trailing: const Icon(Icons.chevron_right_rounded,
@@ -271,6 +294,98 @@ class MePage extends StatelessWidget {
                   color: AppColors.textSecondary),
               onTap: () => _editCloseAction(context, app),
             ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Miuix 风格下的设置卡片（用 Preference 组件呈现，顶部含界面风格开关）
+  Widget _buildMiuixSettingsCard(BuildContext context, AppState app) {
+    final current = AppStyleState.I.style.isMiuix;
+
+    Widget leading(IconData icon) =>
+        Icon(icon, size: 22, color: MiuixTheme.of(context).colors.primary);
+
+    Widget arrowPref({
+      required String title,
+      required String summary,
+      required IconData icon,
+      required VoidCallback onClick,
+    }) =>
+        MiuixArrowPreference(
+          title: title,
+          summary: summary,
+          startAction: leading(icon),
+          insideMargin: const EdgeInsets.symmetric(
+              horizontal: 16, vertical: 12),
+          onClick: onClick,
+        );
+
+    return MiuixCard(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          MiuixSwitchPreference(
+            title: '界面风格',
+            summary: current ? 'Miuix 灵动（当前）' : 'Material 深色（当前）',
+            value: current,
+            onChanged: (v) =>
+                AppStyleState.I.setStyle(v ? UIStyle.miuix : UIStyle.dark),
+            startAction: leading(Icons.palette_rounded),
+            insideMargin: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 12),
+          ),
+          const MiuixHorizontalDivider(),
+          arrowPref(
+              title: '下载目录',
+              summary: app.downloadDir,
+              icon: Icons.folder_rounded,
+              onClick: () => _editDownloadDir(context, app)),
+          const MiuixHorizontalDivider(),
+          arrowPref(
+              title: '夸克下载线程',
+              summary: '单任务最大 ${app.connections} 线程',
+              icon: Icons.speed_rounded,
+              onClick: () => _editConnections(context, app)),
+          const MiuixHorizontalDivider(),
+          arrowPref(
+              title: '迅雷下载线程',
+              summary: '单任务最大 ${app.xunleiConnections} 线程',
+              icon: Icons.bolt_rounded,
+              onClick: () => _editXunleiConnections(context, app)),
+          const MiuixHorizontalDivider(),
+          arrowPref(
+              title: '123下载线程',
+              summary: '单任务最大 ${app.netdisk123Connections} 线程',
+              icon: Icons.cloud_upload_rounded,
+              onClick: () => _editNetdisk123Connections(context, app)),
+          const MiuixHorizontalDivider(),
+          arrowPref(
+              title: '同时下载任务数',
+              summary: '最多 ${app.maxRunning} 个任务并发，其余排队',
+              icon: Icons.low_priority_rounded,
+              onClick: () => _editMaxRunning(context, app)),
+          const MiuixHorizontalDivider(),
+          arrowPref(
+              title: '连接预算',
+              summary: '所有任务总连接数上限 ${app.connectionBudget}，防系统卡顿',
+              icon: Icons.tune_rounded,
+              onClick: () => _editConnectionBudget(context, app)),
+          const MiuixHorizontalDivider(),
+          arrowPref(
+              title: '存储权限',
+              summary: '访问下载目录所需权限',
+              icon: Icons.storage_rounded,
+              onClick: () => app.openAllFilesAccess()),
+          if (!kIsWeb && Platform.isWindows) ...[
+            const MiuixHorizontalDivider(),
+            arrowPref(
+                title: '关闭窗口时',
+                summary: _closeActionLabel(app.closeAction),
+                icon: Icons.close_fullscreen_rounded,
+                onClick: () => _editCloseAction(context, app)),
           ],
         ],
       ),
@@ -379,7 +494,7 @@ class MePage extends StatelessWidget {
               const Text('日志文件位置：',
                   style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
               SelectableText(path,
-                  style: const TextStyle(fontSize: 12, color: AppColors.accent)),
+                  style: TextStyle(fontSize: 12, color: AppColors.accent)),
               const SizedBox(height: 12),
               Container(
                 width: double.infinity,
@@ -444,7 +559,7 @@ class MePage extends StatelessWidget {
         title: const Text('下载目录'),
         content: TextField(
           controller: controller,
-          style: const TextStyle(color: AppColors.textPrimary),
+          style: TextStyle(color: AppColors.textPrimary),
           decoration: const InputDecoration(hintText: '/storage/emulated/0/Download/Quarklite'),
         ),
         actions: [

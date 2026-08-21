@@ -564,7 +564,7 @@ class _DrivePageState extends State<DrivePage>
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: const BoxDecoration(
-        color: Color(0xFF12121A),
+        color: AppColors.bottomBar,
         border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
       ),
       child: SafeArea(
@@ -579,7 +579,7 @@ class _DrivePageState extends State<DrivePage>
               onPressed: _busy || count == 0 ? null : () => _deleteFiles(_selected),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.red,
-                side: const BorderSide(color: AppColors.red),
+                side: BorderSide(color: AppColors.red),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
               ),
@@ -591,7 +591,7 @@ class _DrivePageState extends State<DrivePage>
               onPressed: _busy || count == 0 ? null : () => _moveFiles(_selected),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.accent,
-                side: const BorderSide(color: AppColors.accent),
+                side: BorderSide(color: AppColors.accent),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
               ),
@@ -741,7 +741,7 @@ class _DrivePageState extends State<DrivePage>
                     color: AppColors.textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.download_rounded, color: AppColors.accent),
+              leading: Icon(Icons.download_rounded, color: AppColors.accent),
               title: const Text('立即下载'),
               subtitle: const Text('提取直链，多线程不限速下载'),
               onTap: () {
@@ -799,7 +799,7 @@ class _DrivePageState extends State<DrivePage>
       subtitle: subtitle == null
           ? null
           : Text(subtitle,
-              style: const TextStyle(color: AppColors.textSecondary)),
+              style: TextStyle(color: AppColors.textSecondary)),
       onTap: onTap,
     );
   }
@@ -879,7 +879,7 @@ class _DrivePageState extends State<DrivePage>
             ),
             ListTile(
               leading:
-                  const Icon(Icons.upload_file_rounded, color: AppColors.accent),
+                  Icon(Icons.upload_file_rounded, color: AppColors.accent),
               title: const Text('上传文件'),
               subtitle: const Text('支持一次选择多个文件，上传到当前目录'),
               onTap: () {

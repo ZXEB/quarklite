@@ -328,7 +328,7 @@ class _DownloadsPageState extends State<DownloadsPage>
                     '2. 找到被阻止的 gopeed.exe，选择「允许」\n'
                     '3. 或将 Quarklite 安装目录加入排除项后重新打开软件'
                 : detail,
-            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           actions: [
             FilledButton(

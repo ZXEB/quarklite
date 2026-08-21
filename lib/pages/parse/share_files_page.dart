@@ -245,7 +245,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: const BoxDecoration(
-        color: Color(0xFF12121A),
+        color: AppColors.bottomBar,
         border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
       ),
       child: SafeArea(
@@ -260,7 +260,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
               onPressed: _busy || count == 0 ? null : _batchSave,
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.green,
-                side: const BorderSide(color: AppColors.green),
+                side: BorderSide(color: AppColors.green),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
               ),
@@ -413,7 +413,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
                     color: AppColors.textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.download_rounded, color: AppColors.accent),
+              leading: Icon(Icons.download_rounded, color: AppColors.accent),
               title: const Text('立即下载'),
               subtitle: const Text('提取直链，多线程不限速下载'),
               onTap: () {
@@ -422,7 +422,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.save_alt_rounded, color: AppColors.green),
+              leading: Icon(Icons.save_alt_rounded, color: AppColors.green),
               title: const Text('保存到网盘'),
               subtitle: const Text('转存到自己的夸克网盘'),
               onTap: () {

@@ -261,7 +261,7 @@ class _UploadsPageState extends State<UploadsPage>
               task.error!,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.red, fontSize: 11),
+              style: TextStyle(color: AppColors.red, fontSize: 11),
             ),
           ],
         ],

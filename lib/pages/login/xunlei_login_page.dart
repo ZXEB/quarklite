@@ -218,7 +218,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
           TextField(
             controller: _account,
             keyboardType: TextInputType.emailAddress,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: const InputDecoration(
               hintText: '手机号 / 邮箱',
               prefixIcon: Icon(Icons.person_outline_rounded,
@@ -229,7 +229,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
           TextField(
             controller: _password,
             obscureText: _obscure,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: InputDecoration(
               hintText: '密码',
               prefixIcon: const Icon(Icons.lock_outline_rounded,

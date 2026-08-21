@@ -28,6 +28,7 @@ dependencies:
   # 12.x 需要 win32 ^6.3，与 flutter_secure_storage 9.2.2 冲突，锁 11.x
   file_picker: ^11.0.3
   url_launcher: ^6.2.5
+  flutter_miuix: ^1.1.1
 
 dev_dependencies:
   flutter_test:

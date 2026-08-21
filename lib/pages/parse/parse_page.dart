@@ -296,7 +296,7 @@ class _ParsePageState extends State<ParsePage> {
             controller: _urlController,
             maxLines: 3,
             minLines: 2,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: const InputDecoration(
               hintText: '粘贴夸克分享链接或包含链接的文本',
             ),
@@ -304,7 +304,7 @@ class _ParsePageState extends State<ParsePage> {
           const SizedBox(height: 10),
           TextField(
             controller: _pwdController,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: const InputDecoration(
               hintText: '提取码（自动识别，可手动修改）',
             ),
@@ -316,7 +316,7 @@ class _ParsePageState extends State<ParsePage> {
               maxLines: 2,
               minLines: 1,
               style:
-                  const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                  TextStyle(color: AppColors.textPrimary, fontSize: 14),
               decoration: const InputDecoration(
                 hintText: '磁力链接或种子文件地址（magnet: 开头）',
               ),

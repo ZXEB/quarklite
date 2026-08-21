@@ -221,12 +221,12 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
         actions: [
           IconButton(
             onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.accent),
+            icon: Icon(Icons.refresh_rounded, color: AppColors.accent),
             tooltip: '刷新',
           ),
           IconButton(
             onPressed: () => _confirmLogout(),
-            icon: const Icon(Icons.logout_rounded, color: AppColors.accent),
+            icon: Icon(Icons.logout_rounded, color: AppColors.accent),
             tooltip: '退出登录',
           ),
         ],
@@ -278,7 +278,7 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: const BoxDecoration(
-        color: Color(0xFF12121A),
+        color: AppColors.bottomBar,
         border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
       ),
       child: SafeArea(
@@ -433,7 +433,7 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
                     color: AppColors.textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.download_rounded, color: AppColors.accent),
+              leading: Icon(Icons.download_rounded, color: AppColors.accent),
               title: const Text('立即下载'),
               subtitle: const Text('高速直链，多线程不限速下载'),
               onTap: () {
