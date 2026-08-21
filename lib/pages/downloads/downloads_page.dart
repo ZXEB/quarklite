@@ -62,11 +62,11 @@ class _DownloadsPageState extends State<DownloadsPage>
                       IconButton(
                         onPressed: _retryEngine,
                         tooltip: '重新启动下载引擎',
-                        icon: const Icon(Icons.error_outline,
+                        icon: Icon(Icons.error_outline,
                             color: AppColors.red, size: 20),
                       ),
                     PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_horiz_rounded,
+                      icon: Icon(Icons.more_horiz_rounded,
                           color: AppColors.accent, size: 26),
                       onSelected: (v) async {
                         switch (v) {
@@ -173,7 +173,7 @@ class _DownloadsPageState extends State<DownloadsPage>
                       task.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 13,
                           fontWeight: FontWeight.w500),
@@ -181,7 +181,7 @@ class _DownloadsPageState extends State<DownloadsPage>
                     const SizedBox(height: 3),
                     Text(
                       _subtitle(task),
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 11),
                     ),
                   ],
@@ -189,7 +189,7 @@ class _DownloadsPageState extends State<DownloadsPage>
               ),
               _buildStatusBadge(task),
               PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert_rounded,
+                icon: Icon(Icons.more_vert_rounded,
                     color: AppColors.textSecondary, size: 18),
                 onSelected: (v) async {
                   switch (v) {
@@ -229,14 +229,14 @@ class _DownloadsPageState extends State<DownloadsPage>
               children: [
                 Text(
                   '${formatBytes(task.downloaded)} / ${formatBytes(task.size)}',
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 11),
                 ),
                 const Spacer(),
                 if (task.status == GopeedStatus.running)
                   Text(
                     formatSpeed(task.speed),
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.accent, fontSize: 11),
                   ),
               ],

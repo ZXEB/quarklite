@@ -121,7 +121,7 @@ class AppTheme {
       brightness: Brightness.dark,
       useMaterial3: true,
       scaffoldBackgroundColor: AppColors.bg,
-      colorScheme: const ColorScheme.dark(
+      colorScheme: ColorScheme.dark(
         primary: AppColors.accent,
         secondary: AppColors.accent,
         surface: AppColors.card,
@@ -141,14 +141,14 @@ class AppTheme {
       ),
     );
     return base.copyWith(
-      cardTheme: const CardThemeData(
+      cardTheme: CardThemeData(
         color: AppColors.card,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(16)),
         ),
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: AppColors.bg,
         elevation: 0,
         centerTitle: true,
@@ -159,13 +159,13 @@ class AppTheme {
         ),
         iconTheme: IconThemeData(color: AppColors.accent),
       ),
-      bottomSheetTheme: const BottomSheetThemeData(
+      bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: AppColors.card,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
       ),
-      dialogTheme: const DialogThemeData(
+      dialogTheme: DialogThemeData(
         backgroundColor: AppColors.card,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(20)),
@@ -191,15 +191,15 @@ class AppTheme {
           borderSide: BorderSide(color: AppColors.accent, width: 1.2),
         ),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
+      progressIndicatorTheme: ProgressIndicatorThemeData(
         color: AppColors.accent,
       ),
-      snackBarTheme: const SnackBarThemeData(
+      snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.cardLight,
         contentTextStyle: TextStyle(color: AppColors.textPrimary, fontSize: 14),
         behavior: SnackBarBehavior.floating,
       ),
-      listTileTheme: const ListTileThemeData(
+      listTileTheme: ListTileThemeData(
         iconColor: AppColors.textSecondary,
       ),
       dividerTheme: DividerThemeData(color: AppColors.divider),

@@ -243,7 +243,7 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
                   children: [
                     for (var i = 0; i < _crumbs.length; i++) ...[
                       if (i > 0)
-                        const Icon(Icons.chevron_right_rounded,
+                        Icon(Icons.chevron_right_rounded,
                             size: 16, color: AppColors.textSecondary),
                       InkWell(
                         onTap: () => _toBreadcrumb(i),
@@ -277,7 +277,7 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
     final count = _selected.length;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.bottomBar,
         border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
       ),
@@ -286,7 +286,7 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
         child: Row(
           children: [
             Text('已选 $count 项',
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textPrimary, fontSize: 14)),
             const Spacer(),
             FilledButton.icon(
@@ -371,7 +371,7 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
                     file.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500),
@@ -381,7 +381,7 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
                     file.isDir
                         ? '文件夹'
                         : '${formatBytes(file.size)}',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),
                 ],
@@ -396,7 +396,7 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
                 size: 22,
               )
             else
-              const Icon(Icons.chevron_right_rounded,
+              Icon(Icons.chevron_right_rounded,
                   color: AppColors.textSecondary, size: 20),
           ],
         ),
@@ -421,7 +421,7 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600),
@@ -429,7 +429,7 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
             ),
             const SizedBox(height: 4),
             Text(formatBytes(file.size),
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
             ListTile(

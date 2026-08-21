@@ -226,7 +226,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
           if (_selectMode)
             TextButton(
               onPressed: _selectAllFiles,
-              child: const Text('全选',
+              child: Text('全选',
                   style: TextStyle(color: AppColors.accent)),
             ),
         ],
@@ -244,7 +244,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
     final count = _selected.length;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.bottomBar,
         border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
       ),
@@ -253,7 +253,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
         child: Row(
           children: [
             Text('已选 $count 项',
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textPrimary, fontSize: 14)),
             const Spacer(),
             OutlinedButton(
@@ -353,7 +353,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
                     file.fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500),
@@ -361,7 +361,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
                   const SizedBox(height: 4),
                   Text(
                     file.isDir ? '文件夹' : formatBytes(file.size),
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),
                 ],
@@ -376,7 +376,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
                 size: 22,
               )
             else
-              const Icon(Icons.chevron_right_rounded,
+              Icon(Icons.chevron_right_rounded,
                   color: AppColors.textSecondary, size: 20),
           ],
         ),
@@ -401,7 +401,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600),
@@ -409,7 +409,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
             ),
             const SizedBox(height: 4),
             Text(formatBytes(file.size),
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
             ListTile(

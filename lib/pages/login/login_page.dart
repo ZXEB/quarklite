@@ -160,12 +160,12 @@ class _QrLoginViewState extends State<_QrLoginView> {
                 ),
               )
             else
-              const Icon(Icons.qr_code_2_rounded,
+              Icon(Icons.qr_code_2_rounded,
                   size: 120, color: AppColors.cardLight),
             const SizedBox(height: 20),
             Text(
               _status ?? '',
-              style: const TextStyle(
+              style: TextStyle(
                   color: AppColors.textSecondary, fontSize: 13),
               textAlign: TextAlign.center,
             ),
@@ -217,7 +217,7 @@ class _CookieLoginViewState extends State<_CookieLoginView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
+          Text(
             '从浏览器登录 pan.quark.cn 后，复制 Cookie 粘贴到这里（登录二维码失效时的备用方式）',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
           ),

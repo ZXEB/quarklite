@@ -104,7 +104,7 @@ class _PasswordLoginViewState extends State<_PasswordLoginView> {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        const Text(
+        Text(
           '使用 123 网盘账号（手机号 / 邮箱）登录，登录后可浏览网盘文件并使用多线程不限速下载。',
           style: TextStyle(
               color: AppColors.textSecondary, fontSize: 12, height: 1.6),
@@ -114,7 +114,7 @@ class _PasswordLoginViewState extends State<_PasswordLoginView> {
           controller: _account,
           keyboardType: TextInputType.emailAddress,
           style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: '手机号 / 邮箱',
             prefixIcon: Icon(Icons.person_outline_rounded,
                 color: AppColors.textSecondary, size: 20),
@@ -127,7 +127,7 @@ class _PasswordLoginViewState extends State<_PasswordLoginView> {
           style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
           decoration: InputDecoration(
             hintText: '密码',
-            prefixIcon: const Icon(Icons.lock_outline_rounded,
+            prefixIcon: Icon(Icons.lock_outline_rounded,
                 color: AppColors.textSecondary, size: 20),
             suffixIcon: IconButton(
               onPressed: () => setState(() => _obscure = !_obscure),
@@ -161,7 +161,7 @@ class _PasswordLoginViewState extends State<_PasswordLoginView> {
               : const Text('登录'),
         ),
         const SizedBox(height: 14),
-        const Text(
+        Text(
           '提示：登录仅用于获取 123 网盘下载直链，账号信息仅保存在本机。',
           style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
           textAlign: TextAlign.center,
@@ -283,17 +283,17 @@ class _QrLoginViewState extends State<_QrLoginView> {
                 ),
               )
             else
-              const Icon(Icons.qr_code_2_rounded,
+              Icon(Icons.qr_code_2_rounded,
                   size: 120, color: AppColors.cardLight),
             const SizedBox(height: 20),
             Text(
               _status,
-              style: const TextStyle(
+              style: TextStyle(
                   color: AppColors.textSecondary, fontSize: 13),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               '二维码有效期约 5 分钟，请用 123 网盘 App「扫一扫」登录',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
               textAlign: TextAlign.center,

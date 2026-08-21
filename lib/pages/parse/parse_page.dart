@@ -204,7 +204,7 @@ class _ParsePageState extends State<ParsePage> {
                           style: const TextStyle(
                               fontSize: 30, fontWeight: FontWeight.w800)),
                       const SizedBox(height: 2),
-                      const Text('下午好，解析分享链接',
+                      Text('下午好，解析分享链接',
                           style: TextStyle(
                               color: AppColors.accent, fontSize: 14)),
                     ],
@@ -219,7 +219,7 @@ class _ParsePageState extends State<ParsePage> {
                       color: AppColors.accentDeep,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
                         Icon(Icons.history_rounded,
                             color: AppColors.accent, size: 18),
@@ -241,7 +241,7 @@ class _ParsePageState extends State<ParsePage> {
                 _buildInputCard(),
                 if (_history.isNotEmpty) ...[
                   const SizedBox(height: 20),
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(left: 4, bottom: 10),
                     child: Text('解析记录',
                         style: TextStyle(
@@ -276,17 +276,17 @@ class _ParsePageState extends State<ParsePage> {
                   color: AppColors.accentDeep,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.paste_rounded,
+                child: Icon(Icons.paste_rounded,
                     color: AppColors.accent, size: 19),
               ),
               const SizedBox(width: 10),
-              const Text('粘贴内容',
+              Text('粘贴内容',
                   style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w600)),
               const Spacer(),
-              const Text('等待粘贴链接',
+              Text('等待粘贴链接',
                   style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 12)),
             ],
@@ -396,7 +396,7 @@ class _ParsePageState extends State<ParsePage> {
                   color: AppColors.accentDeep,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.link_rounded,
+                child: Icon(Icons.link_rounded,
                     color: AppColors.accent, size: 18),
               ),
               const SizedBox(width: 12),
@@ -407,12 +407,12 @@ class _ParsePageState extends State<ParsePage> {
                     Text(url,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: AppColors.textPrimary, fontSize: 13)),
                     const SizedBox(height: 3),
                     Text(
                       pwd.isEmpty ? '无提取码' : '提取码: $pwd',
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 11),
                     ),
                   ],
@@ -420,7 +420,7 @@ class _ParsePageState extends State<ParsePage> {
               ),
               IconButton(
                 onPressed: () => _removeHistory(url),
-                icon: const Icon(Icons.close_rounded,
+                icon: Icon(Icons.close_rounded,
                     color: AppColors.textSecondary, size: 18),
               ),
             ],
@@ -462,7 +462,7 @@ class _ParsePageState extends State<ParsePage> {
                 shrinkWrap: true,
                 children: _history.map((e) {
                   return ListTile(
-                    leading: const Icon(Icons.link_rounded,
+                    leading: Icon(Icons.link_rounded,
                         color: AppColors.accent),
                     title: Text(e['url'] ?? '',
                         maxLines: 1, overflow: TextOverflow.ellipsis),

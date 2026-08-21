@@ -165,7 +165,7 @@ class MePage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600)),
@@ -173,7 +173,7 @@ class MePage extends StatelessWidget {
                 Text(subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.textSecondary, fontSize: 12)),
                 if (capability != null) ...[
                   const SizedBox(height: 10),
@@ -212,7 +212,7 @@ class MePage extends StatelessWidget {
             leading: Icon(Icons.palette_rounded, color: AppColors.accent),
             title: const Text('界面风格'),
             subtitle: Text(isMiuix ? 'Miuix 灵动（当前）' : 'Material 深色（当前）'),
-            trailing: const Icon(Icons.chevron_right_rounded,
+            trailing: Icon(Icons.chevron_right_rounded,
                 color: AppColors.textSecondary),
             onTap: () => _switchUiStyle(context, isMiuix),
           ),
@@ -222,7 +222,7 @@ class MePage extends StatelessWidget {
             title: const Text('下载目录'),
             subtitle: Text(app.downloadDir,
                 maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: const Icon(Icons.chevron_right_rounded,
+            trailing: Icon(Icons.chevron_right_rounded,
                 color: AppColors.textSecondary),
             onTap: () => _editDownloadDir(context, app),
           ),
@@ -232,7 +232,7 @@ class MePage extends StatelessWidget {
                 Icon(Icons.speed_rounded, color: AppColors.accent),
             title: const Text('夸克下载线程'),
             subtitle: Text('单任务最大 ${app.connections} 线程'),
-            trailing: const Icon(Icons.chevron_right_rounded,
+            trailing: Icon(Icons.chevron_right_rounded,
                 color: AppColors.textSecondary),
             onTap: () => _editConnections(context, app),
           ),
@@ -241,27 +241,27 @@ class MePage extends StatelessWidget {
             leading: Icon(Icons.bolt_rounded, color: AppColors.accent),
             title: const Text('迅雷下载线程'),
             subtitle: Text('单任务最大 ${app.xunleiConnections} 线程'),
-            trailing: const Icon(Icons.chevron_right_rounded,
+            trailing: Icon(Icons.chevron_right_rounded,
                 color: AppColors.textSecondary),
             onTap: () => _editXunleiConnections(context, app),
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
-            leading: const Icon(Icons.cloud_upload_rounded,
+            leading: Icon(Icons.cloud_upload_rounded,
                 color: AppColors.accent),
             title: const Text('123下载线程'),
             subtitle: Text('单任务最大 ${app.netdisk123Connections} 线程'),
-            trailing: const Icon(Icons.chevron_right_rounded,
+            trailing: Icon(Icons.chevron_right_rounded,
                 color: AppColors.textSecondary),
             onTap: () => _editNetdisk123Connections(context, app),
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
-            leading: const Icon(Icons.low_priority_rounded,
+            leading: Icon(Icons.low_priority_rounded,
                 color: AppColors.accent),
             title: const Text('同时下载任务数'),
             subtitle: Text('最多 ${app.maxRunning} 个任务并发，其余排队'),
-            trailing: const Icon(Icons.chevron_right_rounded,
+            trailing: Icon(Icons.chevron_right_rounded,
                 color: AppColors.textSecondary),
             onTap: () => _editMaxRunning(context, app),
           ),
@@ -270,7 +270,7 @@ class MePage extends StatelessWidget {
             leading: Icon(Icons.tune_rounded, color: AppColors.accent),
             title: const Text('连接预算'),
             subtitle: Text('所有任务总连接数上限 ${app.connectionBudget}，防系统卡顿'),
-            trailing: const Icon(Icons.chevron_right_rounded,
+            trailing: Icon(Icons.chevron_right_rounded,
                 color: AppColors.textSecondary),
             onTap: () => _editConnectionBudget(context, app),
           ),
@@ -279,18 +279,18 @@ class MePage extends StatelessWidget {
             leading: Icon(Icons.storage_rounded, color: AppColors.accent),
             title: const Text('存储权限'),
             subtitle: const Text('访问下载目录所需权限'),
-            trailing: const Icon(Icons.chevron_right_rounded,
+            trailing: Icon(Icons.chevron_right_rounded,
                 color: AppColors.textSecondary),
             onTap: () => app.openAllFilesAccess(),
           ),
           if (!kIsWeb && Platform.isWindows) ...[
             const Divider(height: 1, indent: 56),
             ListTile(
-              leading: const Icon(Icons.close_fullscreen_rounded,
+              leading: Icon(Icons.close_fullscreen_rounded,
                   color: AppColors.accent),
               title: const Text('关闭窗口时'),
               subtitle: Text(_closeActionLabel(app.closeAction)),
-              trailing: const Icon(Icons.chevron_right_rounded,
+              trailing: Icon(Icons.chevron_right_rounded,
                   color: AppColors.textSecondary),
               onTap: () => _editCloseAction(context, app),
             ),
@@ -456,17 +456,17 @@ class MePage extends StatelessWidget {
       child: Column(
         children: [
           ListTile(
-            leading: const Icon(Icons.bug_report_rounded,
+            leading: Icon(Icons.bug_report_rounded,
                 color: AppColors.accent),
             title: const Text('日志'),
             subtitle: const Text('查看/复制运行日志，排查下载问题'),
-            trailing: const Icon(Icons.chevron_right_rounded,
+            trailing: Icon(Icons.chevron_right_rounded,
                 color: AppColors.textSecondary),
             onTap: () => _showLog(context),
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
-            leading: const Icon(Icons.info_outline_rounded,
+            leading: Icon(Icons.info_outline_rounded,
                 color: AppColors.accent),
             title: const Text('关于'),
             subtitle: const Text('Quarklite v1.3.1  ·  基于 Gopeed 下载引擎'),
@@ -491,7 +491,7 @@ class MePage extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('日志文件位置：',
+              Text('日志文件位置：',
                   style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
               SelectableText(path,
                   style: TextStyle(fontSize: 12, color: AppColors.accent)),
@@ -508,7 +508,7 @@ class MePage extends StatelessWidget {
                   content.length > 3000
                       ? '…${content.substring(content.length - 3000)}'
                       : content,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 11, color: AppColors.textSecondary, height: 1.5),
                 ),
               ),
@@ -632,7 +632,7 @@ class MePage extends StatelessWidget {
       builder: (ctx) => SimpleDialog(
         title: Text(title),
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 24),
             child: Text(
               '线程数越高下载越快，但过高可能让性能较弱的设备卡顿；\n过低则速度偏慢。请按设备性能自行取舍。',
@@ -815,7 +815,7 @@ class _LogoutButton extends StatelessWidget {
           color: AppColors.red.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.logout_rounded, size: 14, color: AppColors.red),

@@ -120,7 +120,7 @@ class _SearchPageState extends State<SearchPage> {
             onSubmitted: _search,
             style:
                 TextStyle(color: AppColors.textPrimary, fontSize: 14),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: '搜索文件名或照片内容',
               hintStyle:
                   TextStyle(color: AppColors.textSecondary, fontSize: 13),
@@ -267,7 +267,7 @@ class _SearchPageState extends State<SearchPage> {
                     file.fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500),
@@ -275,13 +275,13 @@ class _SearchPageState extends State<SearchPage> {
                   const SizedBox(height: 4),
                   Text(
                     file.isDir ? '文件夹' : formatBytes(file.size),
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
+            Icon(Icons.chevron_right_rounded,
                 color: AppColors.textSecondary, size: 20),
           ],
         ),
@@ -306,7 +306,7 @@ class _SearchPageState extends State<SearchPage> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600),
@@ -314,7 +314,7 @@ class _SearchPageState extends State<SearchPage> {
             ),
             const SizedBox(height: 4),
             Text(formatBytes(file.size),
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
             ListTile(

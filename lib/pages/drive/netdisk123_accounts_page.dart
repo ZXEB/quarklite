@@ -40,7 +40,7 @@ class _Netdisk123AccountsPageState extends State<Netdisk123AccountsPage> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.divider, width: 0.5)),
-                  child: const Row(
+                  child: Row(
                     children: [
                       Icon(Icons.info_outline_rounded, color: AppColors.accent, size: 18),
                       SizedBox(width: 10),

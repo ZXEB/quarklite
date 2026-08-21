@@ -98,7 +98,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 '本次登录触发了风控，请按以下步骤完成验证：',
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
@@ -119,7 +119,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
                     Expanded(
                       child: SelectableText(
                         reviewUrl,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 11, color: AppColors.accent),
                       ),
                     ),
@@ -128,7 +128,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
                         Clipboard.setData(ClipboardData(text: reviewUrl));
                         _toast('验证链接已复制');
                       },
-                      icon: const Icon(Icons.copy_rounded,
+                      icon: Icon(Icons.copy_rounded,
                           size: 18, color: AppColors.accent),
                       tooltip: '复制链接',
                     ),
@@ -140,7 +140,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
                                 'cmd', ['/c', 'start', '', reviewUrl]);
                           } catch (_) {}
                         },
-                        icon: const Icon(Icons.open_in_browser_rounded,
+                        icon: Icon(Icons.open_in_browser_rounded,
                             size: 18, color: AppColors.accent),
                         tooltip: '打开浏览器',
                       ),
@@ -155,7 +155,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
               const SizedBox(height: 8),
               TextField(
                 controller: controller,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textPrimary, fontSize: 14),
                 decoration: const InputDecoration(
                   hintText: '粘贴验证密钥 creditkey',
@@ -210,7 +210,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          const Text(
+          Text(
             '使用迅雷账号（手机号/邮箱）登录，登录后可浏览网盘文件并使用多线程不限速下载。',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.6),
           ),
@@ -219,7 +219,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
             controller: _account,
             keyboardType: TextInputType.emailAddress,
             style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: '手机号 / 邮箱',
               prefixIcon: Icon(Icons.person_outline_rounded,
                   color: AppColors.textSecondary, size: 20),
@@ -232,7 +232,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
             style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: InputDecoration(
               hintText: '密码',
-              prefixIcon: const Icon(Icons.lock_outline_rounded,
+              prefixIcon: Icon(Icons.lock_outline_rounded,
                   color: AppColors.textSecondary, size: 20),
               suffixIcon: IconButton(
                 onPressed: () => setState(() => _obscure = !_obscure),
@@ -266,7 +266,7 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
                 : const Text('登录'),
           ),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             '提示：登录仅用于获取迅雷云盘下载直链，账号信息仅保存在本机。',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
             textAlign: TextAlign.center,

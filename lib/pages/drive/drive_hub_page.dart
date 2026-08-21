@@ -48,7 +48,7 @@ class DriveHubPage extends StatelessWidget {
                     const SizedBox(height: 14),
                     _buildNetdisk123Card(context),
                     const SizedBox(height: 20),
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.symmetric(horizontal: 4),
                       child: Text(
                         '更多网盘陆续接入中…',

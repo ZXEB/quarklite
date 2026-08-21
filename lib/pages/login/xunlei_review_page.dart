@@ -149,7 +149,7 @@ class _XunleiReviewPageState extends State<XunleiReviewPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(null),
-            child: const Text('取消',
+            child: Text('取消',
                 style: TextStyle(color: AppColors.textSecondary)),
           ),
         ],
@@ -160,7 +160,7 @@ class _XunleiReviewPageState extends State<XunleiReviewPage> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             color: AppColors.card,
-            child: const Text(
+            child: Text(
               '请在下方完成短信/滑块验证，验证通过后自动登录',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
             ),

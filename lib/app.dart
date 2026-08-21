@@ -117,7 +117,7 @@ class _BootView extends StatelessWidget {
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline,
+                  Icon(Icons.error_outline,
                       color: AppColors.red, size: 48),
                   const SizedBox(height: 16),
                   const Text('下载引擎启动失败', style: TextStyle(fontSize: 16)),
@@ -127,7 +127,7 @@ class _BootView extends StatelessWidget {
                     child: Text(
                       error!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 12),
                     ),
                   ),

@@ -43,7 +43,7 @@ class StorageCapacityRow extends StatelessWidget {
             children: [
               Text(
                 formatCapacity(usedSize, totalSize),
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 12),
               ),
               const Spacer(),
@@ -54,7 +54,7 @@ class StorageCapacityRow extends StatelessWidget {
             ],
           ),
         ] else ...[
-          const Text(
+          Text(
             '容量信息暂不可用',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
           ),

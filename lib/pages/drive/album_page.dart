@@ -371,7 +371,7 @@ class _AlbumPageState extends State<AlbumPage> {
                     ),
                     const SizedBox(width: 8),
                     Text('正在筛选中… 已找到 $_screenshotCount 张截图',
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: AppColors.textSecondary, fontSize: 12)),
                   ],
                 ),
@@ -550,7 +550,7 @@ class _AlbumPageState extends State<AlbumPage> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       alignment: Alignment.centerLeft,
       child: Text(label,
-          style: const TextStyle(
+          style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w600)),

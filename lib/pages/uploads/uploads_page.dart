@@ -57,7 +57,7 @@ class _UploadsPageState extends State<UploadsPage>
                             fontSize: 24, fontWeight: FontWeight.w800)),
                     const Spacer(),
                     PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_horiz_rounded,
+                      icon: Icon(Icons.more_horiz_rounded,
                           color: AppColors.accent, size: 26),
                       onSelected: (v) async {
                         switch (v) {
@@ -81,7 +81,7 @@ class _UploadsPageState extends State<UploadsPage>
                     children: [
                       Text(
                         '上传中 $active 个  ·  ${(um.overallProgress * 100).clamp(0, 100).toStringAsFixed(1)}%',
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: AppColors.accent,
                             fontSize: 12,
                             fontWeight: FontWeight.w600),
@@ -186,7 +186,7 @@ class _UploadsPageState extends State<UploadsPage>
                       task.fileName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 13,
                           fontWeight: FontWeight.w500),
@@ -196,7 +196,7 @@ class _UploadsPageState extends State<UploadsPage>
                       _subtitle(task),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 11),
                     ),
                   ],
@@ -204,7 +204,7 @@ class _UploadsPageState extends State<UploadsPage>
               ),
               _buildStatusBadge(task),
               PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert_rounded,
+                icon: Icon(Icons.more_vert_rounded,
                     color: AppColors.textSecondary, size: 18),
                 onSelected: (v) async {
                   switch (v) {
@@ -242,14 +242,14 @@ class _UploadsPageState extends State<UploadsPage>
               children: [
                 Text(
                   '${formatBytes(task.uploadedBytes)} / ${formatBytes(task.size)}',
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 11),
                 ),
                 const Spacer(),
                 if (active && task.speed > 0)
                   Text(
                     formatSpeed(task.speed),
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.accent, fontSize: 11),
                   ),
               ],

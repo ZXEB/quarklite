@@ -97,7 +97,7 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
                 children: [
                   for (var i = 0; i < _crumbs.length; i++) ...[
                     if (i > 0)
-                      const Icon(Icons.chevron_right_rounded,
+                      Icon(Icons.chevron_right_rounded,
                           size: 16, color: AppColors.textSecondary),
                     InkWell(
                       onTap: () => _toBreadcrumb(i),
@@ -178,7 +178,7 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
                     ),
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded,
+                Icon(Icons.chevron_right_rounded,
                     color: AppColors.textSecondary, size: 20),
               ],
             ),
@@ -192,7 +192,7 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
   Widget _buildMoveBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.bottomBar,
         border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
       ),
@@ -205,7 +205,7 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
                 '移动到「${_crumbs.last.$2}」',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textPrimary, fontSize: 14),
               ),
             ),

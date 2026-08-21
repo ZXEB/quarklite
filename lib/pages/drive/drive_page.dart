@@ -479,12 +479,12 @@ class _DrivePageState extends State<DrivePage>
             ? [
                 TextButton(
                   onPressed: _selectAllFiles,
-                  child: const Text('全选',
+                  child: Text('全选',
                       style: TextStyle(color: AppColors.accent)),
                 ),
                 IconButton(
                   onPressed: _exitSelectMode,
-                  icon: const Icon(Icons.close_rounded,
+                  icon: Icon(Icons.close_rounded,
                       color: AppColors.accent),
                 ),
               ]
@@ -493,25 +493,25 @@ class _DrivePageState extends State<DrivePage>
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SearchPage()),
                   ),
-                  icon: const Icon(Icons.search_rounded,
+                  icon: Icon(Icons.search_rounded,
                       color: AppColors.accent),
                   tooltip: '搜索',
                 ),
                 IconButton(
                   onPressed: _showUploadMenu,
-                  icon: const Icon(Icons.upload_rounded,
+                  icon: Icon(Icons.upload_rounded,
                       color: AppColors.accent),
                   tooltip: '上传',
                 ),
                 IconButton(
                   onPressed: _load,
-                  icon: const Icon(Icons.refresh_rounded,
+                  icon: Icon(Icons.refresh_rounded,
                       color: AppColors.accent),
                   tooltip: '刷新',
                 ),
                 IconButton(
                   onPressed: _confirmLogout,
-                  icon: const Icon(Icons.logout_rounded,
+                  icon: Icon(Icons.logout_rounded,
                       color: AppColors.accent),
                   tooltip: '退出登录',
                 ),
@@ -529,7 +529,7 @@ class _DrivePageState extends State<DrivePage>
                   children: [
                     for (var i = 0; i < _crumbs.length; i++) ...[
                       if (i > 0)
-                        const Icon(Icons.chevron_right_rounded,
+                        Icon(Icons.chevron_right_rounded,
                             size: 16, color: AppColors.textSecondary),
                       InkWell(
                         onTap: () => _toBreadcrumb(i),
@@ -563,7 +563,7 @@ class _DrivePageState extends State<DrivePage>
     final count = _selected.length;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.bottomBar,
         border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
       ),
@@ -572,7 +572,7 @@ class _DrivePageState extends State<DrivePage>
         child: Row(
           children: [
             Text('已选 $count 项',
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textPrimary, fontSize: 14)),
             const Spacer(),
             OutlinedButton.icon(
@@ -681,7 +681,7 @@ class _DrivePageState extends State<DrivePage>
                     file.fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500),
@@ -689,7 +689,7 @@ class _DrivePageState extends State<DrivePage>
                   const SizedBox(height: 4),
                   Text(
                     file.isDir ? '文件夹' : formatBytes(file.size),
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),
                 ],
@@ -704,7 +704,7 @@ class _DrivePageState extends State<DrivePage>
                 size: 22,
               )
             else
-              const Icon(Icons.chevron_right_rounded,
+              Icon(Icons.chevron_right_rounded,
                   color: AppColors.textSecondary, size: 20),
           ],
         ),
@@ -729,7 +729,7 @@ class _DrivePageState extends State<DrivePage>
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600),
@@ -737,7 +737,7 @@ class _DrivePageState extends State<DrivePage>
             ),
             const SizedBox(height: 4),
             Text(formatBytes(file.size),
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
             ListTile(
@@ -868,7 +868,7 @@ class _DrivePageState extends State<DrivePage>
           children: [
             const SizedBox(height: 8),
             ListTile(
-              leading: const Icon(Icons.create_new_folder_rounded,
+              leading: Icon(Icons.create_new_folder_rounded,
                   color: AppColors.accent),
               title: const Text('新建文件夹'),
               subtitle: const Text('在当前目录创建新文件夹'),
@@ -888,7 +888,7 @@ class _DrivePageState extends State<DrivePage>
               },
             ),
             ListTile(
-              leading: const Icon(Icons.create_new_folder_rounded,
+              leading: Icon(Icons.create_new_folder_rounded,
                   color: AppColors.accent),
               title: const Text('上传文件夹'),
               subtitle: const Text('保持目录结构上传到当前目录'),
