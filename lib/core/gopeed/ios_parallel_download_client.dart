@@ -208,12 +208,12 @@ class IosParallelDownloadClient implements DownloadClient {
         TaskStatus.canceled => GopeedStatus.error,
       };
 
-  Future<BaseTask> _taskForId(String id) async {
+  Future<DownloadTask> _taskForId(String id) async {
     final record = await _downloader.database.recordForId(id);
     final task = record?.task;
-    if (task != null) return task;
+    if (task is DownloadTask) return task;
     final queued = await _downloader.taskForId(id);
-    if (queued != null) return queued;
+    if (queued is DownloadTask) return queued;
     throw Exception("未找到 iOS 下载任务: $id");
   }
 
@@ -274,6 +274,7 @@ class IosParallelDownloadClient implements DownloadClient {
               status == TaskStatus.waitingToRetry;
         })
         .map((record) => record.task)
+        .whereType<DownloadTask>()
         .toList();
     if (tasks.isNotEmpty) await _downloader.pauseAll(tasks: tasks);
   }
