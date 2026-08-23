@@ -20,11 +20,33 @@ class IosParallelDownloadClient implements DownloadClient {
   final Map<String, int> _lastProgressLogAt = {};
 
   StreamSubscription<TaskUpdate>? _updatesSubscription;
+  static const maxSupportedConnections = 256;
+  static const minChunkSizeBytes = 8 * 1024 * 1024;
+
   int _maxRunning;
+  int _maxConnections;
   bool _started = false;
 
-  IosParallelDownloadClient({int maxRunning = 4, int iosConnections = 32})
-      : _maxRunning = maxRunning.clamp(1, 32).toInt();
+  IosParallelDownloadClient({int maxRunning = 4, int iosConnections = 256})
+      : _maxRunning = maxRunning.clamp(1, 32).toInt(),
+        _maxConnections = iosConnections.clamp(1, maxSupportedConnections).toInt();
+
+  /// Select a practical number of HTTP Range chunks without creating needless
+  /// connections for small files. A null size means the downloader will probe
+  /// the server itself, so the configured connection cap is used.
+  static int adaptiveChunkCount({
+    required int requested,
+    int? contentLength,
+    bool rangeSupported = true,
+    int maxConnections = maxSupportedConnections,
+  }) {
+    if (!rangeSupported || requested <= 1) return 1;
+    final cap = maxConnections.clamp(1, maxSupportedConnections).toInt();
+    final wanted = requested.clamp(1, cap).toInt();
+    if (contentLength == null || contentLength <= 0) return wanted;
+    final bySize = (contentLength / minChunkSizeBytes).ceil();
+    return wanted < bySize ? wanted : bySize.clamp(1, wanted).toInt();
+  }
 
   Future<void> start() async {
     if (_started) return;
@@ -118,9 +140,13 @@ class IosParallelDownloadClient implements DownloadClient {
       return task.taskId;
     }
 
-    // 并行任务：根据 connections 决定分片数，库内部会处理 Range 支持检测，
-    // 若服务器不支持 Range 会自动回退单线程（background_downloader 行为）
-    final chunks = connections.clamp(1, 64).toInt();
+    // 并行任务：ParallelDownloadTask 会探测文件大小和 Range 能力，并在
+    // 服务端不支持 Range 时回退到单线程。这里把 256 作为安全上限，
+    // 小文件由 adaptiveChunkCount 避免创建过多无意义的连接。
+    final chunks = adaptiveChunkCount(
+      requested: connections,
+      maxConnections: _maxConnections,
+    );
     final task = ParallelDownloadTask(
       url: url,
       filename: resolvedName,
@@ -254,10 +280,16 @@ class IosParallelDownloadClient implements DownloadClient {
 
   @override
   Future<void> updateConfig({String? downloadDir, int? maxRunning, int? connections}) async {
+    var changed = false;
     if (maxRunning != null) {
       _maxRunning = maxRunning.clamp(1, 32).toInt();
-      await _applyHoldingQueue();
+      changed = true;
     }
+    if (connections != null) {
+      _maxConnections = connections.clamp(1, maxSupportedConnections).toInt();
+      changed = true;
+    }
+    if (changed) await _applyHoldingQueue();
   }
 
   @override
@@ -265,7 +297,7 @@ class IosParallelDownloadClient implements DownloadClient {
         "downloadDir": "",
         "maxRunning": _maxRunning,
         "protocolConfig": {
-          "http": {"connections": 1},
+          "http": {"connections": _maxConnections},
         },
       };
 

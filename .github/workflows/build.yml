@@ -188,7 +188,13 @@ jobs:
         run: pod install --repo-update
 
       - name: Build unsigned iOS app
-        run: flutter build ios --release --no-codesign
+        env:
+          CODE_SIGNING_ALLOWED: NO
+          CODE_SIGNING_REQUIRED: NO
+          DEVELOPMENT_TEAM: ''
+        run: |
+          flutter build ios --release --no-codesign
+          test -d build/ios/iphoneos/Runner.app
 
       - name: Package unsigned IPA
         shell: bash
