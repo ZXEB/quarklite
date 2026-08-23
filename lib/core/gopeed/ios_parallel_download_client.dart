@@ -1,83 +1,84 @@
 import "dart:async";
 import "dart:io";
-import "dart:math";
 
-import "package:flutter/services.dart";
+import "package:background_downloader/background_downloader.dart";
 
 import "../../utils/app_logger.dart";
 import "download_client.dart";
 import "gopeed_models.dart";
-import "ios_background_download_client.dart";
 
-/// iOS 并行下载客户端：优先走原生 Swift 多分片，未满足条件时回退单线程 background_downloader
+/// iOS 并行下载客户端：优先使用 ParallelDownloadTask 多分片，未满足条件回退单线程
+/// 保持与 Gopeed 相同的任务接口，复用 URLSession 后台下载
 class IosParallelDownloadClient implements DownloadClient {
-  static const _channelName = "quarklite.com/ios_parallel";
-  static const _methodCreateParallel = "createParallel";
-  static const _methodCancel = "cancel";
+  static const group = "quarklite";
 
-  final IosBackgroundDownloadClient _fallback;
-  final MethodChannel _channel = const MethodChannel(_channelName);
+  final FileDownloader _downloader = FileDownloader();
+  final Map<String, TaskStatus> _latestStatus = {};
+  final Map<String, double> _latestProgress = {};
+  final Map<String, int> _expectedSize = {};
+  final Map<String, int> _speedBytes = {};
+  final Map<String, int> _lastProgressLogAt = {};
 
-  // parallel task bookkeeping
-  final Map<String, _ParallelTask> _parallelTasks = {};
-  final Map<String, GopeedStatus> _parallelStatus = {};
-  final Map<String, double> _parallelProgress = {};
-  final Map<String, int> _parallelSize = {};
-  final Map<String, int> _parallelSpeed = {};
-  final Map<String, int> _parallelCreatedAt = {};
-
+  StreamSubscription<TaskUpdate>? _updatesSubscription;
   int _maxRunning;
   bool _started = false;
-  StreamSubscription? _nativeSub;
 
   IosParallelDownloadClient({int maxRunning = 4, int iosConnections = 32})
-      : _fallback = IosBackgroundDownloadClient(maxRunning: maxRunning),
-        _maxRunning = maxRunning.clamp(1, 32).toInt() {
-    _setupMethodHandler();
-  }
-
-  void _setupMethodHandler() {
-    // Swift side calls back via MethodChannel invokeMethod on same channel
-    _channel.setMethodCallHandler((call) async {
-      switch (call.method) {
-        case "onProgress":
-          final args = (call.arguments as Map?)?.cast<String, dynamic>() ?? {};
-          final id = args["taskId"]?.toString() ?? "";
-          final done = (args["done"] as num?)?.toInt() ?? 0;
-          final total = (args["total"] as num?)?.toInt() ?? 0;
-          final rec = _parallelTasks[id];
-          if (rec != null) {
-            rec.downloaded = done;
-            rec.size = total;
-            _parallelProgress[id] = total > 0 ? (done / total).clamp(0.0, 1.0) : 0;
-            _parallelSize[id] = total;
-            _parallelStatus[id] = GopeedStatus.running;
-          }
-          break;
-        case "onComplete":
-          final args = (call.arguments as Map?)?.cast<String, dynamic>() ?? {};
-          final id = args["taskId"]?.toString() ?? "";
-          _parallelStatus[id] = GopeedStatus.done;
-          _parallelProgress[id] = 1.0;
-          AppLogger.I.i("ios_parallel", "native complete id=$id");
-          break;
-        case "onError":
-          final args = (call.arguments as Map?)?.cast<String, dynamic>() ?? {};
-          final id = args["taskId"]?.toString() ?? "";
-          final err = args["error"]?.toString() ?? "unknown";
-          _parallelStatus[id] = GopeedStatus.error;
-          AppLogger.I.w("ios_parallel", "native error id=$id err=$err");
-          break;
-      }
-      return null;
-    });
-  }
+      : _maxRunning = maxRunning.clamp(1, 32).toInt();
 
   Future<void> start() async {
     if (_started) return;
-    await _fallback.start();
+    _updatesSubscription = _downloader.updates.listen(_handleUpdate);
+    _downloader.configureNotificationForGroup(
+      group,
+      running: const TaskNotification("Quarklite 下载中", "{displayName}"),
+      complete: const TaskNotification("下载完成", "{displayName} 已保存"),
+      error: const TaskNotification("下载失败", "{displayName} 下载失败"),
+      paused: const TaskNotification("下载已暂停", "{displayName}"),
+      canceled: const TaskNotification("下载已取消", "{displayName}"),
+      tapOpensFile: true,
+    );
+    await _applyHoldingQueue();
+    await _downloader.start(
+      doTrackTasks: true,
+      markDownloadedComplete: true,
+      doRescheduleKilledTasks: true,
+      autoCleanDatabase: false,
+    );
     _started = true;
-    AppLogger.I.i("ios_parallel", "parallel client started fallback ready");
+    final restored = await _downloader.database.allRecords(group: group);
+    AppLogger.I.i("ios_parallel", "Parallel 下载器启动成功，恢复任务 ${restored.length} 个 maxRunning=$_maxRunning");
+  }
+
+  void _handleUpdate(TaskUpdate update) {
+    if (update.task.group != group) return;
+    final id = update.task.taskId;
+    final name = update.task.displayName.isNotEmpty ? update.task.displayName : update.task.filename;
+    switch (update) {
+      case TaskStatusUpdate():
+        _latestStatus[id] = update.status;
+        final detail = update.exception == null ? "" : " error=${update.exception}";
+        AppLogger.I.i("ios_parallel", "状态 id=$id name=$name status=${update.status.name} http=${update.responseStatusCode ?? "-"}${detail}");
+      case TaskProgressUpdate():
+        _latestProgress[id] = update.progress;
+        if (update.hasExpectedFileSize) {
+          _expectedSize[id] = update.expectedFileSize;
+        }
+        _speedBytes[id] = update.hasNetworkSpeed ? (update.networkSpeed * 1000 * 1000).round() : 0;
+        final now = DateTime.now().millisecondsSinceEpoch;
+        if (now - (_lastProgressLogAt[id] ?? 0) >= 5000 || update.progress >= 1 || update.progress < 0) {
+          _lastProgressLogAt[id] = now;
+          AppLogger.I.i("ios_parallel", "进度 id=$id name=$name progress=${(update.progress * 100).toStringAsFixed(1)}% size=${update.expectedFileSize} speed=${_speedBytes[id]}");
+        }
+    }
+  }
+
+  Future<void> _applyHoldingQueue() async {
+    await _downloader.configure(
+      iOSConfig: [
+        (Config.holdingQueue, (_maxRunning, null, null)),
+      ],
+    );
   }
 
   @override
@@ -91,193 +92,182 @@ class IosParallelDownloadClient implements DownloadClient {
     await start();
     final fileName = (name == null || name.isEmpty) ? "download" : name;
     final targetPath = _joinPath(path, fileName);
-    // decision: small connections or iOS fallback single
-    // Plan: <10MB 单线程 via fallback, but we don@"t know size yet; so we always try parallel when connections>1
-    // Swift will decide to fallback internally after HEAD probe.
+    final (baseDirectory, directory, resolvedName) = await Task.split(filePath: targetPath);
+
+    // 小文件或单线程：直接用 DownloadTask
+    // 大文件 + 多线程：使用 ParallelDownloadTask（内部会自动探测长度并分片）
     final useParallel = connections > 1;
     if (!useParallel) {
-      return _fallback.create(url: url, path: path, name: name, headers: headers, connections: connections);
+      final task = DownloadTask(
+        url: url,
+        filename: resolvedName,
+        headers: headers,
+        directory: directory,
+        baseDirectory: baseDirectory,
+        group: group,
+        updates: Updates.statusAndProgress,
+        retries: 2,
+        allowPause: true,
+        displayName: fileName,
+      );
+      final enqueued = await _downloader.enqueue(task);
+      if (!enqueued) throw Exception("iOS 后台下载任务加入队列失败");
+      _latestStatus[task.taskId] = TaskStatus.enqueued;
+      _latestProgress[task.taskId] = 0;
+      AppLogger.I.i("ios_parallel", "单线程任务入队 id=${task.taskId} name=$fileName");
+      return task.taskId;
     }
-    final taskId = "pl-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(9999)}";
-    final rec = _ParallelTask(
-      id: taskId,
-      name: fileName,
-      targetPath: targetPath,
+
+    // 并行任务：根据 connections 决定分片数，库内部会处理 Range 支持检测，
+    // 若服务器不支持 Range 会自动回退单线程（background_downloader 行为）
+    final chunks = connections.clamp(1, 64).toInt();
+    final task = ParallelDownloadTask(
       url: url,
-      createdAt: DateTime.now().millisecondsSinceEpoch,
+      filename: resolvedName,
+      headers: headers,
+      directory: directory,
+      baseDirectory: baseDirectory,
+      group: group,
+      updates: Updates.statusAndProgress,
+      retries: 2,
+      allowPause: true,
+      displayName: fileName,
+      chunks: chunks,
     );
-    _parallelTasks[taskId] = rec;
-    _parallelStatus[taskId] = GopeedStatus.running;
-    _parallelProgress[taskId] = 0;
-    _parallelSize[taskId] = 0;
-    _parallelSpeed[taskId] = 0;
-    _parallelCreatedAt[taskId] = rec.createdAt;
-
-    // ensure dir exists
-    try {
-      final dir = File(targetPath).parent;
-      if (!await dir.exists()) await dir.create(recursive: true);
-    } catch (_) {}
-
-    AppLogger.I.i("ios_parallel", "create parallel id=$taskId name=$fileName connections=$connections path=$targetPath");
-
-    try {
-      await _channel.invokeMethod(_methodCreateParallel, {
-        "taskId": taskId,
-        "url": url,
-        "headers": headers,
-        "targetPath": targetPath,
-        "displayName": fileName,
-        "connections": connections.clamp(1, 64).toInt(),
-      });
-    } catch (e) {
-      AppLogger.I.w("ios_parallel", "native create failed $e, fallback to single");
-      _parallelTasks.remove(taskId);
-      _parallelStatus.remove(taskId);
-      // fallback
-      return _fallback.create(url: url, path: path, name: name, headers: headers, connections: connections);
-    }
-    return taskId;
+    final enqueued = await _downloader.enqueue(task);
+    if (!enqueued) throw Exception("iOS 并行下载任务加入队列失败");
+    _latestStatus[task.taskId] = TaskStatus.enqueued;
+    _latestProgress[task.taskId] = 0;
+    AppLogger.I.i("ios_parallel", "并行任务入队 id=${task.taskId} name=$fileName chunks=$chunks");
+    return task.taskId;
   }
 
   @override
   Future<List<GopeedTask>> list({List<GopeedStatus>? statuses}) async {
     await start();
-    final fallbackList = await _fallback.list(statuses: statuses);
-    final parallelList = _parallelTasks.values.map((r) {
-      final id = r.id;
-      final status = _parallelStatus[id] ?? GopeedStatus.running;
-      final size = _parallelSize[id] ?? r.size;
-      final prog = _parallelProgress[id] ?? 0;
-      final downloaded = size > 0 ? (size * prog).round() : r.downloaded;
-      return GopeedTask(
-        id: id,
-        name: r.name,
-        status: status,
-        size: size,
-        downloaded: downloaded,
-        speed: _parallelSpeed[id] ?? 0,
-        createdAt: _parallelCreatedAt[id] ?? r.createdAt,
-      );
-    }).where((t) {
-      if (statuses == null || statuses.isEmpty) return true;
-      return statuses.contains(t.status);
-    }).toList();
-
-    // If file already completed and exists, we could mark done; native callback already sets done.
-    // For completed tasks that file exists, keep them; UI will show done.
-
-    final merged = [...fallbackList, ...parallelList]
+    final records = await _downloader.database.allRecords(group: group);
+    final result = records.map(_toGopeedTask).where((task) {
+      return statuses == null || statuses.isEmpty || statuses.contains(task.status);
+    }).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return merged;
+    return result;
+  }
+
+  GopeedTask _toGopeedTask(TaskRecord record) {
+    final id = record.taskId;
+    final status = _latestStatus[id] ?? record.status;
+    final progress = (_latestProgress[id] ?? record.progress).clamp(0.0, 1.0);
+    final expected = _expectedSize[id] ?? record.expectedFileSize;
+    final size = expected > 0 ? expected : 0;
+    final name = record.task.displayName.isNotEmpty ? record.task.displayName : record.task.filename;
+    return GopeedTask(
+      id: id,
+      name: name,
+      status: mapStatus(status),
+      size: size,
+      downloaded: size > 0 ? (size * progress).round() : 0,
+      speed: _speedBytes[id] ?? 0,
+      createdAt: record.task.creationTime.millisecondsSinceEpoch,
+    );
+  }
+
+  static GopeedStatus mapStatus(TaskStatus status) => switch (status) {
+        TaskStatus.enqueued => GopeedStatus.wait,
+        TaskStatus.waitingToRetry => GopeedStatus.wait,
+        TaskStatus.running => GopeedStatus.running,
+        TaskStatus.paused => GopeedStatus.pause,
+        TaskStatus.complete => GopeedStatus.done,
+        TaskStatus.notFound => GopeedStatus.error,
+        TaskStatus.failed => GopeedStatus.error,
+        TaskStatus.canceled => GopeedStatus.error,
+      };
+
+  Future<BaseTask> _taskForId(String id) async {
+    final record = await _downloader.database.recordForId(id);
+    final task = record?.task;
+    if (task != null) return task;
+    final queued = await _downloader.taskForId(id);
+    if (queued != null) return queued;
+    throw Exception("未找到 iOS 下载任务: $id");
   }
 
   @override
   Future<void> pause(String id) async {
-    if (_parallelTasks.containsKey(id)) {
-      // V1: parallel pause = cancel + cleanup
-      try {
-        await _channel.invokeMethod(_methodCancel, {"taskId": id});
-      } catch (_) {}
-      _parallelStatus[id] = GopeedStatus.pause;
-      // keep record for UI but marked paused
-      // optionally delete parts already done by native cancel
-      return;
+    final task = await _taskForId(id);
+    if (!await _downloader.pause(task)) {
+      throw Exception("该任务暂时无法暂停");
     }
-    await _fallback.pause(id);
   }
 
   @override
   Future<void> resume(String id) async {
-    if (_parallelTasks.containsKey(id)) {
-      final status = _parallelStatus[id];
-      if (status == GopeedStatus.pause) {
-        // V1 resume = error, need recreate
-        throw Exception("并行任务暂停后需重新下载（V1 不支持断点续传）");
-      }
-      // if running, no-op
-      return;
+    final task = await _taskForId(id);
+    if (!await _downloader.resume(task)) {
+      throw Exception("该任务无法恢复，可能需要重新下载");
     }
-    await _fallback.resume(id);
   }
 
   @override
   Future<void> remove(String id, {bool force = true}) async {
-    if (_parallelTasks.containsKey(id)) {
+    final record = await _downloader.database.recordForId(id);
+    final task = record?.task;
+    await _downloader.cancelTaskWithId(id);
+    if (force && task != null) {
       try {
-        await _channel.invokeMethod(_methodCancel, {"taskId": id});
+        final file = File(await task.filePath());
+        if (await file.exists()) await file.delete();
       } catch (_) {}
-      final rec = _parallelTasks[id];
-      _parallelTasks.remove(id);
-      _parallelStatus.remove(id);
-      _parallelProgress.remove(id);
-      _parallelSize.remove(id);
-      _parallelSpeed.remove(id);
-      _parallelCreatedAt.remove(id);
-      if (force && rec != null) {
-        try {
-          final f = File(rec.targetPath);
-          if (await f.exists()) await f.delete();
-          // also clean .part files
-          final dir = f.parent;
-          final base = f.uri.pathSegments.last;
-          if (await dir.exists()) {
-            await for (final e in dir.list()) {
-              if (e.path.contains("$base.part_")) {
-                try { await e.delete(); } catch (_) {}
-              }
-            }
-          }
-        } catch (_) {}
-      }
-      return;
     }
-    await _fallback.remove(id, force: force);
+    await _downloader.database.deleteRecordWithId(id);
+    _latestStatus.remove(id);
+    _latestProgress.remove(id);
+    _expectedSize.remove(id);
+    _speedBytes.remove(id);
+    _lastProgressLogAt.remove(id);
   }
 
   @override
   Future<void> removeAll({List<String>? ids, bool force = true}) async {
-    if (ids == null) {
-      final pIds = _parallelTasks.keys.toList();
-      for (final id in pIds) {
-        await remove(id, force: force);
-      }
-      await _fallback.removeAll(force: force);
-      return;
-    }
-    for (final id in ids) {
+    final targets = ids ??
+        (await _downloader.database.allRecords(group: group)).map((record) => record.taskId).toList();
+    for (final id in targets) {
       await remove(id, force: force);
     }
   }
 
   @override
   Future<void> pauseAll({List<String>? ids}) async {
-    final pTargets = ids == null ? _parallelTasks.keys.toList() : ids.where((id) => _parallelTasks.containsKey(id)).toList();
-    for (final id in pTargets) {
-      await pause(id);
-    }
-    await _fallback.pauseAll(ids: ids);
+    final records = ids == null
+        ? await _downloader.database.allRecords(group: group)
+        : await _downloader.database.recordsForIds(ids);
+    final tasks = records
+        .where((record) {
+          final status = _latestStatus[record.taskId] ?? record.status;
+          return status == TaskStatus.enqueued ||
+              status == TaskStatus.running ||
+              status == TaskStatus.waitingToRetry;
+        })
+        .map((record) => record.task)
+        .toList();
+    if (tasks.isNotEmpty) await _downloader.pauseAll(tasks: tasks);
   }
 
   @override
   Future<void> updateConfig({String? downloadDir, int? maxRunning, int? connections}) async {
     if (maxRunning != null) {
       _maxRunning = maxRunning.clamp(1, 32).toInt();
-      await _fallback.updateConfig(maxRunning: maxRunning);
+      await _applyHoldingQueue();
     }
-    // connections is iosConnections, stored in AppState, used on next create via effectiveConnections
-    // No native ongoing task needs update
   }
 
   @override
-  Future<Map<String, dynamic>> getConfig() async {
-    final base = await _fallback.getConfig();
-    base["maxRunning"] = _maxRunning;
-    base["protocolConfig"] = {
-      "http": {"connections": 1}
-    };
-    return base;
-  }
+  Future<Map<String, dynamic>> getConfig() async => {
+        "downloadDir": "",
+        "maxRunning": _maxRunning,
+        "protocolConfig": {
+          "http": {"connections": 1},
+        },
+      };
 
   String _joinPath(String parent, String child) {
     if (parent.endsWith(Platform.pathSeparator)) return "$parent$child";
@@ -285,19 +275,6 @@ class IosParallelDownloadClient implements DownloadClient {
   }
 
   Future<void> dispose() async {
-    await _fallback.dispose();
+    await _updatesSubscription?.cancel();
   }
 }
-
-class _ParallelTask {
-  final String id;
-  final String name;
-  final String targetPath;
-  final String url;
-  final int createdAt;
-  int size = 0;
-  int downloaded = 0;
-  _ParallelTask({required this.id, required this.name, required this.targetPath, required this.url, required this.createdAt});
-}
-
-
