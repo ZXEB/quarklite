@@ -45,14 +45,14 @@ class IosRangeDownloadClient implements DownloadClient {
   Future<void> start() async {
     if (_started) return;
     _sub = _event.receiveBroadcastStream().listen(_onEvent, onError: (e) {
-      AppLogger.I.i("ios_range", "event error \$e");
+      AppLogger.I.i("ios_range", "event error $e");
     });
     _started = true;
-    AppLogger.I.i("ios_range", "Range 下载器启动 maxRunning=\$_maxRunning maxC=\$maxForegroundConnections");
+    AppLogger.I.i("ios_range", "Range 下载器启动 maxRunning=$_maxRunning maxC=$maxForegroundConnections");
     // 恢复已持久化的任务到内存映射
     try {
-      final list = await list();
-      AppLogger.I.i("ios_range", "恢复任务 \${list.length} 个");
+      final tasks = await this.list();
+      AppLogger.I.i("ios_range", "恢复任务 ${tasks.length} 个");
     } catch (_) {}
   }
 
@@ -70,7 +70,7 @@ class IosRangeDownloadClient implements DownloadClient {
     _progress[id] = pr.clamp(0.0, 1.0);
     _expected[id] = exp;
     _speed[id] = sp;
-    AppLogger.I.i("ios_range", "event id=\$id status=\$st progress=\${(pr*100).toStringAsFixed(1)}% http=\$http");
+    AppLogger.I.i("ios_range", "event id=$id status=$st progress=${(pr*100).toStringAsFixed(1)}% http=$http");
   }
 
   GopeedStatus _mapStatus(String s) {
@@ -112,7 +112,7 @@ class IosRangeDownloadClient implements DownloadClient {
     _createdAt[id] = DateTime.now().millisecondsSinceEpoch;
     _status[id] = GopeedStatus.running;
     _progress[id] = 0;
-    AppLogger.I.i("ios_range", "创建任务 id=\$id name=\$fileName con=\$capped path=\$path");
+    AppLogger.I.i("ios_range", "创建任务 id=$id name=$fileName con=$capped path=$path");
     return id;
   }
 
@@ -219,3 +219,6 @@ class IosRangeDownloadClient implements DownloadClient {
     _sub = null;
   }
 }
+
+
+
