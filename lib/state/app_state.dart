@@ -73,7 +73,7 @@ class AppState extends ChangeNotifier {
   bool get isLoggedIn => user != null;
 
   Future<void> init() async {
-    _loadSettings();
+    await _loadSettings();
     final cookie = await _loadCookie();
     if (cookie == null || cookie.isEmpty) return;
     quark.setCookie(cookie);
@@ -156,20 +156,21 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void _loadSettings() {
-    SharedPreferences.getInstance().then((prefs) {
-      downloadDir =
-          prefs.getString(_kDownloadDir) ?? '/storage/emulated/0/Download/Quarklite';
-      connections = prefs.getInt(_kConnections) ?? 512;
-      xunleiConnections = prefs.getInt(_kXunleiConnections) ?? 64;
-      netdisk123Connections = prefs.getInt(_kNetdisk123Connections) ?? 128;
-      maxRunning = prefs.getInt(_kMaxRunning) ?? 4;
-      connectionBudget = prefs.getInt(_kConnectionBudget) ?? 256;
-      closeAction = prefs.getString(_kCloseAction) ?? 'ask_once';
-      themeMode = prefs.getString(_kThemeMode) ?? 'system';
-      uploadParallelism = prefs.getInt(_kUploadParallelism) ?? 1;
-      notifyListeners();
-    });
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedDownloadDir = prefs.getString(_kDownloadDir)?.trim() ?? '';
+    downloadDir = savedDownloadDir.isNotEmpty
+        ? savedDownloadDir
+        : await _platformDefaultDownloadDir();
+    connections = prefs.getInt(_kConnections) ?? 512;
+    xunleiConnections = prefs.getInt(_kXunleiConnections) ?? 64;
+    netdisk123Connections = prefs.getInt(_kNetdisk123Connections) ?? 128;
+    maxRunning = prefs.getInt(_kMaxRunning) ?? 4;
+    connectionBudget = prefs.getInt(_kConnectionBudget) ?? 256;
+    closeAction = prefs.getString(_kCloseAction) ?? 'ask_once';
+    themeMode = prefs.getString(_kThemeMode) ?? 'system';
+    uploadParallelism = prefs.getInt(_kUploadParallelism) ?? 1;
+    notifyListeners();
   }
 
   Future<void> refreshUser() async {
@@ -214,6 +215,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> setDownloadDir(String dir) async {
+    if (!kIsWeb && Platform.isIOS) return;
     downloadDir = dir;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kDownloadDir, dir);
@@ -316,24 +318,89 @@ class AppState extends ChangeNotifier {
     });
   }
 
-  /// 当前可用的下载目录（无存储权限时回退到应用专属目录）
+  /// 当前可用的下载目录（无存储权限时回退到应用专属目录）。
+  /// 返回前确保目录已经创建，所有下载入口都通过这里取得最终路径。
   Future<String> effectiveDownloadDir() async {
-    if (!kIsWeb && Platform.isWindows) {
-      // Windows：无权限概念，默认用户下载目录
-      if (downloadDir.isNotEmpty) return downloadDir;
-      final dir = await getDownloadsDirectory();
-      if (dir != null) return dir.path;
-      final ext = await getApplicationDocumentsDirectory();
-      return '${ext.path}/downloads';
+    if (kIsWeb) return downloadDir;
+
+    if (Platform.isWindows) {
+      final dir = downloadDir.isNotEmpty
+          ? downloadDir
+          : await _platformDefaultDownloadDir();
+      return _ensureDirectory(dir);
     }
-    final canWrite = await canWriteDownload();
-    if (canWrite && downloadDir.isNotEmpty) return downloadDir;
-    final ext = await getExternalStorageDirectory();
-    return '${ext?.path ?? (await getApplicationDocumentsDirectory()).path}/downloads';
+
+    if (Platform.isIOS) {
+      final docs = await getApplicationDocumentsDirectory();
+      return _ensureDirectory(_joinPath(docs.path, 'Quarklite'));
+    }
+
+    if (Platform.isAndroid) {
+      if (await canWriteDownload()) {
+        final dir = downloadDir.isNotEmpty
+            ? downloadDir
+            : '/storage/emulated/0/Download/Quarklite';
+        return _ensureDirectory(dir);
+      }
+
+      final ext = await getExternalStorageDirectory();
+      final base = ext?.path ?? (await getApplicationDocumentsDirectory()).path;
+      return _ensureDirectory(_joinPath(base, 'Quarklite'));
+    }
+
+    final dir = downloadDir.isNotEmpty
+        ? downloadDir
+        : await _platformDefaultDownloadDir();
+    return _ensureDirectory(dir);
+  }
+
+  Future<String> _platformDefaultDownloadDir() async {
+    if (!kIsWeb && Platform.isAndroid) {
+      return '/storage/emulated/0/Download/Quarklite';
+    }
+
+    if (!kIsWeb && Platform.isIOS) {
+      final docs = await getApplicationDocumentsDirectory();
+      return _joinPath(docs.path, 'Quarklite');
+    }
+
+    if (!kIsWeb && Platform.isWindows) {
+      final downloads = await _getDownloadsDirectoryOrNull();
+      if (downloads != null) {
+        return _joinPath(downloads.path, 'Quarklite');
+      }
+      final docs = await getApplicationDocumentsDirectory();
+      return _joinPath(_joinPath(docs.path, 'Downloads'), 'Quarklite');
+    }
+
+    final downloads = await _getDownloadsDirectoryOrNull();
+    if (downloads != null) {
+      return _joinPath(downloads.path, 'Quarklite');
+    }
+    final docs = await getApplicationDocumentsDirectory();
+    return _joinPath(_joinPath(docs.path, 'Downloads'), 'Quarklite');
+  }
+
+  Future<Directory?> _getDownloadsDirectoryOrNull() async {
+    try {
+      return await getDownloadsDirectory();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String> _ensureDirectory(String path) async {
+    await Directory(path).create(recursive: true);
+    return path;
+  }
+
+  String _joinPath(String parent, String child) {
+    if (parent.endsWith(Platform.pathSeparator)) return '$parent$child';
+    return '$parent${Platform.pathSeparator}$child';
   }
 
   Future<bool> canWriteDownload() async {
-    if (!kIsWeb && Platform.isWindows) return true;
+    if (!kIsWeb && (Platform.isWindows || Platform.isIOS)) return true;
     try {
       return await _sysChannel.invokeMethod<bool>('canWriteDownload') ?? false;
     } catch (_) {
@@ -342,7 +409,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> openAllFilesAccess() async {
-    if (!kIsWeb && Platform.isWindows) return;
+    if (!kIsWeb && (Platform.isWindows || Platform.isIOS)) return;
     try {
       await _sysChannel.invokeMethod('openAllFilesAccess');
     } catch (_) {}

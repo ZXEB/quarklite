@@ -68,11 +68,9 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
     try {
       await GopeedEngine.start();
       final client = GopeedEngine.client;
-      final cfg = await client.getConfig();
       final dir = await AppState.I.effectiveDownloadDir();
-      final firstBoot = cfg['downloadDir']?.toString().isEmpty ?? true;
       await client.updateConfig(
-        downloadDir: firstBoot ? dir : null,
+        downloadDir: dir,
         maxRunning: AppState.I.maxRunning,
         connections: AppState.I.connectionBudget,
       );
@@ -109,6 +107,20 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
         // Material 主题提供文字/转场基座 + 暗色模式；Miuix 配色由外层跟随系统
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
+        builder: (context, child) {
+          // 全局兜底：所有 Text / EditableText 继承 decoration:none，彻底消除黄色下划线
+          final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle(fontSize: 14);
+          return DefaultTextStyle(
+            style: base.copyWith(decoration: TextDecoration.none, decorationColor: Colors.transparent, decorationStyle: TextDecorationStyle.solid),
+            child: MediaQuery(
+              data: MediaQuery.of(context),
+              child: Material(
+                type: MaterialType.transparency,
+                child: child!,
+              ),
+            ),
+          );
+        },
         home: _ready
             ? RootPage(snackbarHost: _snackbarHost)
             : _BootView(error: _bootError, snackbarHost: _snackbarHost),

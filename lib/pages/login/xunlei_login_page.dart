@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../state/xunlei_state.dart';
 import '../../theme/app_theme.dart';
@@ -100,8 +101,10 @@ class _XunleiLoginPageState extends State<XunleiLoginPage> {
           _toast('验证链接已复制');
         },
         onOpenBrowser: () async {
+          final uri = Uri.tryParse(reviewUrl);
+          if (uri == null) return;
           try {
-            await Process.start('cmd', ['/c', 'start', '', reviewUrl]);
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
           } catch (_) {}
         },
         onSubmit: () async {

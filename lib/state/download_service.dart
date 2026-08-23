@@ -1,6 +1,10 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+
 import '../api/quark_client.dart';
 import '../core/gopeed/gopeed_boot.dart';
-import '../core/gopeed/gopeed_client.dart';
+import '../core/gopeed/download_client.dart';
 import '../state/app_state.dart';
 import '../utils/app_logger.dart';
 
@@ -70,7 +74,7 @@ class DownloadService {
 
   /// 创建 Gopeed 下载任务（附带下载请求头）
   static Future<void> _createTask(
-    GopeedClient client, {
+    DownloadClient client, {
     required String url,
     required String path,
     required String name,
@@ -117,6 +121,9 @@ class DownloadService {
     required String url,
     String? name,
   }) async {
+    if (!kIsWeb && Platform.isIOS) {
+      return 'iOS 暂不支持磁力/BT下载';
+    }
     try {
       var client = await GopeedEngine.ensureStarted();
       final dir = await AppState.I.effectiveDownloadDir();

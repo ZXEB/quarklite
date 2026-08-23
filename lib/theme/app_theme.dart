@@ -155,6 +155,21 @@ class AppTheme {
         backgroundColor: dark ? const Color(0xFF1B1B21) : AppColors.card,
       ),
       dividerTheme: DividerThemeData(color: dark ? const Color(0xFF2A2A31) : AppColors.divider),
+      inputDecorationTheme: const InputDecorationTheme(
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        disabledBorder: InputBorder.none,
+        errorBorder: InputBorder.none,
+        focusedErrorBorder: InputBorder.none,
+        contentPadding: EdgeInsets.zero,
+        isDense: true,
+      ),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: AppColors.accent,
+        selectionColor: AppColors.accentDeep,
+        selectionHandleColor: AppColors.accent,
+      ),
     );
   }
 

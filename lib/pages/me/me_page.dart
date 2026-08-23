@@ -180,31 +180,117 @@ class MePage extends StatelessWidget {
   }
 
   Widget _buildSettingsCard(BuildContext context, AppState app) {
-    Widget leading(IconData icon) => MiuixIcon(icon: icon, size: 22, tint: MiuixTheme.of(context).colors.primary);
-    Widget arrowPref({required String title, required String summary, required IconData icon, required VoidCallback onClick}) => MiuixArrowPreference(title: title, summary: summary, startAction: leading(icon), insideMargin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), onClick: onClick);
+    final isIOS = !kIsWeb && Platform.isIOS;
+    Widget leading(IconData icon) => MiuixIcon(
+        icon: icon,
+        size: 22,
+        tint: MiuixTheme.of(context).colors.primary);
+    Widget arrowPref({
+      required String title,
+      required String summary,
+      required IconData icon,
+      required VoidCallback onClick,
+    }) =>
+        MiuixArrowPreference(
+          title: title,
+          summary: summary,
+          startAction: leading(icon),
+          insideMargin:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          onClick: onClick,
+        );
     return MiuixCard(
-      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          arrowPref(title: '外观模式', summary: _themeModeLabel(app.themeMode), icon: Icons.dark_mode_rounded, onClick: () => _editThemeMode(context, app)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          arrowPref(
+              title: '外观模式',
+              summary: _themeModeLabel(app.themeMode),
+              icon: Icons.dark_mode_rounded,
+              onClick: () => _editThemeMode(context, app)),
           const MiuixHorizontalDivider(),
-          arrowPref(title: '下载目录', summary: app.downloadDir, icon: Icons.folder_rounded, onClick: () => _editDownloadDir(context, app)),
+          arrowPref(
+            title: '下载目录',
+            summary: isIOS
+                ? '文件 App / 我的 iPhone / Quarklite'
+                : app.downloadDir,
+            icon: Icons.folder_rounded,
+            onClick: isIOS
+                ? () => MiuixToast.show('iOS 下载文件可在“文件”App中查看')
+                : () => _editDownloadDir(context, app),
+          ),
+          if (isIOS) ...[
+            const MiuixHorizontalDivider(),
+            arrowPref(
+              title: '下载并行分片',
+              summary: 'iOS 自动调度，单任务最多 8 路',
+              icon: Icons.speed_rounded,
+              onClick: () => MiuixToast.show('iOS 会根据网络和服务器能力自动分片'),
+            ),
+          ] else ...[
+            const MiuixHorizontalDivider(),
+            arrowPref(
+                title: '夸克下载线程',
+                summary: '单任务最大 ${app.connections} 线程',
+                icon: Icons.speed_rounded,
+                onClick: () => _editConnections(context, app)),
+            const MiuixHorizontalDivider(),
+            arrowPref(
+                title: '迅雷下载线程',
+                summary: '单任务最大 ${app.xunleiConnections} 线程',
+                icon: Icons.bolt_rounded,
+                onClick: () => _editXunleiConnections(context, app)),
+            const MiuixHorizontalDivider(),
+            arrowPref(
+                title: '123下载线程',
+                summary: '单任务最大 ${app.netdisk123Connections} 线程',
+                icon: Icons.cloud_upload_rounded,
+                onClick: () => _editNetdisk123Connections(context, app)),
+          ],
           const MiuixHorizontalDivider(),
-          arrowPref(title: '夸克下载线程', summary: '单任务最大 ${app.connections} 线程', icon: Icons.speed_rounded, onClick: () => _editConnections(context, app)),
+          arrowPref(
+              title: '同时下载任务数',
+              summary: '最多 ${app.maxRunning} 个任务并发，其余排队',
+              icon: Icons.low_priority_rounded,
+              onClick: () => _editMaxRunning(context, app)),
           const MiuixHorizontalDivider(),
-          arrowPref(title: '迅雷下载线程', summary: '单任务最大 ${app.xunleiConnections} 线程', icon: Icons.bolt_rounded, onClick: () => _editXunleiConnections(context, app)),
+          arrowPref(
+              title: '上传并行数',
+              summary: '同时上传 ${app.uploadParallelism} 个文件',
+              icon: Icons.cloud_upload_rounded,
+              onClick: () => _editUploadParallelism(context, app)),
+          if (!isIOS) ...[
+            const MiuixHorizontalDivider(),
+            arrowPref(
+                title: '连接预算',
+                summary: '所有任务总连接数上限 ${app.connectionBudget}，防系统卡顿',
+                icon: Icons.tune_rounded,
+                onClick: () => _editConnectionBudget(context, app)),
+            const MiuixHorizontalDivider(),
+            arrowPref(
+                title: '存储权限',
+                summary: '访问下载目录所需权限',
+                icon: Icons.storage_rounded,
+                onClick: () => app.openAllFilesAccess()),
+          ],
           const MiuixHorizontalDivider(),
-          arrowPref(title: '123下载线程', summary: '单任务最大 ${app.netdisk123Connections} 线程', icon: Icons.cloud_upload_rounded, onClick: () => _editNetdisk123Connections(context, app)),
-          const MiuixHorizontalDivider(),
-          arrowPref(title: '同时下载任务数', summary: '最多 ${app.maxRunning} 个任务并发，其余排队', icon: Icons.low_priority_rounded, onClick: () => _editMaxRunning(context, app)),
-          const MiuixHorizontalDivider(),
-          arrowPref(title: '上传并行数', summary: '同时上传 ${app.uploadParallelism} 个文件', icon: Icons.cloud_upload_rounded, onClick: () => _editUploadParallelism(context, app)),
-          const MiuixHorizontalDivider(),
-          arrowPref(title: '连接预算', summary: '所有任务总连接数上限 ${app.connectionBudget}，防系统卡顿', icon: Icons.tune_rounded, onClick: () => _editConnectionBudget(context, app)),
-          const MiuixHorizontalDivider(),
-          arrowPref(title: '存储权限', summary: '访问下载目录所需权限', icon: Icons.storage_rounded, onClick: () => app.openAllFilesAccess()),
-          const MiuixHorizontalDivider(),
-          arrowPref(title: '检查更新', summary: '检查 GitHub Release 是否有新版本', icon: Icons.system_update_rounded, onClick: () => UpdateChecker.checkAndPrompt(context, manual: true)),
-          if (!kIsWeb && Platform.isWindows) ...[const MiuixHorizontalDivider(), arrowPref(title: '关闭窗口时', summary: _closeActionLabel(app.closeAction), icon: Icons.close_fullscreen_rounded, onClick: () => _editCloseAction(context, app))],
-        ]),
+          arrowPref(
+              title: '检查更新',
+              summary: '检查 GitHub Release 是否有新版本',
+              icon: Icons.system_update_rounded,
+              onClick: () =>
+                  UpdateChecker.checkAndPrompt(context, manual: true)),
+          if (!kIsWeb && Platform.isWindows) ...[
+            const MiuixHorizontalDivider(),
+            arrowPref(
+                title: '关闭窗口时',
+                summary: _closeActionLabel(app.closeAction),
+                icon: Icons.close_fullscreen_rounded,
+                onClick: () => _editCloseAction(context, app)),
+          ],
+        ],
+      ),
     );
   }
 
@@ -273,7 +359,7 @@ class MePage extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
           MiuixArrowPreference(title: '日志', summary: '查看/复制运行日志，排查下载问题', startAction: leading(Icons.bug_report_rounded), insideMargin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), onClick: () => _showLog(context)),
           const MiuixHorizontalDivider(),
-          MiuixArrowPreference(title: '关于', summary: 'Quarklite v1.3.1  ·  基于 Gopeed 下载引擎', startAction: leading(Icons.info_outline_rounded), insideMargin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), onClick: () => _showAbout(context)),
+          MiuixArrowPreference(title: '关于', summary: !kIsWeb && Platform.isIOS ? 'Quarklite v1.3.2  ·  iOS 原生后台下载器' : 'Quarklite v1.3.2  ·  基于 Gopeed 下载引擎', startAction: leading(Icons.info_outline_rounded), insideMargin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), onClick: () => _showAbout(context)),
         ]),
     );
   }
@@ -420,30 +506,40 @@ class MePage extends StatelessWidget {
   }
 
   void _showAbout(BuildContext context) {
-    final live = DownloadNotifier.liveUpdateStatus;
-    var liveText = '实时动态: 未查询';
-    if (live != null) {
-      final sdk = live['sdk'];
-      final supported = live['promotedSupported'] == true;
-      final canPost = live['canPost'] == true;
-      final promotable = live['promotable'] == true;
-      if (!supported) {
-        liveText = '实时动态: 需要 Android 16+（当前 $sdk）';
-      } else if (!canPost) {
-        liveText = '实时动态: 未启用（请在系统设置中开启）';
-      } else if (promotable) {
-        liveText = '实时动态: 已就绪（Android $sdk）';
-      } else {
-        liveText = '实时动态: 不满足条件（${live['reason'] ?? '未知'}）';
+    final isIOS = !kIsWeb && Platform.isIOS;
+    var capabilityText = '内置 Gopeed 多线程下载引擎\n'
+        '· 支持分享链接解析 / 网盘直连 / BT 磁力';
+    var platformText = '实时动态: 未查询';
+
+    if (isIOS) {
+      capabilityText = '使用 iOS URLSession 原生后台下载器\n'
+          '· 支持分享链接解析 / 网盘直连 / 暂停恢复\n'
+          '· iOS 暂不支持 BT 磁力';
+      platformText = '下载位置: 文件 App / 我的 iPhone / Quarklite';
+    } else {
+      final live = DownloadNotifier.liveUpdateStatus;
+      if (live != null) {
+        final sdk = live['sdk'];
+        final supported = live['promotedSupported'] == true;
+        final canPost = live['canPost'] == true;
+        final promotable = live['promotable'] == true;
+        if (!supported) {
+          platformText = '实时动态: 需要 Android 16+（当前 $sdk）';
+        } else if (!canPost) {
+          platformText = '实时动态: 未启用（请在系统设置中开启）';
+        } else if (promotable) {
+          platformText = '实时动态: 已就绪（Android $sdk）';
+        } else {
+          platformText = '实时动态: 不满足条件（${live['reason'] ?? '未知'}）';
+        }
       }
     }
     confirmMiuix(
       context,
       title: 'Quarklite',
       content: '夸克网盘不限速下载工具\n\n'
-          '· 内置 Gopeed 多线程下载引擎\n'
-          '· 支持分享链接解析 / 网盘直连 / BT 磁力\n'
-          '· $liveText\n'
+          '· $capabilityText\n'
+          '· $platformText\n'
           '· 本项目基于 GPL-3.0 协议开源\n\n'
           'v1.3.2',
       confirmText: '关闭',

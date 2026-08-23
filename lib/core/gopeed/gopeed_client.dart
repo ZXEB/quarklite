@@ -3,9 +3,10 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import '../../utils/types.dart';
+import 'download_client.dart';
 import 'gopeed_models.dart';
 
-class GopeedClient {
+class GopeedClient implements DownloadClient {
   final Dio _dio;
 
   GopeedClient(String baseUrl)
@@ -28,6 +29,7 @@ class GopeedClient {
   }
 
   /// 创建任务，返回任务 id
+  @override
   Future<String> create({
     required String url,
     required String path,
@@ -55,6 +57,7 @@ class GopeedClient {
     return _check(resp)?.toString() ?? '';
   }
 
+  @override
   Future<List<GopeedTask>> list({List<GopeedStatus>? statuses}) async {
     final qs = statuses == null || statuses.isEmpty
         ? ''
@@ -68,28 +71,34 @@ class GopeedClient {
         .toList();
   }
 
+  @override
   Future<void> pause(String id) async {
     await _dio.put('/tasks/$id/pause');
   }
 
+  @override
   Future<void> resume(String id) async {
     await _dio.put('/tasks/$id/continue');
   }
 
+  @override
   Future<void> remove(String id, {bool force = true}) async {
     await _dio.delete('/tasks/$id', queryParameters: {'force': force});
   }
 
+  @override
   Future<void> removeAll({List<String>? ids, bool force = true}) async {
     await _dio.delete('/tasks',
         queryParameters: {'id': ids, 'force': force});
   }
 
+  @override
   Future<void> pauseAll({List<String>? ids}) async {
     await _dio.put('/tasks/pause', queryParameters: {'id': ids});
   }
 
   /// 全局配置：下载目录 / 并发任务数 / HTTP 连接数（先读取再合并，避免覆盖其他设置）
+  @override
   Future<void> updateConfig({
     String? downloadDir,
     int? maxRunning,
@@ -109,6 +118,7 @@ class GopeedClient {
     _check(resp);
   }
 
+  @override
   Future<Map<String, dynamic>> getConfig() async {
     final resp = await _dio.get('/config');
     final data = _check(resp);

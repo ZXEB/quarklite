@@ -7,12 +7,14 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../utils/app_logger.dart';
+import 'download_client.dart';
 import 'gopeed_client.dart';
+import 'ios_background_download_client.dart';
 
 class GopeedEngine {
   static const _channel = MethodChannel('quarklite.com/gopeed');
 
-  static GopeedClient? _client;
+  static DownloadClient? _client;
   static bool _started = false;
   static Process? _winProcess;
   static bool _winServerReady = false;
@@ -30,7 +32,7 @@ class GopeedEngine {
   /// 最近一次引擎启动失败的详细原因（供界面展示）
   static String? lastError;
 
-  static GopeedClient get client {
+  static DownloadClient get client {
     final c = _client;
     if (c == null) {
       throw Exception('下载引擎尚未启动');
@@ -43,7 +45,7 @@ class GopeedEngine {
   /// 确保引擎已启动（未启动时自动拉起），供添加下载任务前调用
   /// [wait] 为 true 时等待一次完整启动尝试（最多约 16 秒），失败立即报错；
   /// 为 false 时交给后台重试逻辑，调用方不等待
-  static Future<GopeedClient> ensureStarted({bool wait = true}) async {
+  static Future<DownloadClient> ensureStarted({bool wait = true}) async {
     if (!_started) {
       await start(retry: !wait);
     }
@@ -76,7 +78,33 @@ class GopeedEngine {
       await _startWindows(retry: retry);
       return;
     }
-    await _startAndroid();
+    if (!kIsWeb && Platform.isAndroid) {
+      await _startAndroid();
+      return;
+    }
+    if (!kIsWeb && Platform.isIOS) {
+      await _startIos();
+      return;
+    }
+    throw UnsupportedError('当前平台暂不支持下载引擎');
+  }
+
+
+  // ---------------- iOS：URLSession 原生后台下载 ----------------
+
+  static Future<void> _startIos() async {
+    try {
+      final client = IosBackgroundDownloadClient();
+      await client.start();
+      _client = client;
+      _started = true;
+      lastError = null;
+    } catch (e) {
+      _client = null;
+      _started = false;
+      lastError = 'iOS 后台下载器启动失败: $e';
+      throw Exception(lastError!);
+    }
   }
 
   // ---------------- Android：原生 Libgopeed（MethodChannel） ----------------
@@ -354,11 +382,16 @@ class GopeedEngine {
     if (!_started) return;
     if (!kIsWeb && Platform.isWindows) {
       await _stopWindowsProcess();
-    } else {
+    } else if (!kIsWeb && Platform.isAndroid) {
       try {
         await _channel.invokeMethod('stop');
       } catch (_) {
         // 忽略停止失败
+      }
+    } else if (!kIsWeb && Platform.isIOS) {
+      final iosClient = _client;
+      if (iosClient is IosBackgroundDownloadClient) {
+        await iosClient.dispose();
       }
     }
     _client = null;

@@ -13,6 +13,7 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   dio: ^5.7.0
+  background_downloader: ^9.5.8
   shared_preferences: ^2.3.2
   flutter_secure_storage: ^9.2.2
   qr_flutter: ^4.1.0

@@ -25,6 +25,7 @@ class DownloadNotifier {
   static Map<String, dynamic>? liveUpdateStatus;
 
   static bool get _isAndroid => !kIsWeb && Platform.isAndroid;
+  static bool get _isIOS => !kIsWeb && Platform.isIOS;
 
   static Future<void> init() async {
     if (_init) return;
@@ -55,6 +56,7 @@ class DownloadNotifier {
     await _local.initialize(
       settings: const InitializationSettings(
         android: AndroidInitializationSettings('ic_stat_notifications'),
+        iOS: DarwinInitializationSettings(),
         windows: WindowsInitializationSettings(
           appName: 'Quarklite',
           appUserModelId: 'com.quarklite.quarklite',
@@ -68,6 +70,11 @@ class DownloadNotifier {
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>()
           ?.requestNotificationsPermission();
+    } else if (_isIOS) {
+      await _local
+          .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
     }
     if (_isAndroid) {
       _refreshLiveStatus();
@@ -181,6 +188,7 @@ class DownloadNotifier {
   }
 
   static Future<void> _showCompletion(GopeedTask t, int seq) async {
+    if (_isIOS) return;
     final done = t.status == GopeedStatus.done;
     await _local.show(
       id: _notifId++,

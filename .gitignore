@@ -59,3 +59,10 @@ build_log.txt
 
 # 离线 API 参考源码（flutter_miuix 1.1.1 解压副本，pub 依赖会从 pub.dev 拉取，无需入库）
 third_party/
+
+# iOS generated dependencies and build settings
+/ios/Pods/
+/ios/.symlinks/
+/ios/Flutter/ephemeral/
+/ios/Flutter/Generated.xcconfig
+/ios/Flutter/flutter_export_environment.sh

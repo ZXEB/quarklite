@@ -15,6 +15,7 @@ class UploadNotifier {
       await _local.initialize(
         settings: const InitializationSettings(
           android: AndroidInitializationSettings('ic_stat_notifications'),
+          iOS: DarwinInitializationSettings(),
           windows: WindowsInitializationSettings(
             appName: 'Quarklite',
             appUserModelId: 'com.quarklite.quarklite',
@@ -22,6 +23,10 @@ class UploadNotifier {
           ),
         ),
       );
+      await _local
+          .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
     } catch (_) {
       // 通知初始化失败不影响上传
     }
@@ -42,6 +47,7 @@ class UploadNotifier {
             importance: Importance.defaultImportance,
             priority: Priority.defaultPriority,
           ),
+          iOS: const DarwinNotificationDetails(),
           windows: const WindowsNotificationDetails(
             duration: WindowsNotificationDuration.long,
           ),
@@ -66,6 +72,7 @@ class UploadNotifier {
             priority: Priority.high,
             category: AndroidNotificationCategory.error,
           ),
+          iOS: const DarwinNotificationDetails(),
           windows: const WindowsNotificationDetails(
             duration: WindowsNotificationDuration.long,
           ),

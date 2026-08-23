@@ -1,13 +1,13 @@
 # Quarklite
 
-夸克网盘不限速下载工具（Android）。内置 [Gopeed](https://github.com/GopeedLab/gopeed) 多线程下载引擎，支持：
+夸克网盘不限速下载工具（Android / Windows / iOS）。Android 与 Windows 使用 [Gopeed](https://github.com/GopeedLab/gopeed)，iOS 使用基于 URLSession 的原生后台下载器，支持：
 
 - 夸克网盘扫码登录 / Cookie 登录
 - 网盘文件浏览、搜索（支持 AI 识别内容搜索，可直接搜照片内容词）
 - 相册：自动扫描网盘内全部照片，网格浏览、全屏查看、一键下载
 - 分享链接解析（提取码自动识别）、批量转存
 - 批量下载（多选后一次加入队列）
-- BT / 磁力链接下载
+- BT / 磁力链接下载（Android / Windows；iOS 暂不支持）
 - **上传：多文件上传、文件夹上传（保持目录结构），实时查看进度/速度，支持取消与重试**
 
 ## 下载 APK
@@ -25,8 +25,10 @@ Flutter App (UI)
   ├── QuarkApi (Dart)  → drive.quark.cn / pan.quark.cn 夸克接口
   │      └─ 登录、文件列表、搜索、下载直链、分享解析、转存
   │      └─ 上传：upload/pre 预申请 → update/hash 秒传 → OSS 分片直传 → 合并 → finish
-  └── Gopeed 内核 (libgopeed.aar, Go 编译)
-         └─ 本地 REST API (127.0.0.1) 多线程下载 / BT 磁力
+  ├── Gopeed 内核（Android / Windows）
+  │      └─ 本地 REST API (127.0.0.1) 多线程下载 / BT 磁力
+  └── iOS URLSession 后台下载器
+         └─ 原生后台直链下载 / 暂停恢复 / 任务持久化
 ```
 
 - 夸克直链本身走 CDN 不限速，配合 Gopeed 多连接分片达到满速
@@ -46,6 +48,14 @@ bash scripts/build_libgopeed.sh
 flutter pub get
 flutter build apk --release
 ```
+
+
+### iOS
+
+- 最低系统版本为 iOS 14。
+- 下载文件保存在应用 Documents/Quarklite，可在“文件 → 我的 iPhone → Quarklite”中查看。
+- 首次在 macOS 构建前运行 `flutter pub get` 和 `cd ios && pod install`，并在 Xcode 中配置自己的签名团队。
+- iOS 使用原生后台直链下载，不支持 BT / 磁力链接。
 
 ## 许可
 
