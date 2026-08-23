@@ -52,7 +52,7 @@ flutter build apk --release
 
 ### iOS
 
-- 最低系统版本为 iOS 14。
+- 最低系统版本为 iOS 15。
 - 下载文件保存在应用 Documents/Quarklite，可在“文件 → 我的 iPhone → Quarklite”中查看。
 - 首次在 macOS 构建前运行 `flutter pub get` 和 `cd ios && pod install`，并在 Xcode 中配置自己的签名团队。
 - iOS 使用原生后台直链下载，不支持 BT / 磁力链接。
