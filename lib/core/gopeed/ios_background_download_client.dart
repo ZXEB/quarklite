@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:background_downloader/background_downloader.dart';
 
 import 'download_client.dart';
+import '../../utils/app_logger.dart';
 import 'gopeed_models.dart';
 
 /// iOS 原生 URLSession 后台下载客户端。
@@ -11,13 +12,13 @@ import 'gopeed_models.dart';
 /// 对外维持与 Gopeed 相同的任务操作接口，使下载页面和业务入口无需分平台。
 class IosBackgroundDownloadClient implements DownloadClient {
   static const group = 'quarklite';
-  static const maxChunks = 8;
 
   final FileDownloader _downloader = FileDownloader();
   final Map<String, TaskStatus> _latestStatus = {};
   final Map<String, double> _latestProgress = {};
   final Map<String, int> _expectedSize = {};
   final Map<String, int> _speedBytes = {};
+  final Map<String, int> _lastProgressLogAt = {};
 
   StreamSubscription<TaskUpdate>? _updatesSubscription;
   int _maxRunning;
@@ -48,21 +49,39 @@ class IosBackgroundDownloadClient implements DownloadClient {
       autoCleanDatabase: false,
     );
     _started = true;
+    final restored = await _downloader.database.allRecords(group: group);
+    AppLogger.I.i('ios_download',
+        'URLSession 下载器启动成功，恢复任务 ${restored.length} 个 maxRunning=$_maxRunning');
   }
 
   void _handleUpdate(TaskUpdate update) {
     if (update.task.group != group) return;
+    final id = update.task.taskId;
+    final name = update.task.displayName.isNotEmpty
+        ? update.task.displayName
+        : update.task.filename;
     switch (update) {
       case TaskStatusUpdate():
-        _latestStatus[update.task.taskId] = update.status;
+        _latestStatus[id] = update.status;
+        final detail = update.exception == null ? '' : ' error=${update.exception}';
+        AppLogger.I.i('ios_download',
+            '状态 id=$id name=$name status=${update.status.name} http=${update.responseStatusCode ?? '-'}$detail');
       case TaskProgressUpdate():
-        _latestProgress[update.task.taskId] = update.progress;
+        _latestProgress[id] = update.progress;
         if (update.hasExpectedFileSize) {
-          _expectedSize[update.task.taskId] = update.expectedFileSize;
+          _expectedSize[id] = update.expectedFileSize;
         }
-        _speedBytes[update.task.taskId] = update.hasNetworkSpeed
+        _speedBytes[id] = update.hasNetworkSpeed
             ? (update.networkSpeed * 1000 * 1000).round()
             : 0;
+        final now = DateTime.now().millisecondsSinceEpoch;
+        if (now - (_lastProgressLogAt[id] ?? 0) >= 5000 ||
+            update.progress >= 1 ||
+            update.progress < 0) {
+          _lastProgressLogAt[id] = now;
+          AppLogger.I.i('ios_download',
+              '进度 id=$id name=$name progress=${(update.progress * 100).toStringAsFixed(1)}% size=${update.expectedFileSize} speed=${_speedBytes[id]}');
+        }
     }
   }
 
@@ -87,11 +106,12 @@ class IosBackgroundDownloadClient implements DownloadClient {
     final targetPath = _joinPath(path, fileName);
     final (baseDirectory, directory, resolvedName) =
         await Task.split(filePath: targetPath);
-    final task = ParallelDownloadTask(
+    // iOS 使用单个原生 URLSessionDownloadTask。ParallelDownloadTask 会先发起
+    // 额外请求探测文件长度，对夸克短时效签名 CDN 链接容易卡在排队阶段。
+    final task = DownloadTask(
       url: url,
       filename: resolvedName,
       headers: headers,
-      chunks: chunkCount(connections),
       directory: directory,
       baseDirectory: baseDirectory,
       group: group,
@@ -104,6 +124,8 @@ class IosBackgroundDownloadClient implements DownloadClient {
     if (!enqueued) throw Exception('iOS 后台下载任务加入队列失败');
     _latestStatus[task.taskId] = TaskStatus.enqueued;
     _latestProgress[task.taskId] = 0;
+    AppLogger.I.i('ios_download',
+        '任务入队 id=${task.taskId} name=$fileName dir=$directory base=${baseDirectory.name} headers=${headers.keys.join(',')}');
     return task.taskId;
   }
 
@@ -137,9 +159,6 @@ class IosBackgroundDownloadClient implements DownloadClient {
       createdAt: record.task.creationTime.millisecondsSinceEpoch,
     );
   }
-
-  static int chunkCount(int connections) =>
-      connections.clamp(1, maxChunks).toInt();
 
   static GopeedStatus mapStatus(TaskStatus status) => switch (status) {
         TaskStatus.enqueued => GopeedStatus.wait,
@@ -193,6 +212,7 @@ class IosBackgroundDownloadClient implements DownloadClient {
     _latestProgress.remove(id);
     _expectedSize.remove(id);
     _speedBytes.remove(id);
+    _lastProgressLogAt.remove(id);
   }
 
   @override
@@ -241,7 +261,7 @@ class IosBackgroundDownloadClient implements DownloadClient {
         'downloadDir': '',
         'maxRunning': _maxRunning,
         'protocolConfig': {
-          'http': {'connections': maxChunks},
+          'http': {'connections': 1},
         },
       };
 

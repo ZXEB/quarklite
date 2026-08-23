@@ -28,7 +28,7 @@ Flutter App (UI)
   ├── Gopeed 内核（Android / Windows）
   │      └─ 本地 REST API (127.0.0.1) 多线程下载 / BT 磁力
   └── iOS URLSession 后台下载器
-         └─ 原生后台直链下载 / 暂停恢复 / 任务持久化
+         └─ 原生 URLSession 后台下载 / 暂停恢复 / 任务持久化
 ```
 
 - 夸克直链本身走 CDN 不限速，配合 Gopeed 多连接分片达到满速

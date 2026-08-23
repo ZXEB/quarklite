@@ -5,12 +5,6 @@ import 'package:quarklite/core/gopeed/ios_background_download_client.dart';
 
 void main() {
   group('iOS background downloader mapping', () {
-    test('parallel chunks are limited to one through eight', () {
-      expect(IosBackgroundDownloadClient.chunkCount(0), 1);
-      expect(IosBackgroundDownloadClient.chunkCount(4), 4);
-      expect(IosBackgroundDownloadClient.chunkCount(512), 8);
-    });
-
     test('native task statuses map to the shared download model', () {
       expect(
         IosBackgroundDownloadClient.mapStatus(TaskStatus.enqueued),

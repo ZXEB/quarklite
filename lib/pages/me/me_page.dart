@@ -223,10 +223,10 @@ class MePage extends StatelessWidget {
           if (isIOS) ...[
             const MiuixHorizontalDivider(),
             arrowPref(
-              title: '下载并行分片',
-              summary: 'iOS 自动调度，单任务最多 8 路',
+              title: 'iOS 后台下载',
+              summary: '系统 URLSession 后台下载，可暂停恢复',
               icon: Icons.speed_rounded,
-              onClick: () => MiuixToast.show('iOS 会根据网络和服务器能力自动分片'),
+              onClick: () => MiuixToast.show('切换应用或锁屏后，系统仍可继续下载'),
             ),
           ] else ...[
             const MiuixHorizontalDivider(),
