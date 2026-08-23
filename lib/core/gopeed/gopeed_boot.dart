@@ -12,6 +12,7 @@ import 'download_client.dart';
 import 'gopeed_client.dart';
 import 'ios_background_download_client.dart';
 import 'ios_parallel_download_client.dart';
+import 'ios_range_download_client.dart';
 
 class GopeedEngine {
   static const _channel = MethodChannel('quarklite.com/gopeed');
@@ -94,21 +95,37 @@ class GopeedEngine {
 
   // ---------------- iOS：URLSession 原生后台下载 ----------------
 
+    // iOS 原生 128 并发 Range 调度器：前台 32->64->128 自适应，后台降级到后台 URLSession
   static Future<void> _startIos() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final mr = prefs.getInt('max_running') ?? 4;
-      final ic = prefs.getInt('ios_connections') ?? 32;
-      final client = IosParallelDownloadClient(maxRunning: mr, iosConnections: ic);
+      var ic = prefs.getInt('ios_connections') ?? 32;
+      ic = ic.clamp(1, IosRangeDownloadClient.maxForegroundConnections).toInt();
+      final client = IosRangeDownloadClient(maxRunning: mr);
       await client.start();
       _client = client;
       _started = true;
       lastError = null;
+      AppLogger.I.i('engine', 'iOS Range 128并发引擎启动成功 mr=$mr ic=$ic');
     } catch (e) {
-      _client = null;
-      _started = false;
-      lastError = 'iOS 后台下载器启动失败: $e';
-      throw Exception(lastError!);
+      try {
+        final prefs2 = await SharedPreferences.getInstance();
+        final mr2 = prefs2.getInt('max_running') ?? 4;
+        final ic2 = prefs2.getInt('ios_connections') ?? 32;
+        final fallback = IosParallelDownloadClient(maxRunning: mr2, iosConnections: ic2);
+        await fallback.start();
+        _client = fallback;
+        _started = true;
+        lastError = null;
+        AppLogger.I.i('engine', 'iOS Range 启动失败，已回退 Parallel: $e');
+        return;
+      } catch (e2) {
+        _client = null;
+        _started = false;
+        lastError = 'iOS 下载器启动失败: $e / $e2';
+        throw Exception(lastError!);
+      }
     }
   }
 
@@ -425,6 +442,8 @@ class GopeedEngine {
     }
   }
 }
+
+
 
 
 

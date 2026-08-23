@@ -20,14 +20,14 @@ class IosParallelDownloadClient implements DownloadClient {
   final Map<String, int> _lastProgressLogAt = {};
 
   StreamSubscription<TaskUpdate>? _updatesSubscription;
-  static const maxSupportedConnections = 256;
+  static const maxSupportedConnections = 128;
   static const minChunkSizeBytes = 8 * 1024 * 1024;
 
   int _maxRunning;
   int _maxConnections;
   bool _started = false;
 
-  IosParallelDownloadClient({int maxRunning = 4, int iosConnections = 256})
+  IosParallelDownloadClient({int maxRunning = 4, int iosConnections = 128})
       : _maxRunning = maxRunning.clamp(1, 32).toInt(),
         _maxConnections = iosConnections.clamp(1, maxSupportedConnections).toInt();
 
@@ -311,3 +311,4 @@ class IosParallelDownloadClient implements DownloadClient {
     await _updatesSubscription?.cancel();
   }
 }
+
