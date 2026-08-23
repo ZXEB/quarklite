@@ -28,8 +28,10 @@ class DownloadService {
       var client = await GopeedEngine.ensureStarted();
       final dir = path ?? await AppState.I.effectiveDownloadDir();
       final app = AppState.I;
+      final iosCap = app.iosConnections;
+      final resolvedMax = maxConnections ?? (Platform.isIOS ? iosCap : app.connections);
       final actualConnections =
-          connections ?? app.effectiveConnections(batchTotal, maxPerTask: maxConnections);
+          connections ?? app.effectiveConnections(batchTotal, maxPerTask: resolvedMax);
       AppLogger.I.i('download',
           '创建任务 name=$fileName connections=$actualConnections batch=$batchTotal dir=$dir url=${_briefUrl(url)}');
       try {
@@ -156,3 +158,7 @@ class DownloadService {
     }
   }
 }
+
+
+
+

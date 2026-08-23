@@ -407,6 +407,18 @@ class MePage extends StatelessWidget {
     });
   }
 
+  void _editIosConnections(BuildContext context, AppState app) {
+    final options = [16, 32, 64, 128];
+    _showThreadPicker(
+      context,
+      title: 'iOS 下载线程',
+      options: options,
+      current: app.iosConnections,
+      unit: '分片',
+      onPick: (n) => app.setIosConnections(n),
+    );
+  }
+
   void _editConnections(BuildContext context, AppState app) {
     final options = [64, 128, 256, 512, 1024];
     _showThreadPicker(
@@ -676,3 +688,4 @@ class _LogDialogState extends State<_LogDialog> {
     );
   }
 }
+

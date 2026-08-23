@@ -6,10 +6,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../utils/app_logger.dart';
 import 'download_client.dart';
 import 'gopeed_client.dart';
 import 'ios_background_download_client.dart';
+import 'ios_parallel_download_client.dart';
 
 class GopeedEngine {
   static const _channel = MethodChannel('quarklite.com/gopeed');
@@ -94,7 +96,10 @@ class GopeedEngine {
 
   static Future<void> _startIos() async {
     try {
-      final client = IosBackgroundDownloadClient();
+      final prefs = await SharedPreferences.getInstance();
+      final mr = prefs.getInt('max_running') ?? 4;
+      final ic = prefs.getInt('ios_connections') ?? 32;
+      final client = IosParallelDownloadClient(maxRunning: mr, iosConnections: ic);
       await client.start();
       _client = client;
       _started = true;
@@ -390,7 +395,7 @@ class GopeedEngine {
       }
     } else if (!kIsWeb && Platform.isIOS) {
       final iosClient = _client;
-      if (iosClient is IosBackgroundDownloadClient) {
+      if (iosClient is IosBackgroundDownloadClient || iosClient is IosParallelDownloadClient) {
         await iosClient.dispose();
       }
     }
@@ -418,3 +423,5 @@ class GopeedEngine {
     }
   }
 }
+
+

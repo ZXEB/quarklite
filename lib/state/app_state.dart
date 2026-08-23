@@ -21,6 +21,7 @@ class AppState extends ChangeNotifier {
   static const _kConnections = 'connections';
   static const _kXunleiConnections = 'xunlei_connections';
   static const _kNetdisk123Connections = 'netdisk123_connections';
+  static const _kIosConnections = 'ios_connections';
   static const _kMaxRunning = 'max_running';
   static const _kConnectionBudget = 'connection_budget';
   static const _kCloseAction = 'window_close_action';
@@ -54,6 +55,9 @@ class AppState extends ChangeNotifier {
 
   /// 123 网盘单任务最大线程数（默认 128，直链为临时 CDN 链接，多线程拉满）
   int netdisk123Connections = 128;
+
+  /// iOS 原生并行下载单任务分片数（默认 32，小文件自动单线程，大文件多分片）
+  int iosConnections = 32;
 
   /// 全局同时运行的任务数上限（Gopeed maxRunning），超出的任务排队等待
   int maxRunning = 4;
@@ -165,6 +169,7 @@ class AppState extends ChangeNotifier {
     connections = prefs.getInt(_kConnections) ?? 512;
     xunleiConnections = prefs.getInt(_kXunleiConnections) ?? 64;
     netdisk123Connections = prefs.getInt(_kNetdisk123Connections) ?? 128;
+    iosConnections = prefs.getInt(_kIosConnections) ?? 32;
     maxRunning = prefs.getInt(_kMaxRunning) ?? 4;
     connectionBudget = prefs.getInt(_kConnectionBudget) ?? 256;
     closeAction = prefs.getString(_kCloseAction) ?? 'ask_once';
@@ -240,6 +245,14 @@ class AppState extends ChangeNotifier {
     netdisk123Connections = n;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kNetdisk123Connections, n);
+    notifyListeners();
+  }
+
+  Future<void> setIosConnections(int n) async {
+    iosConnections = n.clamp(1, 128).toInt();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kIosConnections, iosConnections);
+    await _applyEngineConfig(connections: iosConnections);
     notifyListeners();
   }
 
@@ -422,3 +435,5 @@ class AppState extends ChangeNotifier {
     super.dispose();
   }
 }
+
+

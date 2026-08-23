@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, codex/*]
   workflow_dispatch:
 
 concurrency:
@@ -209,6 +209,7 @@ jobs:
           if-no-files-found: error
 
   publish-release:
+    if: github.ref == 'refs/heads/main'
     needs: [build-android, build-windows, build-ios]
     runs-on: ubuntu-latest
     permissions:
@@ -256,3 +257,4 @@ jobs:
               release/installer/* \
               release/ios/*
           fi
+
