@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../widgets/miuix_common.dart';
@@ -51,18 +52,53 @@ class UpdateChecker {
     }
   }
 
-  static Future<void> checkAndPrompt(BuildContext context) async {
+  static const _skippedVersionKey = 'update_skipped_version';
+
+  static Future<void> checkAndPrompt(
+    BuildContext context, {
+    bool manual = false,
+  }) async {
     final update = await check();
-    if (!context.mounted || update == null) return;
+    if (!context.mounted) return;
+    if (update == null) {
+      if (manual) MiuixToast.show('当前已是最新版本');
+      return;
+    }
+    if (!manual && await _isSkipped(update.version)) return;
     final notes = update.notes.isEmpty ? '' : '\n\n${update.notes}';
-    final open = await confirmMiuix(
+    final choice = await miuixChoiceDialog<String>(
       context,
       title: '发现新版本 ${update.version}',
-      content: '当前版本 $currentVersion，是否打开 GitHub Release 下载更新？$notes',
-      confirmText: '打开下载页',
+      options: const ['open', 'later', 'skip'],
+      current: 'later',
+      labelOf: (value) => switch (value) {
+        'open' => '打开 GitHub 下载页',
+        'skip' => '此次更新不再提醒',
+        _ => '稍后提醒',
+      },
+      hint: '当前版本 $currentVersion$notes',
     );
-    if (!open) return;
-    await launchUrl(update.releaseUrl, mode: LaunchMode.externalApplication);
+    if (choice == 'skip') {
+      await _saveSkipped(update.version);
+    } else if (choice == 'open') {
+      await launchUrl(update.releaseUrl, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  static Future<bool> _isSkipped(String version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_skippedVersionKey) == version;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> _saveSkipped(String version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_skippedVersionKey, version);
+    } catch (_) {}
   }
 
   static String? _normalize(String raw) {
