@@ -395,7 +395,9 @@ class GopeedEngine {
       }
     } else if (!kIsWeb && Platform.isIOS) {
       final iosClient = _client;
-      if (iosClient is IosBackgroundDownloadClient || iosClient is IosParallelDownloadClient) {
+      if (iosClient is IosBackgroundDownloadClient) {
+        await iosClient.dispose();
+      } else if (iosClient is IosParallelDownloadClient) {
         await iosClient.dispose();
       }
     }
@@ -423,5 +425,6 @@ class GopeedEngine {
     }
   }
 }
+
 
 
