@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_miuix/miuix.dart';
 
 import '../../core/notify/download_notifier.dart';
+import '../../core/update_checker.dart';
 import '../../state/app_state.dart';
 import '../../state/netdisk123_state.dart';
 import '../../state/upload_manager.dart';
@@ -200,6 +201,8 @@ class MePage extends StatelessWidget {
           arrowPref(title: '连接预算', summary: '所有任务总连接数上限 ${app.connectionBudget}，防系统卡顿', icon: Icons.tune_rounded, onClick: () => _editConnectionBudget(context, app)),
           const MiuixHorizontalDivider(),
           arrowPref(title: '存储权限', summary: '访问下载目录所需权限', icon: Icons.storage_rounded, onClick: () => app.openAllFilesAccess()),
+          const MiuixHorizontalDivider(),
+          arrowPref(title: '检查更新', summary: '检查 GitHub Release 是否有新版本', icon: Icons.system_update_rounded, onClick: () => UpdateChecker.checkAndPrompt(context, manual: true)),
           if (!kIsWeb && Platform.isWindows) ...[const MiuixHorizontalDivider(), arrowPref(title: '关闭窗口时', summary: _closeActionLabel(app.closeAction), icon: Icons.close_fullscreen_rounded, onClick: () => _editCloseAction(context, app))],
         ]),
     );
@@ -442,7 +445,7 @@ class MePage extends StatelessWidget {
           '· 支持分享链接解析 / 网盘直连 / BT 磁力\n'
           '· $liveText\n'
           '· 本项目基于 GPL-3.0 协议开源\n\n'
-          'v1.0.0',
+          'v1.3.2',
       confirmText: '关闭',
     );
   }

@@ -5,6 +5,7 @@ import 'package:flutter_miuix/miuix.dart';
 
 import 'core/gopeed/gopeed_boot.dart';
 import 'core/notify/download_notifier.dart';
+import 'core/update_checker.dart';
 import 'pages/downloads/downloads_page.dart';
 import 'pages/drive/drive_hub_page.dart';
 import 'pages/me/me_page.dart';
@@ -57,6 +58,9 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
     DownloadManager.I.startPolling();
     if (mounted) {
       setState(() => _ready = true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(UpdateChecker.checkAndPrompt(context));
+      });
     }
   }
 
