@@ -30,66 +30,105 @@ Widget _overlayMaterial(Widget child) => Material(
       child: child,
     );
 
-/// 基于 [Overlay] 的命令式 Miuix 弹层（替代 showDialog/MiuixDialogLayout）。
+/// 基于根级 [Overlay] 的命令式 Miuix 弹层。
 ///
-/// 之前两版分别依赖 `MiuixPopupHost`（根 Scaffold popupHost 绑在一条
-/// `MiuixPopupScope` 链上，我们的弹窗注册不到）与 `showDialog` 包
-/// `MiuixDialogLayout`（Navigator 弹层里没有可用的 popupHost，show 后内容
-/// 仍不出现）。本实现直接往 `Overlay.of(context, rootOverlay: true)` 插入
-/// 一个 OverlayEntry，内容用 `MiuixOverlayDialog(show: true)` 渲染，
-/// 遮罩/动画一切正常，不依赖任何宿主。
+/// 每个面板都建立自己的 `MiuixPopupScope + MiuixPopupHost`。这样内容里的
+/// `MiuixOverlayDialog`/`MiuixOverlayBottomSheet` 会注册到实际可绘制的宿主，
+/// 不会再落入无宿主的后备注册表，也不会出现双重 DialogLayout。
 class MiuixOverlayPanel {
   MiuixOverlayPanel._();
 
   static OverlayEntry? _entry;
-  static MiuixPopupController? _controller;
+  static MiuixPopupRegistry? _registry;
+  static Completer<void>? _closeCompleter;
+  static bool _closing = false;
+  static bool _removalScheduled = false;
 
   static Future<void> show({
     required BuildContext context,
     required Widget Function(BuildContext dialogContext) builder,
   }) async {
-    hide();
+    await _dismissActive();
     final overlay = Overlay.of(context, rootOverlay: true);
     final completer = Completer<void>();
-    final controller = MiuixPopupController(visible: false);
+    final registry = MiuixPopupRegistry();
     late OverlayEntry entry;
     entry = OverlayEntry(
       opaque: false,
       builder: (overlayContext) => _overlayMaterial(
-        MiuixDialogLayout(
-          controller: controller,
-          renderInRoot: false,
-          onDismissFinished: () {
-            completer.complete();
-          },
-          content: (dialogContext) => builder(dialogContext),
+        MiuixPopupScope(
+          registry: registry,
+          establishRoot: true,
+          child: MiuixPopupHost(
+            registry: registry,
+            child: Builder(builder: builder),
+          ),
         ),
       ),
     );
     _entry = entry;
-    _controller = controller;
+    _registry = registry;
+    _closeCompleter = completer;
+    _closing = false;
+    _removalScheduled = false;
+    registry.addListener(_registryChanged);
     overlay.insert(entry);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_controller == controller) controller.show();
-    });
     await completer.future;
   }
 
   static void hide() {
-    final e = _entry;
-    final c = _controller;
-    _entry = null;
-    _controller = null;
-    // 弹层仍在显示中时走 Miuix 的关闭动画再移除（动画需在 _MiuixHostedEntry
-    // 上跑完，直接 remove 会闪断且把遮罩层残留在注册表里拦截指针）。
-    if (e != null && e.mounted) {
-      if (c != null && c.visible) {
-        c.dismiss();
-      } else {
-        e.remove();
+    final registry = _registry;
+    if (registry == null) {
+      _removeActive();
+      return;
+    }
+    _closing = true;
+    final entries = registry.entries.toList();
+    if (entries.isEmpty) {
+      _removeActive();
+      return;
+    }
+    for (final entry in entries) {
+      entry.controller.dismiss();
+    }
+  }
+
+  static Future<void> _dismissActive() async {
+    if (_entry == null) return;
+    final closeCompleter = _closeCompleter;
+    hide();
+    if (closeCompleter != null && !closeCompleter.isCompleted) {
+      await closeCompleter.future;
+    }
+  }
+
+  static void _registryChanged() {
+    if (!_closing || _registry == null || !_registry!.isEmpty) return;
+    if (_removalScheduled) return;
+    _removalScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _removalScheduled = false;
+      if (_closing && _registry != null && _registry!.isEmpty) {
+        _removeActive();
       }
-    } else if (c != null && c.visible) {
-      c.dismiss();
+    });
+  }
+
+  static void _removeActive() {
+    final entry = _entry;
+    final registry = _registry;
+    final completer = _closeCompleter;
+    _entry = null;
+    _registry = null;
+    _closeCompleter = null;
+    _closing = false;
+    _removalScheduled = false;
+    registry?.removeListener(_registryChanged);
+    if (entry != null && entry.mounted) {
+      entry.remove();
+    }
+    if (completer != null && !completer.isCompleted) {
+      completer.complete();
     }
   }
 }
@@ -209,10 +248,8 @@ class MiuixActionSheet {
   /// 弹出底部操作单。返回所选动作值；取消返回 null。
   /// [actions] 为 (icon, text, value, {color}) 列表。
   ///
-  /// 不依赖 Navigator 弹层：MiuixScaffold 自带的 MiuixPopupHost 会在最上层
-  /// 拦截指针，原生 showModalBottomSheet 与它混用会导致弹层盖住页面但
-  /// 按钮点不到。这里用窗口级 MiuixWindowBottomSheet（root Overlay 承载），
-  /// 行为与 showModalBottomSheet 一致且与 Miuix 弹层互不冲突。
+  /// 与对话框共用 MiuixOverlayPanel 的独立 popup host，避免多个根级遮罩
+  /// 互相覆盖并拦截按钮点击。
   static Future<T?> show<T>(
     BuildContext context, {
     required String title,
@@ -233,7 +270,7 @@ class MiuixActionSheet {
   }) async {
     await MiuixOverlayPanel.show(
       context: context,
-      builder: (_) => MiuixWindowBottomSheet(
+      builder: (_) => MiuixOverlayBottomSheet(
         show: true,
         title: title,
         allowDismiss: true,

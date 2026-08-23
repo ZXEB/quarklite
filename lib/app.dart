@@ -117,20 +117,20 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
 /// 全局文本样式：跟随系统默认字体，不含任何装饰（下划线等），
 /// 供 MiuixThemeController 注入，消除个别平台出现的默认下划线。
 final MiuixTextStyles _appTextStyles = MiuixTextStyles(
-  main: const TextStyle(fontSize: 17),
-  paragraph: const TextStyle(fontSize: 17, height: 1.2),
-  body1: const TextStyle(fontSize: 16),
-  body2: const TextStyle(fontSize: 14),
-  button: const TextStyle(fontSize: 17),
-  footnote1: const TextStyle(fontSize: 13),
-  footnote2: const TextStyle(fontSize: 11),
-  headline1: const TextStyle(fontSize: 17),
-  headline2: const TextStyle(fontSize: 16),
-  subtitle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-  title1: const TextStyle(fontSize: 32),
-  title2: const TextStyle(fontSize: 24),
-  title3: const TextStyle(fontSize: 20),
-  title4: const TextStyle(fontSize: 18),
+  main: const TextStyle(fontSize: 17, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+  paragraph: const TextStyle(fontSize: 17, height: 1.2, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+  body1: const TextStyle(fontSize: 16, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+  body2: const TextStyle(fontSize: 14, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+  button: const TextStyle(fontSize: 17, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+  footnote1: const TextStyle(fontSize: 13, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+  footnote2: const TextStyle(fontSize: 11, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+  headline1: const TextStyle(fontSize: 17, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+  headline2: const TextStyle(fontSize: 16, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+  subtitle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+  title1: const TextStyle(fontSize: 32, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+  title2: const TextStyle(fontSize: 24, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+  title3: const TextStyle(fontSize: 20, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+  title4: const TextStyle(fontSize: 18, decoration: TextDecoration.none, decorationColor: Colors.transparent),
 );
 
 class SnackbarRegistry {
@@ -146,33 +146,36 @@ class _BootView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MiuixScaffold(
-      snackbarHost: MiuixSnackbarHost(state: snackbarHost),
-      content: (_) => Center(
-        child: error == null
-            ? const MiuixCircularProgressIndicator()
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const MiuixIcon(
-                      icon: Icons.error_outline,
-                      tint: AppColors.red,
-                      size: 48),
-                  const SizedBox(height: 16),
-                  MiuixText('下载引擎启动失败',
-                      fontSize: 16, fontWeight: FontWeight.w600),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: MiuixText(
-                      error!,
-                      textAlign: TextAlign.center,
-                      color: MiuixTheme.of(context).colors.onSurfaceSecondary,
-                      fontSize: 12,
+    return Material(
+      type: MaterialType.transparency,
+      child: MiuixScaffold(
+        snackbarHost: MiuixSnackbarHost(state: snackbarHost),
+        content: (_) => Center(
+          child: error == null
+              ? const MiuixCircularProgressIndicator()
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const MiuixIcon(
+                        icon: Icons.error_outline,
+                        tint: AppColors.red,
+                        size: 48),
+                    const SizedBox(height: 16),
+                    MiuixText('下载引擎启动失败',
+                        fontSize: 16, fontWeight: FontWeight.w600),
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: MiuixText(
+                        error!,
+                        textAlign: TextAlign.center,
+                        color: MiuixTheme.of(context).colors.onSurfaceSecondary,
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -200,13 +203,16 @@ class _RootPageState extends State<RootPage> {
 
   @override
   Widget build(BuildContext context) {
-    return MiuixScaffold(
-      snackbarHost: MiuixSnackbarHost(state: widget.snackbarHost),
-      bottomBar: _MiuixBottomBar(
-        index: _index,
-        onTap: (i) => setState(() => _index = i),
+    return Material(
+      type: MaterialType.transparency,
+      child: MiuixScaffold(
+        snackbarHost: MiuixSnackbarHost(state: widget.snackbarHost),
+        bottomBar: _MiuixBottomBar(
+          index: _index,
+          onTap: (i) => setState(() => _index = i),
+        ),
+        content: (_) => _AnimatedPageView(index: _index, children: _pages),
       ),
-      content: (_) => _AnimatedPageView(index: _index, children: _pages),
     );
   }
 }
