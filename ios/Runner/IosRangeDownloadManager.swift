@@ -98,7 +98,7 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
         var req=URLRequest(url:url); req.httpMethod="HEAD"; req.timeoutInterval=15
         for(k,v) in h{req.setValue(v,forHTTPHeaderField:k)}
         URLSession.shared.dataTask(with:req){_,resp,err in
-            if let http=resp as?HTTPURLResponse, err==nil{
+            if let http=resp as?HTTPURLResponse, err==nil, (200...299).contains(http.statusCode){
                 if let l=http.value(forHTTPHeaderField:"Content-Length"),let v=Int64(l),v>0{
                     let sup=(http.value(forHTTPHeaderField:"Accept-Ranges")?.lowercased()=="bytes")
                     cb(v,sup,http.statusCode);return
@@ -109,8 +109,9 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
             URLSession.shared.dataTask(with:g){_,resp2,_ in
                 if let h2=resp2 as?HTTPURLResponse{
                     let is206=h2.statusCode==206
-                    var tot:Int64?; if let cr=h2.value(forHTTPHeaderField:"Content-Range"),let s=cr.split(separator:"/").last,let v=Int64(s){tot=v}
-                    if(tot==nil),let cl=h2.value(forHTTPHeaderField:"Content-Length"),let v=Int64(cl){tot=v}
+                    var tot:Int64?
+                    if(is206),let cr=h2.value(forHTTPHeaderField:"Content-Range"),let s=cr.split(separator:"/").last,let v=Int64(s){tot=v}
+                    if(tot==nil && h2.statusCode==200),let cl=h2.value(forHTTPHeaderField:"Content-Length"),let v=Int64(cl){tot=v}
                     cb(tot,is206,h2.statusCode)
                 } else{cb(nil,false,-1)}
             }.resume()
@@ -175,6 +176,7 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
                 if let e=err as NSError?{self.fail(ctx,code:(resp as?HTTPURLResponse)?.statusCode ?? e.code,msg:e.localizedDescription);return}
                 guard let http=resp as?HTTPURLResponse else{self.fail(ctx,code:-1,msg:"no resp");return}
                 if(!(200...299).contains(http.statusCode)){self.fail(ctx,code:http.statusCode,msg:"http \(http.statusCode)");return}
+                if(ctx.p.totalSize<=0){ctx.p.totalSize=max(0,http.expectedContentLength)}
                 guard let tmp=tmp else{self.fail(ctx,code:http.statusCode,msg:"no tmp");return}
                 do{
                     let d=ctx.p.targetPath
