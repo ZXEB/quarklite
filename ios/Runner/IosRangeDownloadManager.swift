@@ -251,7 +251,8 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
         let path=(ctx.p.tempDir as NSString).appendingPathComponent("chunk_\(idx).dat")
         var attempts=0
         var task:URLSessionDownloadTask!
-        let start:() -> Void = { [weak self] in
+        var start: (() -> Void)!
+        start = { [weak self] in
             guard let self=self else{return}
             attempts+=1
             task=ses.downloadTask(with:req){tmp,resp,err in
