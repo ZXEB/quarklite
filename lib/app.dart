@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kIsWeb, TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
+import 'package:liquid_glass_native/liquid_glass_native.dart';
 
 import 'core/gopeed/gopeed_boot.dart';
 import 'core/notify/download_notifier.dart';
@@ -197,6 +200,12 @@ class _BootView extends StatelessWidget {
   }
 }
 
+/// 是否启用官方液态玻璃底栏：仅 iOS 26+（且非 Web）。其余平台与 iOS 15–25 沿用 Miuix 底栏。
+bool get _useNativeGlass =>
+    !kIsWeb &&
+    defaultTargetPlatform == TargetPlatform.iOS &&
+    Platform.operatingSystemVersion.major >= 26;
+
 class RootPage extends StatefulWidget {
   final MiuixSnackbarHostState snackbarHost;
 
@@ -223,10 +232,15 @@ class _RootPageState extends State<RootPage> {
       type: MaterialType.transparency,
       child: MiuixScaffold(
         snackbarHost: MiuixSnackbarHost(state: widget.snackbarHost),
-        bottomBar: _MiuixBottomBar(
-          index: _index,
-          onTap: (i) => setState(() => _index = i),
-        ),
+        bottomBar: _useNativeGlass
+            ? _LiquidGlassBottomBar(
+                index: _index,
+                onTap: (i) => setState(() => _index = i),
+              )
+            : _MiuixBottomBar(
+                index: _index,
+                onTap: (i) => setState(() => _index = i),
+              ),
         content: (_) => _AnimatedPageView(index: _index, children: _pages),
       ),
     );
@@ -328,6 +342,40 @@ class _MiuixBottomBar extends StatelessWidget {
             label: items[i].$2,
           ),
       ],
+    );
+  }
+}
+
+/// iOS 26+ 官方液态玻璃底栏：真实 UITabBarController（系统绘制玻璃材质），
+/// 上传 tab 沿用 UploadManager 红色角标；其余平台/iOS 15–25 使用 [_MiuixBottomBar]。
+class _LiquidGlassBottomBar extends StatelessWidget {
+  final int index;
+  final ValueChanged<int> onTap;
+
+  const _LiquidGlassBottomBar({required this.index, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return LiquidGlassTheme(
+      data: const LiquidGlassThemeData(tint: AppColors.accent),
+      child: ListenableBuilder(
+        listenable: UploadManager.I,
+        builder: (context, _) => LiquidGlassTabBar(
+          items: [
+            const TabItem(label: '解析', sfSymbol: 'link'),
+            const TabItem(label: '网盘', sfSymbol: 'folder'),
+            const TabItem(label: '下载', sfSymbol: 'arrow.down.circle'),
+            TabItem(
+              label: '上传',
+              sfSymbol: 'arrow.up.circle',
+              badge: UploadManager.I.hasActive ? '' : null,
+            ),
+            const TabItem(label: '我的', sfSymbol: 'person'),
+          ],
+          currentIndex: index,
+          onTap: onTap,
+        ),
+      ),
     );
   }
 }
