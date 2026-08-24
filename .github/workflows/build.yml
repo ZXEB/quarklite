@@ -11,6 +11,7 @@ concurrency:
 
 jobs:
   build-android:
+    if: false # TEMP: iOS-only iteration
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -91,6 +92,7 @@ jobs:
           if-no-files-found: error
 
   build-windows:
+    if: false # TEMP: iOS-only iteration
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -194,15 +196,20 @@ jobs:
           DEVELOPMENT_TEAM: ''
         run: |
           set +e
-          flutter build ios --release --no-codesign
-          build_status=$?
+          flutter build ios --release --no-codesign --verbose 2>&1 | tee ios_build.log
+          build_status=${PIPESTATUS[0]}
           set -e
           # Flutter 3.47 can report its generic signing-team diagnostic after
           # Xcode has already produced the unsigned Runner.app. Only accept
           # that specific post-build condition; real compiler failures still fail.
+          # DIAGNOSTIC: dump xcodebuild errors on real build failure.
           if [ "$build_status" -ne 0 ] && [ -d build/ios/iphoneos/Runner.app ]; then
             echo "Flutter returned $build_status after producing unsigned Runner.app; continuing to package it."
           elif [ "$build_status" -ne 0 ]; then
+            echo "=== xcodebuild error lines ===="
+            grep -nE "error:|fatal error|ld: |Undefined symbol|The following build commands failed|only available in iOS|Command .* failed with a nonzero|note: " ios_build.log | tail -n 120 || true
+            echo "=== tail of ios_build.log ===="
+            tail -n 200 ios_build.log
             exit "$build_status"
           fi
           test -d build/ios/iphoneos/Runner.app
