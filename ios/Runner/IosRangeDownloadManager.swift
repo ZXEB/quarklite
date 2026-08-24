@@ -20,6 +20,8 @@ class RContext {
     var ranges: [(Int64,Int64)] = []
     var paused=false; var canceled=false; var success=0; var fail=0
     var bytes:Int64=0
+    var fallingBack=false
+    var activeTasks:[URLSessionTask]=[]
     init(p: PTask){ self.p=p; self.bytes=p.downloaded }
 }
 
@@ -197,6 +199,7 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
             guard let self=self else{return}
             if(ctx.paused||ctx.canceled){return}
             if(ctx.p.status != RStatus.running.rawValue){return}
+            if(ctx.ranges.isEmpty || ctx.p.chunkCount<=1){return}
             var pend:[Int]=[]
             for i in 0..<ctx.ranges.count{
                 let p=(ctx.p.tempDir as NSString).appendingPathComponent("chunk_\(i).dat")
@@ -212,25 +215,24 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
                 g.enter()
                 self.chunk(idx:idx,ctx:ctx,ses:ses){ok,code in
                     self.q.async{
+                        if(ctx.paused||ctx.canceled||ctx.fallingBack){g.leave(); return}
                         if(ok){
                             ctx.success+=1; ctx.fail=0; ctx.p.completed+=1
-                            if(ctx.p.totalSize>0){let r=ctx.ranges[idx]; ctx.bytes+=(r.1-r.0+1); ctx.p.downloaded=ctx.bytes}
+                            if(ctx.p.totalSize>0 && idx<ctx.ranges.count){let r=ctx.ranges[idx]; ctx.bytes+=(r.1-r.0+1); ctx.p.downloaded=ctx.bytes}
                             self.upgrade(ctx)
                             let pr=ctx.p.totalSize>0 ? Double(ctx.bytes)/Double(ctx.p.totalSize) : Double(ctx.p.completed)/Double(ctx.ranges.count)
                             self.emit(id:ctx.p.id,st:RStatus.running.rawValue,pr:min(0.99,pr),sp:0,exp:ctx.p.totalSize,code:code)
                             self.save()
                         } else{
-                            ctx.fail+=1; ctx.success=0
-                            if(code == 429 || code == 403 || code == -1001){self.degrade(ctx)}
-                            else if(ctx.fail>=3){self.degrade(ctx)}
-                            if(ctx.fail>=5){self.fail(ctx,code:code,msg:"continuous fail"); g.leave(); return}
+                            self.fallbackToSingle(ctx)
+                            g.leave(); return
                         }
                         g.leave()
                     }
                 }
             }
             g.notify(queue:self.q){
-                if(ctx.paused||ctx.canceled){return}
+                if(ctx.paused||ctx.canceled||ctx.fallingBack){return}
                 if(ctx.p.status==RStatus.error.rawValue){return}
                 var still=0
                 for i in 0..<ctx.ranges.count{let p=(ctx.p.tempDir as NSString).appendingPathComponent("chunk_\(i).dat"); if(!FileManager.default.fileExists(atPath:p)){still+=1}}
@@ -240,27 +242,68 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
         }
     }
     private func chunk(idx:Int,ctx:RContext,ses:URLSession,cb:@escaping(Bool,Int)->Void){
+        guard idx<ctx.ranges.count else{cb(false,-1);return}
         let r=ctx.ranges[idx]
         guard let url=URL(string:ctx.p.url) else{cb(false,-1);return}
         var req=URLRequest(url:url); req.setValue("bytes=\(r.0)-\(r.1)",forHTTPHeaderField:"Range")
         for(k,v) in ctx.p.headers{req.setValue(v,forHTTPHeaderField:k)}
         req.timeoutInterval=30; req.cachePolicy = .reloadIgnoringLocalCacheData
         let path=(ctx.p.tempDir as NSString).appendingPathComponent("chunk_\(idx).dat")
-        ses.dataTask(with:req){data,resp,err in
-            if let e=err as NSError?{cb(false,e.code==NSURLErrorTimedOut ? -1001 : e.code);return}
-            guard let h=resp as?HTTPURLResponse else{cb(false,-1);return}
-            if(h.statusCode==200 && ctx.ranges.count>1){
+        var attempts=0
+        var task:URLSessionDownloadTask!
+        let start:() -> Void = { [weak self] in
+            guard let self=self else{return}
+            attempts+=1
+            task=ses.downloadTask(with:req){tmp,resp,err in
                 self.q.async{
-                    try?FileManager.default.removeItem(atPath:ctx.p.tempDir)
-                    try?FileManager.default.createDirectory(atPath:ctx.p.tempDir,withIntermediateDirectories:true)
-                    ctx.ranges=[]; ctx.p.chunkCount=1; ctx.p.window=1; self.save(); self.single(ctx:ctx)
+                    if let t=task{ctx.activeTasks.removeAll{$0 === t}}
+                    if let e=err as NSError?{
+                        if(e.code==NSURLErrorTimedOut && attempts<2){start(); return}
+                        cb(false,e.code==NSURLErrorTimedOut ? -1001 : e.code);return
+                    }
+                    guard let h=resp as?HTTPURLResponse else{cb(false,-1);return}
+                    if(h.statusCode==206){
+                        guard let tmp=tmp else{cb(false,h.statusCode);return}
+                        let expected=r.1-r.0+1
+                        if let a=try?FileManager.default.attributesOfItem(atPath:tmp.path),let s=a[.size] as?UInt64,Int64(truncatingIfNeeded:s)==expected{
+                            do{
+                                try FileManager.default.createDirectory(atPath:ctx.p.tempDir,withIntermediateDirectories:true)
+                                if(FileManager.default.fileExists(atPath:path)){try FileManager.default.removeItem(atPath:path)}
+                                try FileManager.default.moveItem(atPath:tmp.path,toPath:path)
+                                cb(true,h.statusCode)
+                            }catch{try?FileManager.default.removeItem(atPath:tmp.path); cb(false,h.statusCode)}
+                        }else{
+                            try?FileManager.default.removeItem(atPath:tmp.path)
+                            cb(false,h.statusCode)
+                        }
+                    }else{
+                        if let tmp=tmp{try?FileManager.default.removeItem(atPath:tmp.path)}
+                        cb(false,h.statusCode)
+                    }
                 }
-                cb(false,h.statusCode);return
             }
-            if(!(200...206).contains(h.statusCode)){cb(false,h.statusCode);return}
-            guard let d=data else{cb(false,h.statusCode);return}
-            do{try FileManager.default.createDirectory(atPath:ctx.p.tempDir,withIntermediateDirectories:true); try d.write(to:URL(fileURLWithPath:path),options:.atomic); cb(true,h.statusCode)}catch{cb(false,h.statusCode)}
-        }.resume()
+            ctx.activeTasks.append(task)
+            task.resume()
+        }
+        start()
+    }
+
+    /// 多分片遇到任何硬失败时（403/5xx/200 整包/超时重试后仍失败），安全回退为单连接整包下载。
+    /// 仅在串行队列 q 内调用；幂等（fallingBack 置位后直接返回）。
+    private func fallbackToSingle(_ ctx:RContext){
+        if(ctx.fallingBack){return}
+        ctx.fallingBack=true
+        for t in ctx.activeTasks{t.cancel()}
+        ctx.activeTasks.removeAll()
+        ctx.ranges=[]
+        ctx.p.chunkCount=1
+        ctx.p.window=1
+        ctx.p.completed=0
+        try?FileManager.default.removeItem(atPath:ctx.p.tempDir)
+        try?FileManager.default.createDirectory(atPath:ctx.p.tempDir,withIntermediateDirectories:true)
+        self.save()
+        print("[range] \(ctx.p.id) fallback to single")
+        self.single(ctx:ctx)
     }
     private func merge(_ ctx:RContext){
         q.async{
@@ -312,6 +355,7 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
         q.async{
             guard let c=self.tasks[id] else{DispatchQueue.main.async{r(nil)};return}
             c.canceled=true; c.paused=true
+            for task in c.activeTasks{task.cancel()}; c.activeTasks.removeAll()
             if(force){try?FileManager.default.removeItem(atPath:c.p.targetPath)}
             try?FileManager.default.removeItem(atPath:c.p.tempDir)
             self.tasks.removeValue(forKey:id); self.save()
@@ -322,7 +366,7 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
     private func removeAll(ids:[String]?,r:@escaping FlutterResult){
         q.async{
             let t=ids ?? Array(self.tasks.keys)
-            for id in t{if let c=self.tasks[id]{c.canceled=true; try?FileManager.default.removeItem(atPath:c.p.targetPath); try?FileManager.default.removeItem(atPath:c.p.tempDir); self.tasks.removeValue(forKey:id)}}
+            for id in t{if let c=self.tasks[id]{c.canceled=true; for task in c.activeTasks{task.cancel()}; c.activeTasks.removeAll(); try?FileManager.default.removeItem(atPath:c.p.targetPath); try?FileManager.default.removeItem(atPath:c.p.tempDir); self.tasks.removeValue(forKey:id)}}
             self.save(); DispatchQueue.main.async{r(nil)}
         }
     }
