@@ -201,10 +201,13 @@ class _BootView extends StatelessWidget {
 }
 
 /// 是否启用官方液态玻璃底栏：仅 iOS 26+（且非 Web）。其余平台与 iOS 15–25 沿用 Miuix 底栏。
-bool get _useNativeGlass =>
-    !kIsWeb &&
-    defaultTargetPlatform == TargetPlatform.iOS &&
-    Platform.operatingSystemVersion.major >= 26;
+bool get _useNativeGlass {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return false;
+  final v = Platform.operatingSystemVersion;
+  final dot = v.indexOf('.');
+  final major = int.tryParse(dot == -1 ? v : v.substring(0, dot)) ?? 0;
+  return major >= 26;
+}
 
 class RootPage extends StatefulWidget {
   final MiuixSnackbarHostState snackbarHost;
