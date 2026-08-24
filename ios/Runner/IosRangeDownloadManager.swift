@@ -180,7 +180,7 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
                     let d=ctx.p.targetPath
                     if(FileManager.default.fileExists(atPath:d)){try FileManager.default.removeItem(atPath:d)}
                     try FileManager.default.moveItem(atPath:tmp.path,toPath:d)
-                    if(ctx.p.totalSize>0),let a=try?FileManager.default.attributesOfItem(atPath:d),let s=a[.size] as?UInt64,Int64(s)!=ctx.p.totalSize{self.fail(ctx,code:http.statusCode,msg:"size mismatch");return}
+                    if(ctx.p.totalSize>0),let a=try?FileManager.default.attributesOfItem(atPath:d),let s=a[.size] as?UInt64,Int64(truncatingIfNeeded:s) != ctx.p.totalSize{self.fail(ctx,code:http.statusCode,msg:"size mismatch");return}
                     ctx.p.status=RStatus.done.rawValue; ctx.p.downloaded=ctx.p.totalSize; self.save()
                     self.emit(id:ctx.p.id,st:RStatus.done.rawValue,pr:1,sp:0,exp:ctx.p.totalSize,code:http.statusCode)
                     try?FileManager.default.removeItem(atPath:ctx.p.tempDir)
@@ -219,7 +219,7 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
                             self.save()
                         } else{
                             ctx.fail+=1; ctx.success=0
-                            if(code==429||code==403||code==-1001){self.degrade(ctx)}
+                            if(code == 429 || code == 403 || code == -1001){self.degrade(ctx)}
                             else if(ctx.fail>=3){self.degrade(ctx)}
                             if(ctx.fail>=5){self.fail(ctx,code:code,msg:"continuous fail"); g.leave(); return}
                         }
@@ -275,7 +275,7 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
                     fh.write(d)
                 }
                 fh.closeFile()
-                if(ctx.p.totalSize>0),let a=try?FileManager.default.attributesOfItem(atPath:t),let s=a[.size] as?UInt64,Int64(s)!=ctx.p.totalSize{self.fail(ctx,code:200,msg:"size mismatch");return}
+                if(ctx.p.totalSize>0),let a=try?FileManager.default.attributesOfItem(atPath:t),let s=a[.size] as?UInt64,Int64(truncatingIfNeeded:s) != ctx.p.totalSize{self.fail(ctx,code:200,msg:"size mismatch");return}
                 ctx.p.status=RStatus.done.rawValue; ctx.p.downloaded=ctx.p.totalSize; self.save()
                 self.emit(id:ctx.p.id,st:RStatus.done.rawValue,pr:1,sp:0,exp:ctx.p.totalSize,code:200)
                 try?FileManager.default.removeItem(atPath:tmp)
@@ -360,7 +360,7 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
                 let b=m.totalSize/Int64(m.chunkCount)
                 for i in 0..<m.chunkCount{let s=Int64(i)*b; let e:Int64=(i==m.chunkCount-1 ? m.totalSize-1 : s+b-1); c.ranges.append((s,e))}
                 var dl:Int64=0
-                for i in 0..<m.chunkCount{let pp=(m.tempDir as NSString).appendingPathComponent("chunk_\(i).dat"); if let at=try?FileManager.default.attributesOfItem(atPath:pp),let s=at[.size] as?UInt64{dl+=Int64(s)}}
+                for i in 0..<m.chunkCount{let pp=(m.tempDir as NSString).appendingPathComponent("chunk_\(i).dat"); if let at=try?FileManager.default.attributesOfItem(atPath:pp),let s=at[.size] as?UInt64{dl += Int64(truncatingIfNeeded:s)}}
                 c.bytes=dl; c.p.downloaded=dl
             }
             tasks[v.id]=c
