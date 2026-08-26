@@ -20,9 +20,13 @@ class RContext {
     var ranges: [(Int64,Int64)] = []
     var paused=false; var canceled=false; var success=0; var fail=0
     var bytes:Int64=0
+    // Speed sampling is confined to the serial q queue.
+    var speedSampleBytes:Int64=0
+    var speedSampleAt:TimeInterval=Date().timeIntervalSince1970
+    var speedBytesPerSecond:Int64=0
     var fallingBack=false
     var activeTasks:[URLSessionTask]=[]
-    init(p: PTask){ self.p=p; self.bytes=p.downloaded }
+    init(p: PTask){ self.p=p; self.bytes=p.downloaded; self.speedSampleBytes=p.downloaded }
 }
 
 class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
@@ -66,7 +70,7 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
     func onCancel(withArguments a: Any?)->FlutterError?{sink=nil; return nil}
     private func emit(id:String,st:String,pr:Double,sp:Int64,exp:Int64,code:Int?){
         guard let s=sink else{return}
-        var m:[String:Any]=["taskId":id,"status":st,"progress":pr,"speed":sp,"expectedFileSize":exp]
+        var m:[String:Any]=["taskId":id,"status":st,"progress":pr,"speed":max(0,sp),"expectedFileSize":exp]
         if let c=code{m["httpCode"]=c}
         DispatchQueue.main.async{s(m)}
     }
@@ -119,6 +123,46 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
             }.resume()
         }.resume()
     }
+    /// Returns bytes per second from the recent sample; stale samples are zero.
+    private func currentSpeed(_ ctx:RContext, now:TimeInterval=Date().timeIntervalSince1970)->Int64{
+        guard ctx.p.status == RStatus.running.rawValue else { return 0 }
+        // Download-task callbacks only fire on completion, so sample the active
+        // single-connection task when Flutter polls the task list.
+        if ctx.p.chunkCount == 1, let task=ctx.activeTasks.first {
+            let received=max(0, task.countOfBytesReceived)
+            if received > ctx.p.downloaded { recordProgress(ctx,downloaded:received) }
+        }
+        guard ctx.speedBytesPerSecond > 0, now - ctx.speedSampleAt <= 3 else { return 0 }
+        return ctx.speedBytesPerSecond
+    }
+
+    /// Records aggregate task progress and updates the speed sample.
+    private func recordProgress(_ ctx:RContext, downloaded:Int64){
+        let now=Date().timeIntervalSince1970
+        let delta=downloaded-ctx.speedSampleBytes
+        let elapsed=now-ctx.speedSampleAt
+        ctx.p.downloaded=max(0,downloaded)
+        ctx.bytes=ctx.p.downloaded
+        if delta > 0 && elapsed > 0.05 {
+            // Smooth samples to avoid spikes when a chunk completes.
+            let instant=Int64(Double(delta)/elapsed)
+            ctx.speedBytesPerSecond = ctx.speedBytesPerSecond > 0
+                ? (ctx.speedBytesPerSecond * 3 + instant) / 4
+                : instant
+            ctx.speedSampleBytes=downloaded
+            ctx.speedSampleAt=now
+        } else if delta > 0 {
+            ctx.speedSampleBytes=downloaded
+            ctx.speedSampleAt=now
+        }
+    }
+
+    private func resetSpeed(_ ctx:RContext){
+        ctx.speedSampleBytes=ctx.p.downloaded
+        ctx.speedSampleAt=Date().timeIntervalSince1970
+        ctx.speedBytesPerSecond=0
+    }
+
     private func adaptive(req:Int,len:Int64?,sup:Bool)->Int{
         if(!sup||req<=1){return 1}
         let cap=min(maxC,max(1,req))
@@ -146,7 +190,8 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
                 self.tasks[id]=ctx
                 try?FileManager.default.createDirectory(atPath:tmp,withIntermediateDirectories:true)
                 try?FileManager.default.createDirectory(atPath:(target as NSString).deletingLastPathComponent,withIntermediateDirectories:true)
-                self.save(); self.emit(id:id,st:RStatus.running.rawValue,pr:0,sp:0,exp:tot,code:code)
+                self.resetSpeed(ctx)
+                self.save(); self.emit(id:id,st:RStatus.running.rawValue,pr:0,sp:self.currentSpeed(ctx),exp:tot,code:code)
                 DispatchQueue.main.async{r(id)}
                 if(cnt==1){self.single(ctx:ctx)}else{self.sched(ctx)}
             }
@@ -171,9 +216,11 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
         var req=URLRequest(url:url); req.timeoutInterval=60
         for(k,v) in ctx.p.headers{req.setValue(v,forHTTPHeaderField:k)}
         let ses=isFg ? fg! : bg!
-        let t=ses.downloadTask(with:req){[weak self] tmp,resp,err in
+        var task:URLSessionDownloadTask!
+        task=ses.downloadTask(with:req){[weak self] tmp,resp,err in
             guard let self=self else{return}
             self.q.async{
+                if let task=task { ctx.activeTasks.removeAll { $0 === task } }
                 if(ctx.canceled||ctx.paused){return}
                 if let e=err as NSError?{self.fail(ctx,code:(resp as?HTTPURLResponse)?.statusCode ?? e.code,msg:e.localizedDescription);return}
                 guard let http=resp as?HTTPURLResponse else{self.fail(ctx,code:-1,msg:"no resp");return}
@@ -185,14 +232,17 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
                     if(FileManager.default.fileExists(atPath:d)){try FileManager.default.removeItem(atPath:d)}
                     try FileManager.default.moveItem(atPath:tmp.path,toPath:d)
                     if(ctx.p.totalSize>0),let a=try?FileManager.default.attributesOfItem(atPath:d),let s=a[.size] as?UInt64,Int64(truncatingIfNeeded:s) != ctx.p.totalSize{self.fail(ctx,code:http.statusCode,msg:"size mismatch");return}
-                    ctx.p.status=RStatus.done.rawValue; ctx.p.downloaded=ctx.p.totalSize; self.save()
+                    self.recordProgress(ctx,downloaded:ctx.p.totalSize)
+                    ctx.p.status=RStatus.done.rawValue; self.resetSpeed(ctx); self.save()
                     self.emit(id:ctx.p.id,st:RStatus.done.rawValue,pr:1,sp:0,exp:ctx.p.totalSize,code:http.statusCode)
                     try?FileManager.default.removeItem(atPath:ctx.p.tempDir)
                 }catch{self.fail(ctx,code:http.statusCode,msg:error.localizedDescription)}
             }
         }
-        ctx.p.status=RStatus.running.rawValue; t.resume()
-        emit(id:ctx.p.id,st:RStatus.running.rawValue,pr:0.01,sp:0,exp:ctx.p.totalSize,code:nil)
+        ctx.p.status=RStatus.running.rawValue
+        ctx.activeTasks.append(task)
+        task.resume()
+        emit(id:ctx.p.id,st:RStatus.running.rawValue,pr:0.01,sp:currentSpeed(ctx),exp:ctx.p.totalSize,code:nil)
     }
     private func sched(_ ctx:RContext){
         q.async{[weak self] in
@@ -218,10 +268,10 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
                         if(ctx.paused||ctx.canceled||ctx.fallingBack){g.leave(); return}
                         if(ok){
                             ctx.success+=1; ctx.fail=0; ctx.p.completed+=1
-                            if(ctx.p.totalSize>0 && idx<ctx.ranges.count){let r=ctx.ranges[idx]; ctx.bytes+=(r.1-r.0+1); ctx.p.downloaded=ctx.bytes}
+                            if(ctx.p.totalSize>0 && idx<ctx.ranges.count){let r=ctx.ranges[idx]; self.recordProgress(ctx,downloaded:ctx.bytes+(r.1-r.0+1))}
                             self.upgrade(ctx)
                             let pr=ctx.p.totalSize>0 ? Double(ctx.bytes)/Double(ctx.p.totalSize) : Double(ctx.p.completed)/Double(ctx.ranges.count)
-                            self.emit(id:ctx.p.id,st:RStatus.running.rawValue,pr:min(0.99,pr),sp:0,exp:ctx.p.totalSize,code:code)
+                            self.emit(id:ctx.p.id,st:RStatus.running.rawValue,pr:min(0.99,pr),sp:self.currentSpeed(ctx),exp:ctx.p.totalSize,code:code)
                             self.save()
                         } else{
                             self.fallbackToSingle(ctx)
@@ -322,14 +372,15 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
                 }
                 fh.closeFile()
                 if(ctx.p.totalSize>0),let a=try?FileManager.default.attributesOfItem(atPath:t),let s=a[.size] as?UInt64,Int64(truncatingIfNeeded:s) != ctx.p.totalSize{self.fail(ctx,code:200,msg:"size mismatch");return}
-                ctx.p.status=RStatus.done.rawValue; ctx.p.downloaded=ctx.p.totalSize; self.save()
+                self.recordProgress(ctx,downloaded:ctx.p.totalSize)
+                ctx.p.status=RStatus.done.rawValue; self.resetSpeed(ctx); self.save()
                 self.emit(id:ctx.p.id,st:RStatus.done.rawValue,pr:1,sp:0,exp:ctx.p.totalSize,code:200)
                 try?FileManager.default.removeItem(atPath:tmp)
             }catch{self.fail(ctx,code:-1,msg:error.localizedDescription)}
         }
     }
     private func fail(_ ctx:RContext,code:Int,msg:String){
-        ctx.p.status=RStatus.error.rawValue; save()
+        ctx.p.status=RStatus.error.rawValue; resetSpeed(ctx); save()
         emit(id:ctx.p.id,st:RStatus.error.rawValue,pr:0,sp:0,exp:ctx.p.totalSize,code:code)
         print("[range] \(ctx.p.id) fail \(code) \(msg)")
     }
@@ -337,8 +388,9 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
         q.async{
             guard let c=self.tasks[id] else{r(FlutterError(code:"not_found",message:"not found",details:nil));return}
             if(c.p.status==RStatus.done.rawValue){DispatchQueue.main.async{r(nil)};return}
-            c.paused=true; c.p.status=RStatus.pause.rawValue; self.save()
-            self.emit(id:id,st:RStatus.pause.rawValue,pr:0,sp:0,exp:c.p.totalSize,code:nil)
+            c.paused=true; c.p.status=RStatus.pause.rawValue; self.resetSpeed(c); self.save()
+            let pr=c.p.totalSize>0 ? Double(c.p.downloaded)/Double(c.p.totalSize) : 0
+            self.emit(id:id,st:RStatus.pause.rawValue,pr:pr,sp:0,exp:c.p.totalSize,code:nil)
             DispatchQueue.main.async{r(nil)}
         }
     }
@@ -346,8 +398,9 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
         q.async{
             guard let c=self.tasks[id] else{r(FlutterError(code:"not_found",message:"not found",details:nil));return}
             if(c.p.status==RStatus.done.rawValue){DispatchQueue.main.async{r(FlutterError(code:"done",message:"done",details:nil))};return}
-            c.paused=false; c.canceled=false; c.p.status=RStatus.running.rawValue; c.fail=0; self.save()
-            self.emit(id:id,st:RStatus.running.rawValue,pr:0,sp:0,exp:c.p.totalSize,code:nil)
+            c.paused=false; c.canceled=false; c.p.status=RStatus.running.rawValue; c.fail=0; self.resetSpeed(c); self.save()
+            let pr=c.p.totalSize>0 ? Double(c.p.downloaded)/Double(c.p.totalSize) : 0
+            self.emit(id:id,st:RStatus.running.rawValue,pr:pr,sp:self.currentSpeed(c),exp:c.p.totalSize,code:nil)
             if(c.ranges.isEmpty && c.p.chunkCount==1){self.single(ctx:c)}else{self.sched(c)}
             DispatchQueue.main.async{r(nil)}
         }
@@ -355,7 +408,7 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
     private func remove(id:String,force:Bool,r:@escaping FlutterResult){
         q.async{
             guard let c=self.tasks[id] else{DispatchQueue.main.async{r(nil)};return}
-            c.canceled=true; c.paused=true
+            c.canceled=true; c.paused=true; self.resetSpeed(c)
             for task in c.activeTasks{task.cancel()}; c.activeTasks.removeAll()
             if(force){try?FileManager.default.removeItem(atPath:c.p.targetPath)}
             try?FileManager.default.removeItem(atPath:c.p.tempDir)
@@ -374,15 +427,16 @@ class IosRangeDownloadManager: NSObject, FlutterStreamHandler {
     private func pauseAll(ids:[String]?,r:@escaping FlutterResult){
         q.async{
             let t=ids ?? Array(self.tasks.keys)
-            for id in t{self.tasks[id]?.paused=true; self.tasks[id]?.p.status=RStatus.pause.rawValue}
+            for id in t{if let c=self.tasks[id]{c.paused=true; c.p.status=RStatus.pause.rawValue; self.resetSpeed(c)}}
             self.save(); DispatchQueue.main.async{r(nil)}
         }
     }
     private func list(r:@escaping FlutterResult){
         q.async{
             let arr:[[String:Any]]=self.tasks.values.map{ctx in
+                let speed=self.currentSpeed(ctx)
                 let p=ctx.p; let pr:Double=p.totalSize>0 ? Double(p.downloaded)/Double(p.totalSize) : (p.status==RStatus.done.rawValue ? 1:0)
-                return["id":p.id,"name":p.fileName,"status":p.status,"size":p.totalSize,"downloaded":p.downloaded,"speed":0,"createdAt":p.createdAt,"targetPath":p.targetPath,"tempDir":p.tempDir,"chunkCount":p.chunkCount,"completedChunks":p.completed,"currentWindow":p.window,"progress":pr]
+                return["id":p.id,"name":p.fileName,"status":p.status,"size":p.totalSize,"downloaded":p.downloaded,"speed":speed,"createdAt":p.createdAt,"targetPath":p.targetPath,"tempDir":p.tempDir,"chunkCount":p.chunkCount,"completedChunks":p.completed,"currentWindow":p.window,"progress":pr]
             }
             DispatchQueue.main.async{r(arr)}
         }
