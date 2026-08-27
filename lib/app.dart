@@ -21,6 +21,7 @@ import 'state/upload_manager.dart';
 import 'state/xunlei_state.dart';
 import 'theme/app_theme.dart';
 import 'utils/app_logger.dart';
+import 'widgets/md3/md3_nav_bar.dart';
 import 'widgets/miuix_common.dart';
 
 class QuarkLiteApp extends StatefulWidget {
@@ -102,6 +103,8 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
     return MiuixThemeController(
       colorSchemeMode: MiuixColorSchemeMode.system,
       isDark: isDark,
+      lightColors: md3LightColors(),
+      darkColors: md3DarkColors(),
       textStyles: _appTextStyles,
       child: MaterialApp(
         title: 'Quarklite',
@@ -240,7 +243,7 @@ class _RootPageState extends State<RootPage> {
                 index: _index,
                 onTap: (i) => setState(() => _index = i),
               )
-            : _MiuixBottomBar(
+            : Md3NavBar(
                 index: _index,
                 onTap: (i) => setState(() => _index = i),
               ),
@@ -278,71 +281,6 @@ class _AnimatedPageView extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-      ],
-    );
-  }
-}
-
-class _ActiveDot extends StatelessWidget {
-  const _ActiveDot();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 9,
-      height: 9,
-      decoration: BoxDecoration(
-        color: AppColors.red,
-        shape: BoxShape.circle,
-        border: Border.all(color: AppColors.bottomBar, width: 1.5),
-      ),
-    );
-  }
-}
-
-class _MiuixBottomBar extends StatelessWidget {
-  final int index;
-  final ValueChanged<int> onTap;
-
-  const _MiuixBottomBar({required this.index, required this.onTap});
-
-  Widget _tabIcon(int i, IconData icon) {
-    if (i != 3) return MiuixIcon(icon: icon, size: 26);
-    return ListenableBuilder(
-      listenable: UploadManager.I,
-      builder: (context, _) => Stack(
-        clipBehavior: Clip.none,
-        children: [
-          MiuixIcon(icon: icon, size: 26),
-          if (UploadManager.I.hasActive)
-            const Positioned(
-              right: -4,
-              top: -4,
-              child: _ActiveDot(),
-            ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      (Icons.link_rounded, '解析'),
-      (Icons.folder_rounded, '网盘'),
-      (Icons.download_rounded, '下载'),
-      (Icons.upload_rounded, '上传'),
-      (Icons.person_outline_rounded, '我的'),
-    ];
-    return MiuixNavigationBar(
-      children: [
-        for (var i = 0; i < items.length; i++)
-          MiuixNavigationBarItem(
-            selected: i == index,
-            onPressed: () => onTap(i),
-            icon: _tabIcon(i, items[i].$1),
-            label: items[i].$2,
           ),
       ],
     );

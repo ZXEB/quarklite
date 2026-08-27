@@ -1,27 +1,117 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_miuix/miuix.dart';
 
-/// 应用颜色表 — 细节配色（辅助 Miuix 主题的少数强调色）。
+/// 应用颜色表 — MD3 (Material You) 极简卡片流设计 tokens。
 ///
-/// 主体颜色一律取自 `MiuixTheme.of(context).colors`；这里仅保留与原有配色
-/// 语义一致的常量，供不方便读取主题的绘制/角标使用。
+/// 主体颜色一律取自 `MiuixTheme.of(context).colors`（由 [md3LightColors] /
+/// [md3DarkColors] 全局注入）；这里保留细节常量，供不方便读取主题的绘制/角标使用。
 class AppColors {
-  static const bg = Color(0xFFF2F3F7);
-  static const card = Color(0xFFFFFFFF);
-  static const cardLight = Color(0xFFE8E9EF);
-  static const accent = Color(0xFF3482FF);
-  static const accentDeep = Color(0xFFD6E6FF);
+  static const bg = Color(0xFFF6F5F9); // 页面背景
+  static const card = Color(0xFFF1F0F5); // 卡片表面
+  static const cardLight = Color(0xFFE7E6F0); // 头像圆底 / 浅容器
+  static const accent = Color(0xFF46557E); // 深蓝灰点缀（进度条/选中态）
+  static const accentDark = Color(0xFF9AA8D0); // 暗色模式点缀
+  static const accentDeep = Color(0xFFDCE1EE); // 点缀浅容器
   static const textPrimary = Color(0xFF1A1A1E);
-  static const textSecondary = Color(0xFF8C93B0);
-  static const divider = Color(0xFFE6E7EC);
+  static const textSecondary = Color(0xFF85858E);
+  static const divider = Color(0xFFE8E7EE);
   static const green = Color(0xFF0FA35C);
   static const orange = Color(0xFFF08C00);
   static const red = Color(0xFFE94634);
-  static const bottomBar = Color(0xFFF7F7F7);
+  static const bottomBar = Color(0xFFFFFFFF);
+  static const avatarBg = Color(0xFFE7E6F0); // 字标头像圆底
+  static const avatarFg = Color(0xFF4A5578); // 字标头像文字
+  static const progressTrack = Color(0xFFDFDEE6); // 进度条轨道
+  static const pillActive = Color(0xFFEEEDF3); // 底栏选中胶囊
 
   @Deprecated('UI 已全量迁移到 Miuix 主题，AppColors 仅保留细节常量')
   static void apply(UIStyle _) {}
 }
+
+/// MD3 浅色方案：在 Miuix 默认浅色基础上覆盖中性灰白表面 + 深蓝灰点缀。
+MiuixColors md3LightColors() => lightColorScheme().copy(
+      primary: AppColors.accent,
+      onPrimary: const Color(0xFFFFFFFF),
+      primaryVariant: const Color(0xFF3A4767),
+      onPrimaryVariant: const Color(0xFFC9D2E8),
+      disabledPrimary: const Color(0xFFC7CDDD),
+      disabledPrimaryButton: const Color(0xFFC7CDDD),
+      disabledPrimarySlider: const Color(0xFFB7BFD2),
+      primaryContainer: const Color(0xFF5A6A96),
+      onPrimaryContainer: const Color(0xFFFFFFFF),
+      secondaryContainer: AppColors.pillActive,
+      onSecondaryContainer: AppColors.accent,
+      secondaryContainerVariant: AppColors.pillActive,
+      onSecondaryContainerVariant: AppColors.textSecondary,
+      tertiaryContainer: AppColors.avatarBg,
+      onTertiaryContainer: AppColors.avatarFg,
+      tertiaryContainerVariant: AppColors.avatarBg,
+      background: AppColors.bg,
+      onBackground: AppColors.textPrimary,
+      onBackgroundVariant: AppColors.textSecondary,
+      surface: AppColors.bg,
+      onSurface: AppColors.textPrimary,
+      surfaceVariant: const Color(0xFFFFFFFF),
+      onSurfaceSecondary: AppColors.textSecondary,
+      onSurfaceVariantSummary: AppColors.textSecondary,
+      onSurfaceVariantActions: const Color(0xFF8C8C94),
+      disabledOnSurface: const Color(0xFFB8B8C0),
+      surfaceContainer: AppColors.card,
+      onSurfaceContainer: AppColors.textPrimary,
+      onSurfaceContainerVariant: AppColors.textSecondary,
+      surfaceContainerHigh: const Color(0xFFECEBF1),
+      onSurfaceContainerHigh: const Color(0xFF6E6E76),
+      surfaceContainerHighest: const Color(0xFFE7E6EE),
+      onSurfaceContainerHighest: AppColors.textPrimary,
+      outline: AppColors.progressTrack,
+      dividerLine: AppColors.divider,
+      sliderKeyPoint: AppColors.progressTrack,
+      sliderKeyPointForeground: AppColors.accent,
+      sliderBackground: AppColors.progressTrack,
+    );
+
+/// MD3 深色方案：炭黑表面 + 浅蓝灰点缀。
+MiuixColors md3DarkColors() => darkColorScheme().copy(
+      primary: AppColors.accentDark,
+      onPrimary: const Color(0xFF14161F),
+      primaryVariant: const Color(0xFF7E8CB6),
+      onPrimaryVariant: const Color(0xFF3E4A6B),
+      disabledPrimary: const Color(0xFF3A4056),
+      disabledPrimaryButton: const Color(0xFF3A4056),
+      disabledPrimarySlider: const Color(0xFF4A5269),
+      primaryContainer: const Color(0xFF7E8CB6),
+      onPrimaryContainer: const Color(0xFF14161F),
+      secondaryContainer: const Color(0xFF2E2F3A),
+      onSecondaryContainer: const Color(0xFFB9C2DC),
+      secondaryContainerVariant: const Color(0xFF2E2F3A),
+      onSecondaryContainerVariant: const Color(0xFF9C9CA6),
+      tertiaryContainer: const Color(0xFF2C2E3C),
+      onTertiaryContainer: const Color(0xFFB4BDD8),
+      tertiaryContainerVariant: const Color(0xFF2C2E3C),
+      background: const Color(0xFF141418),
+      onBackground: const Color(0xFFECECF1),
+      onBackgroundVariant: const Color(0xFF9C9CA6),
+      surface: const Color(0xFF141418),
+      onSurface: const Color(0xFFECECF1),
+      surfaceVariant: const Color(0xFF232329),
+      onSurfaceSecondary: const Color(0xFF9C9CA6),
+      onSurfaceVariantSummary: const Color(0xFF9C9CA6),
+      onSurfaceVariantActions: const Color(0xFFA2A2AC),
+      disabledOnSurface: const Color(0xFF5E5E66),
+      surfaceContainer: const Color(0xFF232329),
+      onSurfaceContainer: const Color(0xFFECECF1),
+      onSurfaceContainerVariant: const Color(0xFF9C9CA6),
+      surfaceContainerHigh: const Color(0xFF2A2A31),
+      onSurfaceContainerHigh: const Color(0xFF9C9CA6),
+      surfaceContainerHighest: const Color(0xFF323239),
+      onSurfaceContainerHighest: const Color(0xFFECECF1),
+      outline: const Color(0xFF3C3C44),
+      dividerLine: const Color(0xFF2E2E36),
+      sliderKeyPoint: const Color(0xFF3A3A44),
+      sliderKeyPointForeground: AppColors.accentDark,
+      sliderBackground: const Color(0xFF3A3A44),
+    );
 
 // 兼容存根：迁移前的双主题符号，避免历史引用报错。新代码不应使用。
 enum UIStyle {
@@ -107,17 +197,18 @@ class AppTheme {
   /// 使 `MaterialPageRoute` 运行时稳定可用。
   static ThemeData _base(Brightness brightness) {
     final dark = brightness == Brightness.dark;
+    final accent = dark ? AppColors.accentDark : AppColors.accent;
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
-      scaffoldBackgroundColor: dark ? const Color(0xFF101014) : AppColors.bg,
+      scaffoldBackgroundColor: dark ? const Color(0xFF141418) : AppColors.bg,
       colorScheme: dark
           ? const ColorScheme.dark(
-              primary: Color(0xFF7C9FFF),
-              secondary: Color(0xFF7C9FFF),
-              surface: Color(0xFF1B1B21),
-              onSurface: Color(0xFFE6E6EB),
-              onPrimary: Color(0xFF101014),
+              primary: AppColors.accentDark,
+              secondary: AppColors.accentDark,
+              surface: Color(0xFF232329),
+              onSurface: Color(0xFFECECF1),
+              onPrimary: Color(0xFF14161F),
             )
           : const ColorScheme.light(
               primary: AppColors.accent,
@@ -137,9 +228,9 @@ class AppTheme {
         },
       ),
       textTheme: TextTheme(
-        bodySmall: TextStyle(color: dark ? const Color(0xFFE6E6EB) : AppColors.textPrimary, decoration: TextDecoration.none, decorationColor: Colors.transparent),
-        bodyMedium: TextStyle(color: dark ? const Color(0xFFE6E6EB) : AppColors.textPrimary, decoration: TextDecoration.none, decorationColor: Colors.transparent),
-        bodyLarge: TextStyle(color: dark ? const Color(0xFFE6E6EB) : AppColors.textPrimary, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+        bodySmall: TextStyle(color: dark ? const Color(0xFFECECF1) : AppColors.textPrimary, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+        bodyMedium: TextStyle(color: dark ? const Color(0xFFECECF1) : AppColors.textPrimary, decoration: TextDecoration.none, decorationColor: Colors.transparent),
+        bodyLarge: TextStyle(color: dark ? const Color(0xFFECECF1) : AppColors.textPrimary, decoration: TextDecoration.none, decorationColor: Colors.transparent),
         labelMedium: const TextStyle(decoration: TextDecoration.none, decorationColor: Colors.transparent),
         labelSmall: const TextStyle(decoration: TextDecoration.none, decorationColor: Colors.transparent),
         labelLarge: const TextStyle(decoration: TextDecoration.none, decorationColor: Colors.transparent),
@@ -152,9 +243,9 @@ class AppTheme {
         displayMedium: const TextStyle(decoration: TextDecoration.none, decorationColor: Colors.transparent),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: dark ? const Color(0xFF1B1B21) : AppColors.card,
+        backgroundColor: dark ? const Color(0xFF232329) : Colors.white,
       ),
-      dividerTheme: DividerThemeData(color: dark ? const Color(0xFF2A2A31) : AppColors.divider),
+      dividerTheme: DividerThemeData(color: dark ? const Color(0xFF2E2E36) : AppColors.divider),
       inputDecorationTheme: const InputDecorationTheme(
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
@@ -166,9 +257,9 @@ class AppTheme {
         isDense: true,
       ),
       textSelectionTheme: TextSelectionThemeData(
-        cursorColor: AppColors.accent,
-        selectionColor: AppColors.accentDeep,
-        selectionHandleColor: AppColors.accent,
+        cursorColor: accent,
+        selectionColor: dark ? const Color(0xFF3A4560) : AppColors.accentDeep,
+        selectionHandleColor: accent,
       ),
     );
   }

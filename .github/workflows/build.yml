@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   build-android:
-    if: false # TEMP: iOS-only iteration
+    if: false # Windows-only iteration（改回 true 即可启用 Android 构建）
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -92,7 +92,6 @@ jobs:
           if-no-files-found: error
 
   build-windows:
-    if: false # TEMP: iOS-only iteration
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -167,6 +166,7 @@ jobs:
           if-no-files-found: error
 
   build-ios:
+    if: false # Windows-only iteration（改回 true 即可启用 iOS 构建）
     runs-on: macos-latest
     steps:
       - name: Checkout
