@@ -58,6 +58,7 @@ class Md3NavBar extends StatelessWidget {
   Widget _item(BuildContext context, int i, bool isDark) {
     final (outline, filled, label) = _items[i];
     final selected = i == index;
+    final barColor = isDark ? const Color(0xFF1C1C22) : AppColors.bottomBar;
     final color = selected
         ? (isDark ? const Color(0xFFECECF1) : AppColors.textPrimary)
         : (isDark ? const Color(0xFF9C9CA6) : AppColors.textSecondary);
