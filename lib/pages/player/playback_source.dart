@@ -29,11 +29,31 @@ class MediaVariant {
   final String label;
   final Future<ResolvedMedia> Function() resolve;
 
+  /// 清晰度排序权重（2160/1080/720…，越大越清晰）；null 表示未知。
+  final int? rank;
+
   const MediaVariant({
     required this.key,
     required this.label,
     required this.resolve,
+    this.rank,
   });
+}
+
+/// 从清晰度 label 解析排序权重（如 2160/1080P/4K/蓝光），与夸克
+/// video_preview 的 _qualityRank 规则一致，用于跨网盘统一选默认源。
+int variantRank(String label) {
+  final m = RegExp(r'(\d{3,4})').firstMatch(label);
+  if (m != null) return int.tryParse(m.group(1)!) ?? 0;
+  const named = {
+    '4K': 2160,
+    '蓝光': 1080,
+    '超清': 720,
+    '高清': 540,
+    '标清': 360,
+    '流畅': 240,
+  };
+  return named[label] ?? 0;
 }
 
 /// 一次在线播放请求：三个网盘的直链解析与鉴权头差异全部收敛在此。
@@ -50,6 +70,10 @@ class PlaybackRequest {
   /// 合并进规格面板；失败返回空列表即可。
   final Future<List<MediaVariant>> Function()? moreVariantsLoader;
 
+  /// true 时默认源优先选扩展源里 rank 最高的转码档（夸克下载 CDN
+  /// 对非会员限速明显，转码 CDN 通常不限速）；false 保持 variants.first。
+  final bool preferTranscodeDefault;
+
   const PlaybackRequest({
     required this.provider,
     required this.providerLabel,
@@ -58,6 +82,7 @@ class PlaybackRequest {
     required this.variants,
     this.subtitles = const [],
     this.moreVariantsLoader,
+    this.preferTranscodeDefault = false,
   });
 
   MediaVariant get defaultVariant => variants.first;
@@ -93,6 +118,8 @@ class PlaybackRequest {
         for (final e in subtitleFids.entries)
           ExternalSubtitle(name: e.key, resolve: () => resolveFid(e.value)),
       ],
+      // 下载 CDN 限速，默认改走转码 CDN；原画仍保留在规格面板可手动切换
+      preferTranscodeDefault: true,
       // 转码多清晰度（video_preview）：打开播放器后异步加载
       moreVariantsLoader: () async {
         final (qualities, cookie) = await AppState.I.quark.getVideoPreview(fid);
@@ -101,6 +128,7 @@ class PlaybackRequest {
             MediaVariant(
               key: 'q_${q.label}',
               label: q.label,
+              rank: variantRank(q.label),
               resolve: () async => ResolvedMedia(url: q.url, headers: {
                 'Cookie': cookie,
                 'Referer': 'https://pan.quark.cn/',
@@ -169,6 +197,7 @@ class PlaybackRequest {
               MediaVariant(
                 key: 'm_${m.label}_${m.url.hashCode}',
                 label: m.label,
+                rank: variantRank(m.label),
                 resolve: () async => ResolvedMedia(url: m.url, headers: {
                   'User-Agent': XunleiClient.downloadUa,
                   'Referer': 'https://pan.xunlei.com/',

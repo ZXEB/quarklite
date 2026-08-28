@@ -11,7 +11,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../state/app_state.dart';
 import '../../widgets/miuix_common.dart';
+import 'playback_cache.dart';
 import 'playback_source.dart';
 
 /// 在线播放器（media_kit / libmpv 内核）。
@@ -80,11 +82,17 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         configuration:
             const PlayerConfiguration(bufferSize: 64 * 1024 * 1024));
     _controller = VideoController(_player);
-    unawaited(_applyMpvOptions());
     _bindStreams();
-    unawaited(_initialOpen());
-    unawaited(_loadExtraVariants());
+    // 串行初始化：mpv 参数必须先于 open() 生效（cache/stream-lavf-o 等
+    // 在开播后设置可能不生效），再等转码列表以选默认源，最后才开播
+    unawaited(() async {
+      await _applyMpvOptions();
+      await _loadExtraVariants();
+      unawaited(_initialOpen());
+    }());
     if (!kIsWeb) unawaited(WakelockPlus.enable());
+    // 磁盘缓存限额：打开播放器时后台清理一次超限的旧缓存
+    unawaited(_enforceCacheLimit());
   }
 
   @override
@@ -122,9 +130,15 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       await _native.setProperty('keep-open', 'yes');
       await _native.setProperty('force-window', 'no');
       await _native.setProperty('osc', 'no');
-      // 网盘直链中断自动重连
+      // 网盘直链中断自动重连；reconnect_delay_max 限制重连间隔，
+      // network-timeout 避免直链抖动时无限卡死等待
+      await _native.setProperty('network-timeout', '30');
+      await _native.setProperty('stream-lavf-o',
+          'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,reconnect_delay_max=10,timeout=5000000');
+      // 磁盘缓存上限（用户可在设置页调整，单位 GB）
       await _native.setProperty(
-          'stream-lavf-o', 'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1');
+          'demuxer-max-cache-size',
+          '${AppState.I.playbackCacheLimitGb * 1024 * 1024}');
       // 磁盘缓存：看过的片段回退/重进不再重新下载（设置里可一键清理）
       final tmp = await getTemporaryDirectory();
       final dir = Directory(
@@ -138,11 +152,14 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   /// 加载转码多清晰度等扩展源（夸克 video_preview / 迅雷 medias）。
+  /// 8 秒超时兜底：转码列表拉取失败/挂起时按原画开播，列表稍后补上。
   Future<void> _loadExtraVariants() async {
     final loader = widget.request.moreVariantsLoader;
     if (loader == null) return;
     try {
-      final extras = await loader();
+      final extras = await loader().timeout(
+          const Duration(seconds: 8),
+          onTimeout: () => <MediaVariant>[]);
       if (!mounted || extras.isEmpty) return;
       final baseLabels =
           widget.request.variants.map((e) => e.label).toSet();
@@ -193,6 +210,31 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   // ---------------- open / retry ----------------
 
+  /// 默认源选择：夸克（preferTranscodeDefault）优先选转码列表里
+  /// rank 最高的档（转码 CDN 不受下载限速）；否则回退原画。
+  MediaVariant _pickDefaultVariant() {
+    if (widget.request.preferTranscodeDefault && _variant == null) {
+      final best = _pickBestTranscode();
+      if (best != null) return best;
+    }
+    return _variant ?? widget.request.defaultVariant;
+  }
+
+  MediaVariant? _pickBestTranscode() {
+    final list = _extraVariants.where((v) => v.rank != null).toList();
+    if (list.isEmpty) return null;
+    list.sort((a, b) => b.rank!.compareTo(a.rank!));
+    return list.first;
+  }
+
+  /// 按设置页的 GB 上限清理播放磁盘缓存（LRU：删最旧的文件）。
+  Future<void> _enforceCacheLimit() async {
+    try {
+      final gb = AppState.I.playbackCacheLimitGb;
+      await PlaybackCache.enforceLimit(gb * 1024 * 1024 * 1024);
+    } catch (_) {}
+  }
+
   Future<void> _initialOpen() async {
     try {
       _prefs = await SharedPreferences.getInstance();
@@ -206,7 +248,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   Future<void> _open({required Duration at, MediaVariant? variant}) async {
-    final v = variant ?? _variant ?? widget.request.defaultVariant;
+    final v = variant ?? _pickDefaultVariant();
     final epoch = ++_openEpoch;
     if (mounted) {
       setState(() {

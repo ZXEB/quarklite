@@ -27,6 +27,7 @@ class AppState extends ChangeNotifier {
   static const _kCloseAction = 'window_close_action';
   static const _kThemeMode = 'app_theme_mode';
   static const _kUploadParallelism = 'upload_parallelism';
+  static const _kPlaybackCacheGb = 'playback_cache_gb';
 
   /// 应用外观模式：system（跟随系统）/ light / dark
   String themeMode = 'system';
@@ -71,6 +72,9 @@ class AppState extends ChangeNotifier {
 
   /// 同时上传任务数（默认 1：一次一个文件，减少接口限流与内存占用）
   int uploadParallelism = 1;
+
+  /// 在线播放磁盘缓存上限（GB，默认 1），超出按最旧优先清理
+  int playbackCacheLimitGb = 1;
 
   Timer? _sessionTimer;
 
@@ -175,6 +179,8 @@ class AppState extends ChangeNotifier {
     closeAction = prefs.getString(_kCloseAction) ?? 'ask_once';
     themeMode = prefs.getString(_kThemeMode) ?? 'system';
     uploadParallelism = prefs.getInt(_kUploadParallelism) ?? 1;
+    playbackCacheLimitGb =
+        (prefs.getInt(_kPlaybackCacheGb) ?? 1).clamp(1, 999).toInt();
     notifyListeners();
   }
 
@@ -285,6 +291,14 @@ class AppState extends ChangeNotifier {
     uploadParallelism = n;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kUploadParallelism, n);
+    notifyListeners();
+  }
+
+  /// 设置播放磁盘缓存上限（GB，1–999；持久化，下次打开播放器生效）
+  Future<void> setPlaybackCacheLimitGb(int gb) async {
+    playbackCacheLimitGb = gb.clamp(1, 999).toInt();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kPlaybackCacheGb, playbackCacheLimitGb);
     notifyListeners();
   }
 

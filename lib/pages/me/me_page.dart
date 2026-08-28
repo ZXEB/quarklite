@@ -309,6 +309,12 @@ class MePage extends StatelessWidget {
               summary: '在线播放的边看边存数据，清理后需重新缓冲',
               icon: Icons.cleaning_services_rounded,
               onClick: () => _clearPlaybackCache(context)),
+          const MiuixHorizontalDivider(),
+          arrowPref(
+              title: '播放缓存上限',
+              summary: '最高 ${app.playbackCacheLimitGb} GB，超出自动清理最旧缓存',
+              icon: Icons.save_rounded,
+              onClick: () => _editPlaybackCacheLimit(context, app)),
           if (!kIsWeb && Platform.isWindows) ...[
             const MiuixHorizontalDivider(),
             arrowPref(
@@ -417,6 +423,26 @@ class MePage extends StatelessWidget {
         },
       ),
     );
+  }
+
+  /// 播放磁盘缓存上限（GB）：输入框编辑，1–999 整数校验
+  void _editPlaybackCacheLimit(BuildContext context, AppState app) {
+    miuixInputDialog(
+      context,
+      title: '播放缓存上限（GB）',
+      hint: '1 - 999',
+      initialText: '${app.playbackCacheLimitGb}',
+      confirmText: '保存',
+    ).then((v) async {
+      if (v == null) return;
+      final gb = int.tryParse(v.trim());
+      if (gb == null || gb < 1 || gb > 999) {
+        MiuixToast.show('请输入 1-999 的整数');
+        return;
+      }
+      await app.setPlaybackCacheLimitGb(gb);
+      MiuixToast.show('已限制播放缓存最高 $gb GB');
+    });
   }
 
   void _editDownloadDir(BuildContext context, AppState app) {
