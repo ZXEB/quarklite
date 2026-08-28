@@ -10,12 +10,15 @@ import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../utils/permission.dart';
+import '../../utils/video_file.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/file_list_anim.dart';
 import '../../widgets/miuix_common.dart';
 import 'album_page.dart';
 import 'drive_page.dart';
+import '../player/playback_source.dart';
+import '../player/video_player_page.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -255,6 +258,12 @@ class _SearchPageState extends State<SearchPage> {
             builder: (_) => PhotoViewerPage(
               photos: [file],
               index: 0,
+            ),
+          ));
+        } else if (isVideoFileName(file.fileName)) {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => VideoPlayerPage(
+              request: PlaybackRequest.quark(fid: file.fid, fileName: file.fileName),
             ),
           ));
         } else {

@@ -10,10 +10,13 @@ import '../../theme/app_theme.dart';
 import 'netdisk123_pay_page.dart';
 import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
+import '../../utils/video_file.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/file_list_anim.dart';
 import '../../widgets/miuix_common.dart';
+import '../player/playback_source.dart';
+import '../player/video_player_page.dart';
 
 /// 123 网盘文件浏览页（面包屑导航 + 多选批量下载）
 class Netdisk123DrivePage extends StatefulWidget {
@@ -478,15 +481,44 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
       context,
       title: file.name,
       actions: [
+        if (isVideoFileName(file.name))
+          (
+            icon: Icons.play_circle_fill_rounded,
+            text: '在线播放',
+            value: 'play',
+            color: null,
+          ),
         (icon: Icons.download_rounded, text: '立即下载', value: 'download', color: null),
       ],
     ).then((v) {
       if (v == null) return;
       switch (v) {
+        case 'play':
+          _playFile(file);
         case 'download':
           _downloadFile(file);
       }
     });
+  }
+
+  /// 在线播放：同目录下同名外挂字幕一并带入（按需解析）。
+  void _playFile(Netdisk123File file) {
+    final base = fileNameWithoutExtension(file.name);
+    final subs = <String, Netdisk123File>{};
+    for (final f in _files) {
+      if (!f.isDir &&
+          f.id != file.id &&
+          isSubtitleFileName(f.name) &&
+          fileNameWithoutExtension(f.name) == base) {
+        subs[f.name] = f;
+      }
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => VideoPlayerPage(
+        request:
+            PlaybackRequest.netdisk123(file: file, subtitleFiles: subs),
+      ),
+    ));
   }
 
   Future<void> _downloadFile(Netdisk123File file) async {

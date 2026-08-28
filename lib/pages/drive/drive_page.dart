@@ -14,10 +14,13 @@ import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../utils/permission.dart';
 import '../../utils/upload_picker.dart';
+import '../../utils/video_file.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_list_anim.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/miuix_common.dart';
+import '../player/playback_source.dart';
+import '../player/video_player_page.dart';
 import 'move_target_page.dart';
 import 'search_page.dart';
 
@@ -684,6 +687,8 @@ class _DrivePageState extends State<DrivePage>
           _toggleSelect(file);
         } else if (file.isDir) {
           _enterDir(file);
+        } else if (isVideoFileName(file.fileName)) {
+          _playFile(file);
         } else {
           _showFileActions(file);
         }
@@ -740,6 +745,13 @@ class _DrivePageState extends State<DrivePage>
       context,
       title: file.fileName,
       actions: [
+        if (isVideoFileName(file.fileName))
+          (
+            icon: Icons.play_circle_fill_rounded,
+            text: '在线播放',
+            value: 'play',
+            color: null,
+          ),
         (icon: Icons.download_rounded, text: '立即下载', value: 'download', color: null),
         (icon: Icons.drive_file_move_rounded, text: '移动到', value: 'move', color: null),
         (icon: Icons.drive_file_rename_outline_rounded, text: '重命名', value: 'rename', color: null),
@@ -748,6 +760,8 @@ class _DrivePageState extends State<DrivePage>
     ).then((v) {
       if (v == null) return;
       switch (v) {
+        case 'play':
+          _playFile(file);
         case 'download':
           _downloadFile(file);
         case 'move':
@@ -758,6 +772,26 @@ class _DrivePageState extends State<DrivePage>
           _deleteFiles({file.fid});
       }
     });
+  }
+
+  /// 在线播放：同目录下同名外挂字幕一并带入（按需解析）。
+  void _playFile(QuarkFile file) {
+    final base = fileNameWithoutExtension(file.fileName);
+    final subs = <String, String>{};
+    for (final f in _files) {
+      if (!f.isDir &&
+          f.fid != file.fid &&
+          isSubtitleFileName(f.fileName) &&
+          fileNameWithoutExtension(f.fileName) == base) {
+        subs[f.fileName] = f.fid;
+      }
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => VideoPlayerPage(
+        request: PlaybackRequest.quark(
+            fid: file.fid, fileName: file.fileName, subtitleFids: subs),
+      ),
+    ));
   }
 
   Future<void> _downloadFile(QuarkFile file) async {

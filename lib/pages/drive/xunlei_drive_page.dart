@@ -9,10 +9,13 @@ import '../../state/xunlei_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
+import '../../utils/video_file.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/file_list_anim.dart';
 import '../../widgets/miuix_common.dart';
+import '../player/playback_source.dart';
+import '../player/video_player_page.dart';
 
 /// 迅雷云盘文件浏览页（面包屑导航 + 多选批量下载）
 class XunleiDrivePage extends StatefulWidget {
@@ -365,6 +368,8 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
           _toggleSelect(file);
         } else if (file.isDir) {
           _enterDir(file);
+        } else if (isVideoFileName(file.name)) {
+          _playFile(file);
         } else {
           _showFileActions(file);
         }
@@ -421,15 +426,47 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
       context,
       title: file.name,
       actions: [
+        if (isVideoFileName(file.name))
+          (
+            icon: Icons.play_circle_fill_rounded,
+            text: '在线播放',
+            value: 'play',
+            color: null,
+          ),
         (icon: Icons.download_rounded, text: '立即下载', value: 'download', color: null),
       ],
     ).then((v) {
       if (v == null) return;
       switch (v) {
+        case 'play':
+          _playFile(file);
         case 'download':
           _downloadFile(file);
       }
     });
+  }
+
+  /// 在线播放：同目录下同名外挂字幕一并带入（按需解析）。
+  void _playFile(XunleiFile file) {
+    final base = fileNameWithoutExtension(file.name);
+    final subs = <String, (String, String)>{};
+    for (final f in _files) {
+      if (!f.isDir &&
+          f.id != file.id &&
+          isSubtitleFileName(f.name) &&
+          fileNameWithoutExtension(f.name) == base) {
+        subs[f.name] = (f.id, f.space);
+      }
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => VideoPlayerPage(
+        request: PlaybackRequest.xunlei(
+            id: file.id,
+            space: file.space,
+            fileName: file.name,
+            subtitleIdSpaces: subs),
+      ),
+    ));
   }
 
   Future<void> _downloadFile(XunleiFile file) async {

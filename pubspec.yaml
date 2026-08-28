@@ -31,6 +31,14 @@ dependencies:
   url_launcher: ^6.2.5
   flutter_miuix: ^1.1.1
   liquid_glass_native: ^0.3.1
+  # 在线播放器：media_kit (libmpv/FFmpeg) —— 4K60 硬解 / MKV / 多音轨字幕 / HDR 色调映射
+  media_kit: ^1.2.6
+  media_kit_video: ^2.0.1
+  media_kit_libs_video: ^1.0.7
+  # Windows 播放器全屏窗口控制
+  window_manager: ^0.5.0
+  # 播放时保持屏幕常亮
+  wakelock_plus: ^1.2.0
 
 dev_dependencies:
   flutter_test:
