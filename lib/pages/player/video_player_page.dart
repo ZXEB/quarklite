@@ -433,7 +433,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         for (final t in tracks)
           (
             icon: Icons.audiotrack_rounded,
-            text: _trackLabel(t.id, t.title, t.lang, '音轨') +
+            text: _trackLabel(t.id, t.title, t.language, '音轨') +
                 (t.id == currentId ? '（当前）' : ''),
             value: t.id,
             color: null,
@@ -470,7 +470,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         for (final t in embedded)
           (
             icon: Icons.subtitles_rounded,
-            text: _trackLabel(t.id, t.title, t.lang, '内嵌字幕') +
+            text: _trackLabel(t.id, t.title, t.language, '内嵌字幕') +
                 (t.id == currentId ? '（当前）' : ''),
             value: 'embed:${t.id}',
             color: null,
@@ -516,10 +516,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     _scheduleHide();
   }
 
-  String _trackLabel(String id, String title, String lang, String fallback) {
+  String _trackLabel(String id, String? title, String? language, String fallback) {
     final parts = <String>[];
-    if (title.isNotEmpty) parts.add(title);
-    if (lang.isNotEmpty) parts.add(lang);
+    if (title != null && title.isNotEmpty) parts.add(title);
+    if (language != null && language.isNotEmpty) parts.add(language);
     if (parts.isEmpty) parts.add('$fallback #$id');
     return parts.join(' · ');
   }
@@ -528,9 +528,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   String? _specBadge() {
     final vp = _videoParams;
-    if (vp == null || (vp.w ?? 0) <= 0) return null;
-    final w = vp.w ?? 0;
-    final h = vp.h ?? 0;
+    final vt = _player.state.track.video;
+    final w = vp?.w ?? vt.w ?? 0;
+    if (w <= 0) return null;
+    final h = vp?.h ?? vt.h ?? 0;
     final String res;
     if (w >= 3800) {
       res = '4K';
@@ -544,12 +545,22 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       res = '$w×$h';
     }
     final parts = <String>[res];
-    final pixfmt = vp.pixelformat ?? '';
+    final codec = vt.codec ?? '';
+    if (codec.isNotEmpty) parts.add(codec.toUpperCase());
+    final fps = vt.fps;
+    if (fps != null && fps >= 1) {
+      parts.add('${fps.round()}fps');
+    }
+    final bitrate = vt.bitrate;
+    if (bitrate != null && bitrate >= 1000000) {
+      parts.add('${(bitrate / 1000000).round()}Mbps');
+    }
+    final pixfmt = vp?.pixelformat ?? '';
     if (pixfmt.contains('10le') || pixfmt.contains('12le') || pixfmt.contains('16le')) {
       parts.add('10bit+');
     }
-    final prim = (vp.primaries ?? '').toLowerCase();
-    final gamma = (vp.gamma ?? '').toLowerCase();
+    final prim = (vp?.primaries ?? '').toLowerCase();
+    final gamma = (vp?.gamma ?? '').toLowerCase();
     if (prim.contains('bt.2020')) {
       if (gamma.contains('pq')) {
         parts.add('HDR10');
@@ -561,7 +572,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     } else if (gamma.contains('pq') || gamma.contains('hlg')) {
       parts.add(gamma.contains('pq') ? 'HDR10' : 'HLG');
     }
-    if ((vp.hwPixelformat ?? '').isNotEmpty) parts.add('硬解');
+    if ((vp?.hwPixelformat ?? '').isNotEmpty) parts.add('硬解');
     return parts.join(' · ');
   }
 
