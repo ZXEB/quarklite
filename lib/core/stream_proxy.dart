@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -348,7 +349,8 @@ class StreamProxy {
     }
   }
 
-  static bool _looksLikeM3u8(Uint8List b) {
+  // HttpClientResponse 的元素静态类型是 List<int>（运行时才是 Uint8List）
+  static bool _looksLikeM3u8(List<int> b) {
     if (b.length < 4) return false;
     // "#EXT"
     return b[0] == 0x23 && b[1] == 0x45 && b[2] == 0x58 && b[3] == 0x54;
