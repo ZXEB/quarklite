@@ -13,6 +13,7 @@ import '../../state/upload_manager.dart';
 import '../../state/xunlei_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
+import '../../utils/format.dart';
 import '../../widgets/miuix_common.dart';
 import '../../widgets/netdisk_logo.dart';
 import '../../widgets/storage_capacity.dart';
