@@ -6,12 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../core/stream_proxy.dart';
 import '../../state/app_state.dart';
+import '../../utils/format.dart';
 import '../../widgets/miuix_common.dart';
 import 'playback_cache.dart';
 import 'playback_source.dart';
@@ -59,6 +60,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   bool _hwdec = true;
   String _toneMapping = 'bt.2446a';
   List<MediaVariant> _extraVariants = const [];
+  ProxyHandle? _proxyHandle;
 
   StreamSubscription<Duration>? _posSub;
   StreamSubscription<VideoParams>? _vpSub;
@@ -93,6 +95,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     if (!kIsWeb) unawaited(WakelockPlus.enable());
     // 磁盘缓存限额：打开播放器时后台清理一次超限的旧缓存
     unawaited(_enforceCacheLimit());
+    // 旧版本缓存写在系统临时目录（C 盘），升级后尽力清掉
+    unawaited(PlaybackCache.removeLegacyTempCache());
   }
 
   @override
@@ -109,6 +113,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     _savePosition(force: true);
     if (_fullscreen) _exitFullscreen();
     if (!kIsWeb) unawaited(WakelockPlus.disable());
+    _proxyHandle?.dispose();
     _focusNode.dispose();
     _player.dispose();
     super.dispose();
@@ -135,14 +140,17 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       await _native.setProperty('network-timeout', '30');
       await _native.setProperty('stream-lavf-o',
           'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,reconnect_delay_max=10,timeout=5000000');
+      // HLS 直连时的 ffmpeg 参数：预建下一分段请求 + 持久连接，减小分段间隙
+      await _native.setProperty('demuxer-lavf-o',
+          'http_multiple=1,http_persistent=1');
       // 磁盘缓存上限（用户可在设置页调整，单位 GB）
       await _native.setProperty(
           'demuxer-max-cache-size',
           '${AppState.I.playbackCacheLimitGb * 1024 * 1024}');
-      // 磁盘缓存：看过的片段回退/重进不再重新下载（设置里可一键清理）
-      final tmp = await getTemporaryDirectory();
-      final dir = Directory(
-          '${tmp.path}${Platform.pathSeparator}quarklite_playback_cache');
+      // 磁盘缓存：看过的片段回退/重进不再重新下载（设置里可一键清理）。
+      // 目录由 AppState 决定，优先下载目录并避开系统盘（不在 C 盘落文件）
+      final dirPath = await AppState.I.playbackCacheDir();
+      final dir = Directory(dirPath);
       if (!dir.existsSync()) dir.createSync(recursive: true);
       await _native.setProperty('cache-dir', dir.path);
       await _native.setProperty('cache-on-disk', 'yes');
@@ -210,28 +218,41 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   // ---------------- open / retry ----------------
 
-  /// 默认源选择：夸克（preferTranscodeDefault）优先选转码列表里
-  /// rank 最高的档（转码 CDN 不受下载限速）；否则回退原画。
+  /// 默认源选择：记忆的偏好 <0 选首选源（原画），>0 选 rank ≤ 偏好的最高
+  /// 转码档；未记忆（0）时，夸克（preferTranscodeDefault）选 rank 最高的
+  /// 转码档（转码 CDN 不受下载限速）；都没有则回退原画。
   MediaVariant _pickDefaultVariant() {
-    if (widget.request.preferTranscodeDefault && _variant == null) {
-      final best = _pickBestTranscode();
-      if (best != null) return best;
+    if (_variant == null) {
+      final preferred = AppState.I.playbackQualityRank;
+      if (preferred < 0) return widget.request.defaultVariant;
+      if (preferred > 0 || widget.request.preferTranscodeDefault) {
+        final v = _pickTranscodeByRank(preferred);
+        if (v != null) return v;
+      }
     }
     return _variant ?? widget.request.defaultVariant;
   }
 
-  MediaVariant? _pickBestTranscode() {
-    final list = _extraVariants.where((v) => v.rank != null).toList();
+  /// [preferred] > 0：选 rank ≤ preferred 的最高档（全部高于偏好则取最低档）；
+  /// [preferred] == 0：选 rank 最高的转码档。
+  MediaVariant? _pickTranscodeByRank(int preferred) {
+    final list =
+        _extraVariants.where((v) => v.rank != null && v.rank! > 0).toList();
     if (list.isEmpty) return null;
     list.sort((a, b) => b.rank!.compareTo(a.rank!));
-    return list.first;
+    if (preferred <= 0) return list.first;
+    for (final v in list) {
+      if (v.rank! <= preferred) return v;
+    }
+    return list.last;
   }
 
   /// 按设置页的 GB 上限清理播放磁盘缓存（LRU：删最旧的文件）。
   Future<void> _enforceCacheLimit() async {
     try {
       final gb = AppState.I.playbackCacheLimitGb;
-      await PlaybackCache.enforceLimit(gb * 1024 * 1024 * 1024);
+      final dir = await AppState.I.playbackCacheDir();
+      await PlaybackCache.enforceLimit(gb * 1024 * 1024 * 1024, dir);
     } catch (_) {}
   }
 
@@ -261,12 +282,26 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       final resolved = await v.resolve();
       if (resolved.isEmpty) throw Exception('未获取到播放地址');
       if (epoch != _openEpoch) return;
+      // 本地多线程加速代理：上游鉴权头收进代理，mpv 走 127.0.0.1，
+      // 代理在上游做并发预取（HLS 分段 / 直链分块），解决高码率卡顿。
+      // 代理启动失败自动回退为直连。
+      var url = resolved.url;
+      var headers = resolved.headers;
+      if (AppState.I.streamProxyEnabled) {
+        final handle = await StreamProxy.I.start(url, headers);
+        if (handle != null) {
+          _proxyHandle?.dispose();
+          _proxyHandle = handle;
+          url = handle.url;
+          headers = const {};
+        }
+      }
       // 监听本次加载的首个有效时长（元数据解析完成），用于恢复进度
       final firstDuration = _player.stream.duration
           .firstWhere((d) => d > Duration.zero,
               orElse: () => Duration.zero)
           .timeout(const Duration(seconds: 30), onTimeout: () => Duration.zero);
-      await _player.open(Media(resolved.url, httpHeaders: resolved.headers));
+      await _player.open(Media(url, httpHeaders: headers));
       final d = await firstDuration;
       if (epoch != _openEpoch) return;
       if (at > Duration.zero && d > Duration.zero && at < d - const Duration(seconds: 60)) {
@@ -459,6 +494,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       final key = action.substring('variant:'.length);
       final v =
           all.firstWhere((e) => e.key == key, orElse: () => widget.request.defaultVariant);
+      // 记住清晰度偏好：下次播放自动选最接近的档位（原画/未编号档记为 -1）
+      unawaited(AppState.I.setPlaybackQualityRank(
+          v.rank != null && v.rank! > 0 ? v.rank! : -1));
       _retriedLink = false;
       await _open(at: _player.state.position, variant: v);
     } else if (action == 'hwdec') {
@@ -649,6 +687,14 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   // ---------------- spec badge ----------------
+
+  /// 代理下行速率文案（顶栏展示，方便确认加速是否生效）；无流量时为 null
+  String? _speedLabel() {
+    if (!AppState.I.streamProxyEnabled) return null;
+    final bps = StreamProxy.I.speedBps;
+    if (bps < 32 * 1024) return null;
+    return ' · ${formatSpeed(bps)}';
+  }
 
   String? _specBadge() {
     final vp = _videoParams;
@@ -963,7 +1009,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                             const SizedBox(height: 2),
                             Text(
                               '${widget.request.providerLabel}'
-                              '${_variant == null ? '' : ' · ${_variant!.label}'}',
+                              '${_variant == null ? '' : ' · ${_variant!.label}'}'
+                              '${_speedLabel() ?? ''}',
                               style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.65),
                                   fontSize: 11),

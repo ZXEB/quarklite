@@ -3,24 +3,32 @@ import 'dart:io' show Directory, File, FileSystemEntityType, Platform;
 import 'package:path_provider/path_provider.dart';
 
 /// 播放磁盘缓存（mpv cache-on-disk 写入的 demuxer 缓存目录）的统计与清理。
+///
+/// 目录由 [AppState.playbackCacheDir] 决定（优先下载目录、避开系统盘），
+/// 各方法都显式接收目录路径；旧版本写在系统临时目录的缓存由
+/// [removeLegacyTempCache] 尽力清理。
 class PlaybackCache {
   PlaybackCache._();
 
   static const _dirName = 'quarklite_playback_cache';
 
-  static Future<Directory?> _cacheDir() async {
+  /// 旧版本把 mpv 缓存写在系统临时目录（C 盘），升级后清理一次。
+  static Future<void> removeLegacyTempCache() async {
     try {
       final tmp = await getTemporaryDirectory();
-      return Directory('${tmp.path}${Platform.pathSeparator}$_dirName');
+      final legacy = Directory('${tmp.path}${Platform.pathSeparator}$_dirName');
+      if (legacy.existsSync()) {
+        await legacy.delete(recursive: true);
+      }
     } catch (_) {
-      return null;
+      // 播放中文件被占用等场景尽力而为
     }
   }
 
   /// 当前缓存大小（字节）；目录不存在或失败返回 0。
-  static Future<int> sizeBytes() async {
-    final dir = await _cacheDir();
-    if (dir == null || !dir.existsSync()) return 0;
+  static Future<int> sizeBytes(String dirPath) async {
+    final dir = Directory(dirPath);
+    if (!dir.existsSync()) return 0;
     var total = 0;
     try {
       await for (final e in dir.list(recursive: true, followLinks: false)) {
@@ -32,10 +40,10 @@ class PlaybackCache {
   }
 
   /// 清理缓存，返回释放的字节数。
-  static Future<int> clear() async {
-    final freed = await sizeBytes();
-    final dir = await _cacheDir();
-    if (dir != null && dir.existsSync()) {
+  static Future<int> clear(String dirPath) async {
+    final freed = await sizeBytes(dirPath);
+    final dir = Directory(dirPath);
+    if (dir.existsSync()) {
       try {
         await dir.delete(recursive: true);
       } catch (_) {
@@ -48,10 +56,10 @@ class PlaybackCache {
   /// 把缓存目录清到不超过 [maxBytes]：按修改时间从旧到新删除，
   /// 直到总大小达标（跨会话残留也一并纳入）。
   /// 返回释放的字节数；播放中的文件被占用时尽力跳过。
-  static Future<int> enforceLimit(int maxBytes) async {
+  static Future<int> enforceLimit(int maxBytes, String dirPath) async {
     if (maxBytes <= 0) return 0;
-    final dir = await _cacheDir();
-    if (dir == null || !dir.existsSync()) return 0;
+    final dir = Directory(dirPath);
+    if (!dir.existsSync()) return 0;
     final files = <File>[];
     var total = 0;
     try {

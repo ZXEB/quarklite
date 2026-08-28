@@ -47,6 +47,7 @@ int variantRank(String label) {
   if (m != null) return int.tryParse(m.group(1)!) ?? 0;
   const named = {
     '4K': 2160,
+    '2K': 1440,
     '蓝光': 1080,
     '超清': 720,
     '高清': 540,
@@ -54,6 +55,18 @@ int variantRank(String label) {
     '流畅': 240,
   };
   return named[label] ?? 0;
+}
+
+/// 规范清晰度文案：纯数字档位（如 2160/1080/720）转为 4K/2K/1080P 等；
+/// 已是可读文案（原画/蓝光/高清…）则原样返回。
+String prettyQualityLabel(String label) {
+  final t = label.trim();
+  final m = RegExp(r'^(\d{3,4})$').firstMatch(t);
+  if (m == null) return t;
+  final h = int.parse(m.group(1)!);
+  if (h >= 2000) return '4K';
+  if (h >= 1400) return '2K';
+  return '${h}P';
 }
 
 /// 一次在线播放请求：三个网盘的直链解析与鉴权头差异全部收敛在此。
@@ -127,7 +140,7 @@ class PlaybackRequest {
           for (final q in qualities)
             MediaVariant(
               key: 'q_${q.label}',
-              label: q.label,
+              label: prettyQualityLabel(q.label),
               rank: variantRank(q.label),
               resolve: () async => ResolvedMedia(url: q.url, headers: {
                 'Cookie': cookie,

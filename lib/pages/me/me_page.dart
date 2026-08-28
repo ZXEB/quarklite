@@ -183,7 +183,8 @@ class MePage extends StatelessWidget {
 
   /// 清理播放磁盘缓存：先展示当前大小再确认，完成后 toast 释放量。
   Future<void> _clearPlaybackCache(BuildContext context) async {
-    final size = await PlaybackCache.sizeBytes();
+    final dir = await AppState.I.playbackCacheDir();
+    final size = await PlaybackCache.sizeBytes(dir);
     if (!context.mounted) return;
     if (size <= 0) {
       MiuixToast.show('当前没有播放缓存');
@@ -196,9 +197,17 @@ class MePage extends StatelessWidget {
       confirmText: '清理',
     );
     if (ok != true) return;
-    final freed = await PlaybackCache.clear();
+    final freed = await PlaybackCache.clear(dir);
     if (!context.mounted) return;
     MiuixToast.show(freed > 0 ? '已释放 ${formatBytes(freed)}' : '清理完成');
+  }
+
+  /// 切换播放多线程加速代理（本地并发预取，解决 4K 高码率卡顿）
+  Future<void> _toggleStreamProxy(BuildContext context, AppState app) async {
+    final next = !app.streamProxyEnabled;
+    await app.setStreamProxyEnabled(next);
+    MiuixToast.show(
+        next ? '已开启播放多线程加速，下次播放生效' : '已关闭播放多线程加速，下次播放生效');
   }
 
   Widget _buildSettingsCard(BuildContext context, AppState app) {
@@ -315,6 +324,14 @@ class MePage extends StatelessWidget {
               summary: '最高 ${app.playbackCacheLimitGb} GB，超出自动清理最旧缓存',
               icon: Icons.save_rounded,
               onClick: () => _editPlaybackCacheLimit(context, app)),
+          const MiuixHorizontalDivider(),
+          arrowPref(
+              title: '播放多线程加速',
+              summary: app.streamProxyEnabled
+                  ? '已开启：本地多连接预取，4K 高码率更流畅'
+                  : '已关闭：播放器单连接直连网盘',
+              icon: Icons.rocket_launch_rounded,
+              onClick: () => _toggleStreamProxy(context, app)),
           if (!kIsWeb && Platform.isWindows) ...[
             const MiuixHorizontalDivider(),
             arrowPref(

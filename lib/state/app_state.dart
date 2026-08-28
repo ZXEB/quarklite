@@ -28,6 +28,8 @@ class AppState extends ChangeNotifier {
   static const _kThemeMode = 'app_theme_mode';
   static const _kUploadParallelism = 'upload_parallelism';
   static const _kPlaybackCacheGb = 'playback_cache_gb';
+  static const _kStreamProxy = 'stream_proxy_enabled';
+  static const _kPlaybackQualityRank = 'playback_quality_rank';
 
   /// 应用外观模式：system（跟随系统）/ light / dark
   String themeMode = 'system';
@@ -75,6 +77,12 @@ class AppState extends ChangeNotifier {
 
   /// 在线播放磁盘缓存上限（GB，默认 1），超出按最旧优先清理
   int playbackCacheLimitGb = 1;
+
+  /// 在线播放本地多线程加速代理（127.0.0.1 回环并发预取，默认开）
+  bool streamProxyEnabled = true;
+
+  /// 用户记住的清晰度档位（rank，如 1080；0 = 未记忆，按默认策略选最高档）
+  int playbackQualityRank = 0;
 
   Timer? _sessionTimer;
 
@@ -181,6 +189,8 @@ class AppState extends ChangeNotifier {
     uploadParallelism = prefs.getInt(_kUploadParallelism) ?? 1;
     playbackCacheLimitGb =
         (prefs.getInt(_kPlaybackCacheGb) ?? 1).clamp(1, 999).toInt();
+    streamProxyEnabled = prefs.getBool(_kStreamProxy) ?? true;
+    playbackQualityRank = prefs.getInt(_kPlaybackQualityRank) ?? 0;
     notifyListeners();
   }
 
@@ -300,6 +310,67 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kPlaybackCacheGb, playbackCacheLimitGb);
     notifyListeners();
+  }
+
+  /// 设置播放多线程加速代理开关（持久化，下次打开播放器生效）
+  Future<void> setStreamProxyEnabled(bool v) async {
+    streamProxyEnabled = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kStreamProxy, v);
+    notifyListeners();
+  }
+
+  /// 记住清晰度偏好（手动选择转码档位时调用；持久化）
+  Future<void> setPlaybackQualityRank(int rank) async {
+    playbackQualityRank = rank;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kPlaybackQualityRank, rank);
+    notifyListeners();
+  }
+
+  /// 在线播放磁盘缓存目录：遵守"不在系统盘落文件"——优先用户下载目录，
+  /// Windows 上若候选在 C 盘则跳过、改用 exe 所在盘；全不可用才回退临时目录。
+  Future<String> playbackCacheDir() async {
+    final candidates = <String>[];
+    final dl = downloadDir.trim();
+    if (dl.isNotEmpty) candidates.add(dl);
+    if (!kIsWeb && Platform.isWindows) {
+      try {
+        candidates.add(File(Platform.resolvedExecutable).parent.path);
+      } catch (_) {}
+    }
+    // 首选：非系统盘的候选
+    for (final base in candidates) {
+      if (_isOnSystemDrive(base)) continue;
+      final path = _joinPath(base, 'quarklite_playback_cache');
+      try {
+        await Directory(path).create(recursive: true);
+        return path;
+      } catch (_) {}
+    }
+    // 次选：忽略盘符约束（移动端 / 系统盘内但可写）
+    for (final base in candidates) {
+      final path = _joinPath(base, 'quarklite_playback_cache');
+      try {
+        await Directory(path).create(recursive: true);
+        return path;
+      } catch (_) {}
+    }
+    try {
+      final tmp = await getTemporaryDirectory();
+      return _joinPath(tmp.path, 'quarklite_playback_cache');
+    } catch (_) {
+      return 'quarklite_playback_cache';
+    }
+  }
+
+  bool _isOnSystemDrive(String path) {
+    if (!kIsWeb && Platform.isWindows) {
+      final drive =
+          path.length >= 2 && path[1] == ':' ? path.substring(0, 1).toUpperCase() : '';
+      return drive == 'C';
+    }
+    return false;
   }
 
   /// 设置应用外观模式：system / light / dark（持久化并通知全局重建）

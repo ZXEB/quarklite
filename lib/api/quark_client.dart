@@ -394,6 +394,7 @@ class QuarkClient {
     if (m != null) return int.tryParse(m.group(1)!) ?? 0;
     const named = {
       '4K': 2160,
+      '2K': 1440,
       '蓝光': 1080,
       '超清': 720,
       '高清': 540,
