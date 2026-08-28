@@ -49,6 +49,9 @@ class XunleiFile {
 
   /// 媒体流 CDN 链接（视频文件专用，限速策略与下载 CDN 不同）
   final String mediaUrl;
+
+  /// 全部转码媒体变体（在线播放多清晰度选择用，label 取 media_name/清晰度名）
+  final List<XunleiMediaVariant> mediaVariants;
   final String space;
   final String? updatedAt;
 
@@ -60,22 +63,28 @@ class XunleiFile {
     required this.isDir,
     this.webContentLink = '',
     this.mediaUrl = '',
+    this.mediaVariants = const [],
     this.space = '',
     this.updatedAt,
   });
 
   factory XunleiFile.fromJson(Map<String, dynamic> json) {
     var mediaUrl = '';
+    final variants = <XunleiMediaVariant>[];
+    final seenUrls = <String>{};
     final medias = json['medias'];
     if (medias is List) {
       for (final m in medias.whereType<Map>()) {
         final link = m['link'];
         if (link is Map) {
           final u = toStr(link['url']);
-          if (u.isNotEmpty) {
-            mediaUrl = u;
-            break;
-          }
+          if (u.isEmpty || !seenUrls.add(u)) continue;
+          if (mediaUrl.isEmpty) mediaUrl = u;
+          var label = toStr(m['media_name']);
+          if (label.isEmpty) label = toStr(m['resolution_name']);
+          if (toStr(m['whether_original']) == 'true') label = '原画';
+          if (label.isEmpty) label = '流媒体 ${variants.length + 1}';
+          variants.add(XunleiMediaVariant(label: label, url: u));
         }
       }
     }
@@ -87,6 +96,7 @@ class XunleiFile {
       isDir: toStr(json['kind']) == 'drive#folder',
       webContentLink: toStr(json['web_content_link']),
       mediaUrl: mediaUrl,
+      mediaVariants: variants,
       space: toStr(json['space']),
       updatedAt: json['modified_time']?.toString(),
     );
@@ -107,6 +117,14 @@ class XunleiFile {
 
   /// 下载用链接：视频且媒体链接可用时用媒体 CDN，否则用普通直链
   String downloadUrlFor() => isVideo ? bestDownloadUrl : webContentLink;
+}
+
+/// 转码媒体变体（在线播放清晰度选择用）
+class XunleiMediaVariant {
+  final String label;
+  final String url;
+
+  const XunleiMediaVariant({required this.label, required this.url});
 }
 
 /// 迅雷云盘客户端（按 AList thunder_browser 驱动实现，2026-08 现行可用流程）：

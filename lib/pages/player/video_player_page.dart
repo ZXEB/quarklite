@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show Directory, Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
@@ -54,6 +55,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   Duration _lastSavedAt = Duration.zero;
   DateTime _lastUiRefresh = DateTime.fromMillisecondsSinceEpoch(0);
   bool _hwdec = true;
+  String _toneMapping = 'bt.2446a';
+  List<MediaVariant> _extraVariants = const [];
 
   StreamSubscription<Duration>? _posSub;
   StreamSubscription<VideoParams>? _vpSub;
@@ -80,6 +83,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     unawaited(_applyMpvOptions());
     _bindStreams();
     unawaited(_initialOpen());
+    unawaited(_loadExtraVariants());
     if (!kIsWeb) unawaited(WakelockPlus.enable());
   }
 
@@ -108,10 +112,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     try {
       await _native.setProperty('hwdec', 'auto-safe');
       await _native.setProperty('cache', 'yes');
-      await _native.setProperty('demuxer-readahead-secs', '30');
-      await _native.setProperty('demuxer-max-bytes', '268435456');
+      // 远程高码率流：大缓冲 + 长预读，减小卡顿；回退缓冲保证倒退 seek 顺滑
+      await _native.setProperty('demuxer-readahead-secs', '60');
+      await _native.setProperty('demuxer-max-bytes', '536870912');
+      await _native.setProperty('demuxer-max-back-bytes', '134217728');
       // HDR10/HLG 片源：10-bit 解码后高质量色调映射到 SDR 管线
-      await _native.setProperty('tone-mapping', 'bt.2446a');
+      await _native.setProperty('tone-mapping', _toneMapping);
       await _native.setProperty('hdr-compute-peak', 'yes');
       await _native.setProperty('keep-open', 'yes');
       await _native.setProperty('force-window', 'no');
@@ -119,10 +125,38 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       // 网盘直链中断自动重连
       await _native.setProperty(
           'stream-lavf-o', 'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1');
+      // 磁盘缓存：看过的片段回退/重进不再重新下载（设置里可一键清理）
+      final tmp = await getTemporaryDirectory();
+      final dir = Directory(
+          '${tmp.path}${Platform.pathSeparator}quarklite_playback_cache');
+      if (!dir.existsSync()) dir.createSync(recursive: true);
+      await _native.setProperty('cache-dir', dir.path);
+      await _native.setProperty('cache-on-disk', 'yes');
     } catch (_) {
       // 个别属性在特定构建下不可用，忽略
     }
   }
+
+  /// 加载转码多清晰度等扩展源（夸克 video_preview / 迅雷 medias）。
+  Future<void> _loadExtraVariants() async {
+    final loader = widget.request.moreVariantsLoader;
+    if (loader == null) return;
+    try {
+      final extras = await loader();
+      if (!mounted || extras.isEmpty) return;
+      final baseLabels =
+          widget.request.variants.map((e) => e.label).toSet();
+      setState(() {
+        _extraVariants =
+            extras.where((v) => !baseLabels.contains(v.label)).toList();
+      });
+    } catch (_) {
+      // 扩展源失败不影响原画播放
+    }
+  }
+
+  List<MediaVariant> get _allVariants =>
+      [...widget.request.variants, ..._extraVariants];
 
   void _bindStreams() {
     // 位置流：记忆进度 + 节流刷新 UI（进度条/时间）
@@ -347,11 +381,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   Future<void> _showSpecSheet() async {
     _hideTimer?.cancel();
+    final all = _allVariants;
     final action = await MiuixActionSheet.show<String>(
       context,
       title: '播放规格 · ${widget.request.fileName}',
       actions: [
-        for (final v in widget.request.variants)
+        for (final v in all)
           (
             icon: v.key == _variant?.key
                 ? Icons.check_circle_rounded
@@ -366,6 +401,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           value: 'hwdec',
           color: null,
         ),
+        (
+          icon: Icons.hdr_on_rounded,
+          text: 'HDR / 色调映射…',
+          value: 'tone',
+          color: null,
+        ),
       ],
     );
     if (!mounted || action == null) {
@@ -374,8 +415,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     }
     if (action.startsWith('variant:')) {
       final key = action.substring('variant:'.length);
-      final v = widget.request.variants
-          .firstWhere((e) => e.key == key, orElse: () => widget.request.defaultVariant);
+      final v =
+          all.firstWhere((e) => e.key == key, orElse: () => widget.request.defaultVariant);
       _retriedLink = false;
       await _open(at: _player.state.position, variant: v);
     } else if (action == 'hwdec') {
@@ -385,7 +426,48 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       _flash(_hwdec ? '已切换硬解，重新加载' : '已切换软解，重新加载');
       _retriedLink = false;
       await _open(at: _player.state.position, variant: _variant);
+    } else if (action == 'tone') {
+      await _showToneSheet();
+      return;
     }
+    _scheduleHide();
+  }
+
+  /// HDR 色调映射模式选择：setProperty 即时生效，无需重新加载。
+  Future<void> _showToneSheet() async {
+    const options = <(String, String)>[
+      ('bt.2446a', '标准（默认）'),
+      ('bt.2390', '柔和'),
+      ('mobius', 'Mobius'),
+      ('hable', 'Hable'),
+      ('reinhard', 'Reinhard'),
+      ('clip', '关闭映射（原样直出，高亮可能过曝）'),
+    ];
+    final action = await MiuixActionSheet.show<String>(
+      context,
+      title: 'HDR / 色调映射（即时生效）',
+      actions: [
+        for (final o in options)
+          (
+            icon: o.$1 == _toneMapping
+                ? Icons.check_circle_rounded
+                : Icons.hdr_on_rounded,
+            text: o.$1 == _toneMapping ? '${o.$2}（当前）' : o.$2,
+            value: o.$1,
+            color: null,
+          ),
+      ],
+    );
+    if (!mounted || action == null || action == _toneMapping) {
+      _scheduleHide();
+      return;
+    }
+    _toneMapping = action;
+    try {
+      await _native.setProperty('tone-mapping', action);
+    } catch (_) {}
+    _flash('HDR 映射：${options.firstWhere((o) => o.$1 == action).$2}');
+    if (mounted) setState(() {});
     _scheduleHide();
   }
 

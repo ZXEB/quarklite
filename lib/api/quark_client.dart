@@ -332,6 +332,77 @@ class QuarkClient {
     );
   }
 
+  /// 获取视频转码清晰度列表（社区逆向的 video_preview 接口，在线播放多清晰度用）。
+  /// 返回 (清晰度列表按高到低, 请求时 cookie 快照)；任一异常返回空列表，
+  /// 调用方回落「仅原画」。转码 CDN 与下载 CDN 限速策略不同，通常更流畅。
+  Future<(List<QuarkVideoQuality>, String)> getVideoPreview(String fid) async {
+    const params = {'pr': 'ucpro', 'fr': 'pc'};
+    List? list;
+    try {
+      dynamic data = await _post('$driveApi/file/video_preview',
+          params: params,
+          data: {
+            'fids': [fid]
+          },
+          userAgent: uaDesktopClient);
+      list = _extractVideoList(data);
+      if (list == null) {
+        // 部分实现使用 {"fid": ...} 请求体
+        data = await _post('$driveApi/file/video_preview',
+            params: params,
+            data: {'fid': fid},
+            userAgent: uaDesktopClient);
+        list = _extractVideoList(data);
+      }
+    } catch (_) {
+      return (const <QuarkVideoQuality>[], downloadCookieSnapshot);
+    }
+    final snapshot = downloadCookieSnapshot;
+    if (list == null) return (const <QuarkVideoQuality>[], snapshot);
+    final qualities = <QuarkVideoQuality>[];
+    for (final e in list.whereType<Map>()) {
+      final url = (e['url'] ?? e['video_url'] ?? '').toString();
+      if (url.isEmpty) continue;
+      var label = (e['resolution'] ?? e['quality'] ?? '').toString().trim();
+      if (label.isEmpty) {
+        final vi = e['video_info'];
+        if (vi is Map && vi['height'] != null) label = '${vi['height']}P';
+      }
+      if (label.isEmpty) label = '转码';
+      qualities.add(QuarkVideoQuality(label: label, url: url));
+    }
+    qualities.sort((a, b) => _qualityRank(b).compareTo(_qualityRank(a)));
+    final seen = <String>{};
+    return (
+      qualities.where((q) => seen.add(q.label)).toList(),
+      snapshot
+    );
+  }
+
+  static List? _extractVideoList(dynamic data) {
+    if (data is Map) {
+      final v = data['video_list'] ?? data['video_lists'];
+      if (v is List) return v;
+      return null;
+    }
+    if (data is List) return data;
+    return null;
+  }
+
+  static int _qualityRank(QuarkVideoQuality q) {
+    final m = RegExp(r'(\d{3,4})').firstMatch(q.label);
+    if (m != null) return int.tryParse(m.group(1)!) ?? 0;
+    const named = {
+      '4K': 2160,
+      '蓝光': 1080,
+      '超清': 720,
+      '高清': 540,
+      '标清': 360,
+      '流畅': 240,
+    };
+    return named[q.label] ?? 0;
+  }
+
   // ---------------- upload ----------------
   // 上传协议对齐 alist quark_uc 驱动 + QuarkPan / idv-login 等社区实现：
   // upload/pre 预申请 → update/hash 秒传校验 → upload/auth 取 OSS 签名 →

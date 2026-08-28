@@ -16,6 +16,7 @@ import '../../utils/app_logger.dart';
 import '../../widgets/miuix_common.dart';
 import '../../widgets/netdisk_logo.dart';
 import '../../widgets/storage_capacity.dart';
+import '../player/playback_cache.dart';
 
 class MePage extends StatelessWidget {
   const MePage({super.key});
@@ -179,6 +180,26 @@ class MePage extends StatelessWidget {
     }
   }
 
+  /// 清理播放磁盘缓存：先展示当前大小再确认，完成后 toast 释放量。
+  Future<void> _clearPlaybackCache(BuildContext context) async {
+    final size = await PlaybackCache.sizeBytes();
+    if (!context.mounted) return;
+    if (size <= 0) {
+      MiuixToast.show('当前没有播放缓存');
+      return;
+    }
+    final ok = await confirmMiuix(
+      context,
+      title: '清理播放缓存',
+      content: '当前缓存 ${formatBytes(size)}，确定清理吗？',
+      confirmText: '清理',
+    );
+    if (ok != true) return;
+    final freed = await PlaybackCache.clear();
+    if (!context.mounted) return;
+    MiuixToast.show(freed > 0 ? '已释放 ${formatBytes(freed)}' : '清理完成');
+  }
+
   Widget _buildSettingsCard(BuildContext context, AppState app) {
     final isIOS = !kIsWeb && Platform.isIOS;
     Widget leading(IconData icon) => MiuixIcon(
@@ -281,6 +302,12 @@ class MePage extends StatelessWidget {
               icon: Icons.system_update_rounded,
               onClick: () =>
                   UpdateChecker.checkAndPrompt(context, manual: true)),
+          const MiuixHorizontalDivider(),
+          arrowPref(
+              title: '清理播放缓存',
+              summary: '在线播放的边看边存数据，清理后需重新缓冲',
+              icon: Icons.cleaning_services_rounded,
+              onClick: () => _clearPlaybackCache(context)),
           if (!kIsWeb && Platform.isWindows) ...[
             const MiuixHorizontalDivider(),
             arrowPref(

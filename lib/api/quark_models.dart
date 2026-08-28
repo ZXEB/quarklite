@@ -181,6 +181,14 @@ class QuarkDownloadInfo {
   }
 }
 
+/// 视频转码清晰度（video_preview 逆向接口，在线播放多清晰度用）
+class QuarkVideoQuality {
+  final String label;
+  final String url;
+
+  const QuarkVideoQuality({required this.label, required this.url});
+}
+
 /// 夸克上传会话（/file/upload/pre 响应，协议对齐 alist quark_uc 驱动）
 class QuarkUploadSession {
   /// 上传任务 id（hash 校验与 finish 使用）

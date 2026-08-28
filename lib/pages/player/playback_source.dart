@@ -46,6 +46,10 @@ class PlaybackRequest {
   final List<MediaVariant> variants;
   final List<ExternalSubtitle> subtitles;
 
+  /// 懒加载的扩展源（转码多清晰度等）：打开播放器后异步拉取，
+  /// 合并进规格面板；失败返回空列表即可。
+  final Future<List<MediaVariant>> Function()? moreVariantsLoader;
+
   const PlaybackRequest({
     required this.provider,
     required this.providerLabel,
@@ -53,6 +57,7 @@ class PlaybackRequest {
     required this.fileName,
     required this.variants,
     this.subtitles = const [],
+    this.moreVariantsLoader,
   });
 
   MediaVariant get defaultVariant => variants.first;
@@ -88,6 +93,22 @@ class PlaybackRequest {
         for (final e in subtitleFids.entries)
           ExternalSubtitle(name: e.key, resolve: () => resolveFid(e.value)),
       ],
+      // 转码多清晰度（video_preview）：打开播放器后异步加载
+      moreVariantsLoader: () async {
+        final (qualities, cookie) = await AppState.I.quark.getVideoPreview(fid);
+        return [
+          for (final q in qualities)
+            MediaVariant(
+              key: 'q_${q.label}',
+              label: q.label,
+              resolve: () async => ResolvedMedia(url: q.url, headers: {
+                'Cookie': cookie,
+                'Referer': 'https://pan.quark.cn/',
+                'User-Agent': QuarkClient.uaDesktopClient,
+              }),
+            ),
+        ];
+      },
     );
   }
 
@@ -139,6 +160,22 @@ class PlaybackRequest {
             });
           }),
       ],
+      // 全部转码媒体变体（media_name 如 原画/高清/标清）：打开播放器后异步加载
+      moreVariantsLoader: () async {
+        final d = await detail();
+        return [
+          for (final m in d.mediaVariants)
+            if (m.url.isNotEmpty)
+              MediaVariant(
+                key: 'm_${m.label}_${m.url.hashCode}',
+                label: m.label,
+                resolve: () async => ResolvedMedia(url: m.url, headers: {
+                  'User-Agent': XunleiClient.downloadUa,
+                  'Referer': 'https://pan.xunlei.com/',
+                }),
+              ),
+        ];
+      },
     );
   }
 

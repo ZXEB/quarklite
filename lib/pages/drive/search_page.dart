@@ -124,7 +124,9 @@ class _SearchPageState extends State<SearchPage> {
             children: [
               Expanded(
                 child: SizedBox(
-                  height: 40,
+                  // MiuixTextField 天然高度 = insideMargin(上下) + 行高，
+                  // 高度不足会被内部 Stack(Clip.hardEdge) 裁掉文字下半截
+                  height: 48,
                   child: MiuixTextField(
                     controller: _controller,
                     onChanged: _onChanged,
@@ -132,6 +134,7 @@ class _SearchPageState extends State<SearchPage> {
                     label: '搜索文件名或照片内容',
                     useLabelAsPlaceholder: true,
                     singleLine: true,
+                    insideMargin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                     leadingIcon: MiuixIcon(
                         icon: Icons.search_rounded,
                         tint: colors.onSurfaceSecondary,
