@@ -12,7 +12,9 @@ concurrency:
 jobs:
   build-android:
     if: true # Android 构建（与 Windows 一起跑）
-    runs-on: ubuntu-latest
+    # ubuntu-latest 镜像池近期频繁中途回收 VM（连续多次 "shutdown signal"），
+    # 钉到 22.04 换镜像池；构建工具链由 setup-* 自带，不受镜像影响
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,6 +42,15 @@ jobs:
         with:
           distribution: zulu
           java-version: '17'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
