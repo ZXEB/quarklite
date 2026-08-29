@@ -87,7 +87,8 @@ jobs:
         run: |
           flutter pub get
           flutter build apk --release
-          flutter build apk --release --split-per-abi
+          # 注：split-per-abi 第二次构建在 runner 上连续三次被平台中途停机
+          # （前两段构建正常，仅此步死机），通用 APK 已含全部 ABI，暂不拆分
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
@@ -95,9 +96,6 @@ jobs:
           name: quarklite-apk
           path: |
             build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-            build/app/outputs/flutter-apk/app-x86_64-release.apk
           if-no-files-found: error
 
   build-windows:
