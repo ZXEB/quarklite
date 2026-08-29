@@ -97,9 +97,9 @@ jobs:
       - name: Build release APK
         run: |
           flutter pub get
-          flutter build apk --release
-          # 注：split-per-abi 第二次构建在 runner 上连续三次被平台中途停机
-          # （前两段构建正常，仅此步死机），通用 APK 已含全部 ABI，暂不拆分
+          # 只编 arm64（现代安卓机全覆盖）：构建时间减半。此前全 ABI + split
+          # 构建连续五次在 gradle 静默期被 runner 强制停机
+          flutter build apk --release --target-platform android-arm64
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
