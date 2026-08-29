@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   build-android:
-    if: false # Windows-only iteration（改回 true 即可启用 Android 构建）
+    if: true # Android 构建（与 Windows 一起跑）
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
