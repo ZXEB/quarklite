@@ -100,11 +100,44 @@ class StreamProxy {
       // 会话收敛：最多保留 6 个（换清晰度/续播会产生新会话）
       while (_sessions.length > 6) {
         final key = _sessions.keys.first;
+        if (key == sid) break; // 不淘汰刚建的当前会话
         _sessions.remove(key)?.dispose();
       }
       return ProxyHandle('http://127.0.0.1:${server.port}/p/$sid', sid, s.dispose);
     } catch (_) {
       return null;
+    }
+  }
+
+  /// 代理可用性自检：对 /p/{sid} 发一个 1 字节 Range GET，要求 2xx 且
+  /// 读到数据。上游探测失败（签名过期/CDN拒绝/网络抖动）时代理会 502，
+  /// mpv 拿到就是 "Failed to open"——调用方应据此回退直连。
+  Future<bool> probe(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 8);
+      final req = await client
+          .openUrl('GET', uri)
+          .timeout(const Duration(seconds: 8));
+      req.headers.set(HttpHeaders.rangeHeader, 'bytes=0-1');
+      final resp = await req.close().timeout(const Duration(seconds: 8));
+      var ok = false;
+      if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        final b = BytesBuilder(copy: false);
+        await for (final chunk in resp
+            .timeout(const Duration(seconds: 8), onTimeout: (sink) => sink.close())) {
+          b.add(chunk);
+          if (b.length >= 1) break;
+        }
+        ok = b.length > 0;
+      } else {
+        await _discardUpstream(resp);
+      }
+      client.close(force: true);
+      return ok;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -162,7 +195,8 @@ class StreamProxy {
     } else if (s.mode == _Mode.file) {
       await _streamRange(req, s);
     } else {
-      await _pipeUrl(req, s, s.rootUrl);
+      // pipe / pipeRetry：pipeRetry 表示首次探测已失败过，直接按重试路径走
+      await _pipeUrl(req, s, s.rootUrl, isRetry: s.mode == _Mode.pipeRetry);
     }
   }
 
@@ -195,7 +229,9 @@ class StreamProxy {
       // 200（上游忽略 Range）或其他状态：无法分块，只能直通
       s.mode = _Mode.pipe;
     } catch (_) {
-      s.mode = _Mode.pipe;
+      // 首次探测失败不直接定死 pipe：留待 _pipeUrl 用完整 Range 再试一次
+      // （部分 CDN 对 bytes=0-15 的微小 Range 返回异常，但正常 Range 可用）
+      s.mode = _Mode.pipeRetry;
     } finally {
       await _discardUpstream(resp);
     }
@@ -536,13 +572,41 @@ class StreamProxy {
 
   // ---------------- passthrough ----------------
 
-  Future<void> _pipeUrl(HttpRequest req, _Session s, String url) async {
+  Future<void> _pipeUrl(HttpRequest req, _Session s, String url,
+      {bool isRetry = false}) async {
     final range = req.headers.value(HttpHeaders.rangeHeader);
-    final resp =
-        await _openGet(url, s.headers, range: range)
-            .timeout(const Duration(seconds: 30));
-    final r = req.response;
+    HttpClientResponse? resp;
     try {
+      resp = await _openGet(url, s.headers, range: range)
+          .timeout(const Duration(seconds: 30));
+      // pipeRetry：探测失败后的二次尝试。若仍失败，把状态码透传给客户端
+      // 后放弃（调用方 mpv 会得到明确的 HTTP 错误而非挂死）。
+      if (resp.statusCode >= 400) {
+        final code = resp.statusCode;
+        await _discardUpstream(resp);
+        if (isRetry || code >= 500 || code == 403 || code == 401) {
+          final r = req.response;
+          r.statusCode = code >= 400 ? code : 502;
+          r.contentLength = 0;
+          await r.close();
+          return;
+        }
+        // 客户端带了 Range 且上游拒绝：去掉 Range 再试一次
+        if (range != null) {
+          resp = await _openGet(url, s.headers)
+              .timeout(const Duration(seconds: 30));
+          if (resp.statusCode >= 400) {
+            final code2 = resp.statusCode;
+            await _discardUpstream(resp);
+            final r = req.response;
+            r.statusCode = code2;
+            r.contentLength = 0;
+            await r.close();
+            return;
+          }
+        }
+      }
+      final r = req.response;
       r.statusCode = resp.statusCode;
       final ct = resp.headers.value(HttpHeaders.contentTypeHeader);
       if (ct != null) r.headers.set(HttpHeaders.contentTypeHeader, ct);
@@ -568,10 +632,21 @@ class StreamProxy {
       _countSent(n);
       await r.close();
     } catch (_) {
+      // 上游中断/超时。若一个字节都还没写给客户端（响应未开始或刚开始），
+      // 再给一次完整重试（去 Range 重开）；否则只能中断（seek 场景属正常）。
+      // 注意：头一旦发出再改状态码会抛异常，因此重试失败时仅在未写头时
+      // 才尝试置 502（置失败也无所谓，close 让连接断开即可）。
+      await _discardUpstream(resp);
       try {
-        await _discardUpstream(resp);
-      } catch (_) {}
-      try {
+        if (!isRetry) {
+          await _pipeUrl(req, s, url, isRetry: true);
+          return;
+        }
+        final r = req.response;
+        try {
+          r.statusCode = 502;
+          r.contentLength = 0;
+        } catch (_) {}
         await r.close();
       } catch (_) {}
     }
@@ -705,7 +780,7 @@ class ProxyHandle {
   }
 }
 
-enum _Mode { undetermined, hls, file, pipe }
+enum _Mode { undetermined, hls, file, pipe, pipeRetry }
 
 class _ResData {
   final Uint8List bytes;

@@ -110,6 +110,7 @@ jobs:
           if-no-files-found: error
 
   build-windows:
+    if: false # 本轮仅验证 Android（临时禁用；恢复时删掉本行）
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -246,7 +247,9 @@ jobs:
           if-no-files-found: error
 
   publish-release:
-    if: github.ref == 'refs/heads/main'
+    # build-windows 临时禁用期间，needs 链会连带 skip 本 job；
+    # 恢复 Windows 构建时同时删掉下面这行 if:false 与 build-windows 的 if:false
+    if: false
     needs: [build-android, build-windows, build-ios]
     runs-on: ubuntu-latest
     permissions:

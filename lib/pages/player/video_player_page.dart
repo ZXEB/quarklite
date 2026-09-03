@@ -294,16 +294,21 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       if (epoch != _openEpoch) return;
       // 本地多线程加速代理：上游鉴权头收进代理，mpv 走 127.0.0.1，
       // 代理在上游做并发预取（HLS 分段 / 直链分块），解决高码率卡顿。
-      // 代理启动失败自动回退为直连。
+      // 代理启动失败或自检不通过（上游 502/拒绝）自动回退为 mpv 直连。
       var url = resolved.url;
       var headers = resolved.headers;
       if (AppState.I.streamProxyEnabled) {
         final handle = await StreamProxy.I.start(url, headers);
         if (handle != null) {
-          _proxyHandle?.dispose();
-          _proxyHandle = handle;
-          url = handle.url;
-          headers = const {};
+          final ok = await StreamProxy.I.probe(handle.url);
+          if (ok) {
+            _proxyHandle?.dispose();
+            _proxyHandle = handle;
+            url = handle.url;
+            headers = const {};
+          } else {
+            handle.dispose();
+          }
         }
       }
       // 监听本次加载的首个有效时长（元数据解析完成），用于恢复进度
