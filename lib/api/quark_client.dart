@@ -332,44 +332,49 @@ class QuarkClient {
     );
   }
 
-  /// 获取视频转码清晰度列表（社区逆向的 video_preview 接口，在线播放多清晰度用）。
-  /// 返回 (清晰度列表按高到低, 请求时 cookie 快照)；任一异常返回空列表，
-  /// 调用方回落「仅原画」。转码 CDN 与下载 CDN 限速策略不同，通常更流畅。
+  /// 获取视频转码清晰度列表（在线播放多清晰度用）。
+  /// 接口三连回退：① /file/v2/play/project（alist 等社区项目验证过的网页端
+  /// 转码接口，请求 {fid, resolutions, supports}）→ ② /file/video_preview
+  /// {fids:[fid]} → ③ {fid}。返回 (清晰度列表按高到低, 请求时 cookie 快照)；
+  /// 全部失败返回空列表，调用方回落「仅原画」。
+  /// 转码 CDN 与下载 CDN 限速策略不同，通常更流畅。
   Future<(List<QuarkVideoQuality>, String)> getVideoPreview(String fid) async {
     const params = {'pr': 'ucpro', 'fr': 'pc'};
-    List? list;
+    final snapshot = downloadCookieSnapshot;
+    final candidates = <List?>[];
+    // ① 网页端 v2/play/project：resolution 枚举 low/normal/high/super/2k/4k
     try {
-      dynamic data = await _post('$driveApi/file/video_preview',
+      final data = await _post('$driveApi/file/v2/play/project',
           params: params,
           data: {
-            'fids': [fid]
+            'fid': fid,
+            'resolutions': 'low,normal,high,super,2k,4k',
+            'supports': 'fmp4_av,m3u8,dolby_vision',
           },
           userAgent: uaDesktopClient);
-      list = _extractVideoList(data);
-      if (list == null) {
-        // 部分实现使用 {"fid": ...} 请求体
-        data = await _post('$driveApi/file/video_preview',
-            params: params,
-            data: {'fid': fid},
-            userAgent: uaDesktopClient);
-        list = _extractVideoList(data);
-      }
-    } catch (_) {
-      return (const <QuarkVideoQuality>[], downloadCookieSnapshot);
+      candidates.add(_extractVideoList(data));
+    } catch (_) {}
+    // ② ③ video_preview 兼容 fids 数组与单 fid 两种请求体
+    for (final body in [
+      {
+        'fids': [fid]
+      },
+      {'fid': fid},
+    ]) {
+      if (candidates.any((c) => c != null && c.isNotEmpty)) break;
+      try {
+        final data = await _post('$driveApi/file/video_preview',
+            params: params, data: body, userAgent: uaDesktopClient);
+        candidates.add(_extractVideoList(data));
+      } catch (_) {}
     }
-    final snapshot = downloadCookieSnapshot;
-    if (list == null) return (const <QuarkVideoQuality>[], snapshot);
     final qualities = <QuarkVideoQuality>[];
-    for (final e in list.whereType<Map>()) {
-      final url = (e['url'] ?? e['video_url'] ?? '').toString();
-      if (url.isEmpty) continue;
-      var label = (e['resolution'] ?? e['quality'] ?? '').toString().trim();
-      if (label.isEmpty) {
-        final vi = e['video_info'];
-        if (vi is Map && vi['height'] != null) label = '${vi['height']}P';
+    for (final list in candidates) {
+      if (list == null) continue;
+      for (final e in list.whereType<Map>()) {
+        _parseQualityEntry(e.cast<String, dynamic>(), qualities);
       }
-      if (label.isEmpty) label = '转码';
-      qualities.add(QuarkVideoQuality(label: label, url: url));
+      if (qualities.isNotEmpty) break;
     }
     qualities.sort((a, b) => _qualityRank(b).compareTo(_qualityRank(a)));
     final seen = <String>{};
@@ -379,9 +384,51 @@ class QuarkClient {
     );
   }
 
+  /// 解析单条清晰度条目。响应形态多样（v2/play/project 为
+  /// {resolution, video_info:{url,height}} 嵌套，旧接口为扁平 {url, quality}），
+  /// 逐层容错取 url 与 label。
+  void _parseQualityEntry(
+      Map<String, dynamic> e, List<QuarkVideoQuality> out) {
+    final vi = e['video_info'];
+    final viMap = vi is Map ? vi.cast<String, dynamic>() : null;
+    final url = (e['url'] ??
+              e['video_url'] ??
+              viMap?['url'] ??
+              viMap?['video_url'] ??
+              '')
+          .toString();
+    if (url.isEmpty) return;
+    // label 优先取像素高（video_info.height → 1080P），再认枚举档位名
+    var label = '';
+    final height = viMap == null ? null : toInt(viMap['height'], fallback: 0);
+    if (height != null && height > 0) label = '${height}P';
+    if (label.isEmpty) {
+      final res = (e['resolution'] ?? e['quality'] ?? '').toString().trim();
+      if (res.isNotEmpty) label = _resolutionLabel(res);
+    }
+    if (label.isEmpty) label = '转码';
+    out.add(QuarkVideoQuality(label: label, url: url));
+  }
+
+  /// 枚举清晰度名 → 可读档位（low/normal/high/super/2k/4k）；
+  /// 其余（如 1080p/2160）原样返回交给 _qualityRank 兜底。
+  static String _resolutionLabel(String res) {
+    const named = {
+      'low': '360P',
+      'normal': '480P',
+      'high': '720P',
+      'super': '1080P',
+      '2k': '2K',
+      '4k': '4K',
+    };
+    return named[res.toLowerCase()] ?? res;
+  }
+
   static List? _extractVideoList(dynamic data) {
     if (data is Map) {
-      final v = data['video_list'] ?? data['video_lists'];
+      final v = data['video_list'] ??
+          data['video_lists'] ??
+          data['video_info'];
       if (v is List) return v;
       return null;
     }

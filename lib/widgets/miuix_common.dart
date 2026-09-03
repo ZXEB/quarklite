@@ -254,11 +254,13 @@ class MiuixActionSheet {
     BuildContext context, {
     required String title,
     required List<({IconData icon, String text, T value, Color? color})> actions,
+    String? message,
   }) {
     final completer = Completer<T?>();
     // 弹出后立即返回 future；关闭时由 _showImpl 里的 onDismissFinished/onPick
     // 完成 completer（异步调用不阻塞调用方，也不 await）。
-    _showImpl(context, title: title, actions: actions, completer: completer);
+    _showImpl(context,
+        title: title, actions: actions, message: message, completer: completer);
     return completer.future;
   }
 
@@ -266,6 +268,7 @@ class MiuixActionSheet {
     BuildContext context, {
     required String title,
     required List<({IconData icon, String text, T value, Color? color})> actions,
+    String? message,
     required Completer<T?> completer,
   }) async {
     await MiuixOverlayPanel.show(
@@ -281,6 +284,7 @@ class MiuixActionSheet {
         content: MiuixActionSheetView(
           title: title,
           actions: actions,
+          message: message,
           onPick: (v) {
             if (!completer.isCompleted) completer.complete(v);
             MiuixOverlayPanel.hide();
@@ -294,16 +298,19 @@ class MiuixActionSheet {
 
 /// 底部操作单内容。行间用主题分隔线隔开；文字/图标默认取
 /// `onSurfaceContainer`（明暗自适应，暗色下不再是黑字）。
+/// [message] 在操作行上方显示一段辅助说明（如"清晰度加载失败"）。
 class MiuixActionSheetView<T> extends StatelessWidget {
   final String title;
   final List<({IconData icon, String text, T value, Color? color})> actions;
   final ValueChanged<T>? onPick;
+  final String? message;
 
   const MiuixActionSheetView({
     super.key,
     required this.title,
     required this.actions,
     this.onPick,
+    this.message,
   });
 
   @override
@@ -314,6 +321,17 @@ class MiuixActionSheetView<T> extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 4),
+        if (message != null) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: MiuixText(
+              message!,
+              fontSize: 12,
+              color: AppColors.orange,
+              textAlign: TextAlign.left,
+            ),
+          ),
+        ],
         for (var i = 0; i < actions.length; i++) ...[
           if (i > 0)
             MiuixHorizontalDivider(

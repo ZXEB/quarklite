@@ -30,7 +30,7 @@ jobs:
 
       - name: Set release version
         shell: bash
-        run: "sed -i -E 's/^version:.*/version: 1.3.3+1/' pubspec.yaml"
+        run: "sed -i -E 's/^version:.*/version: 1.3.4+1/' pubspec.yaml"
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -117,7 +117,7 @@ jobs:
 
       - name: Set release version
         shell: pwsh
-        run: "(Get-Content pubspec.yaml) -replace '^version:.*$', 'version: 1.3.3+1' | Set-Content pubspec.yaml"
+        run: "(Get-Content pubspec.yaml) -replace '^version:.*$', 'version: 1.3.4+1' | Set-Content pubspec.yaml"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -192,7 +192,7 @@ jobs:
 
       - name: Set release version
         shell: bash
-        run: "sed -i '' -E 's/^version:.*/version: 1.3.3+1/' pubspec.yaml"
+        run: "sed -i '' -E 's/^version:.*/version: 1.3.4+1/' pubspec.yaml"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -280,13 +280,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v1.3.3 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload v1.3.3 --repo "$GITHUB_REPOSITORY" --clobber \
+          if gh release view v1.3.4 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload v1.3.4 --repo "$GITHUB_REPOSITORY" --clobber \
               release/android/* release/windows/* release/installer/* release/ios/*
           else
-            gh release create v1.3.3 \
+            gh release create v1.3.4 \
               --repo "$GITHUB_REPOSITORY" \
-              --title "Quarklite v1.3.3" \
+              --title "Quarklite v1.3.4" \
               --generate-notes \
               --target "$GITHUB_SHA" \
               release/android/* \

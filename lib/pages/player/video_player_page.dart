@@ -159,14 +159,15 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     }
   }
 
-  /// 加载转码多清晰度等扩展源（夸克 video_preview / 迅雷 medias）。
-  /// 8 秒超时兜底：转码列表拉取失败/挂起时按原画开播，列表稍后补上。
+  /// 加载转码多清晰度等扩展源（夸克转码接口 / 迅雷 medias）。
+  /// 12 秒超时兜底：转码列表拉取失败/挂起时按原画开播，列表稍后补上。
+  /// （夸克侧多接口回退，耗时比单请求长，超时放宽到 12s）
   Future<void> _loadExtraVariants() async {
     final loader = widget.request.moreVariantsLoader;
     if (loader == null) return;
     try {
       final extras = await loader().timeout(
-          const Duration(seconds: 8),
+          const Duration(seconds: 12),
           onTimeout: () => <MediaVariant>[]);
       if (!mounted || extras.isEmpty) return;
       final baseLabels =
@@ -208,7 +209,16 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       if (mounted) setState(() {});
     }));
     _vpSub = _player.stream.videoParams.listen((vp) {
-      if (mounted) setState(() => _videoParams = vp);
+      if (!mounted) return;
+      final hadHdr = _videoParams != null && _isHdrParams(_videoParams!);
+      _videoParams = vp;
+      // 首次检出 HDR 片源时主动告知：SDR 显示器上走的是高质量色调映射
+      if (!hadHdr && _isHdrParams(vp)) {
+        _flash(vp?.gamma?.toLowerCase().contains('hlg') == true
+            ? '已检测到 HLG，自动色调映射'
+            : '已检测到 HDR10，自动色调映射');
+      }
+      setState(() {});
     });
     _errSub = _player.stream.error.listen((msg) => _onPlayError(msg));
     _tracksSub = _player.stream.tracks.listen((_) {
@@ -461,7 +471,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     final all = _allVariants;
     final action = await MiuixActionSheet.show<String>(
       context,
-      title: '播放规格 · ${widget.request.fileName}',
+      title: '画质 · ${widget.request.fileName}',
+      message: all.any((v) => v.key != 'original')
+          ? null
+          : '转码清晰度加载失败，当前仅原画',
       actions: [
         for (final v in all)
           (
@@ -477,8 +490,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           text: '解码方式：${_hwdec ? '硬解（自动）' : '软解'}',
           value: 'hwdec',
           color: null,
-        ),
-        (
+        ),        (
           icon: Icons.hdr_on_rounded,
           text: 'HDR / 色调映射…',
           value: 'tone',
@@ -514,6 +526,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   /// HDR 色调映射模式选择：setProperty 即时生效，无需重新加载。
+  /// 标题同时显示片源动态范围，让用户知道 HDR 是否被识别并处理。
   Future<void> _showToneSheet() async {
     const options = <(String, String)>[
       ('bt.2446a', '标准（默认）'),
@@ -523,9 +536,14 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       ('reinhard', 'Reinhard'),
       ('clip', '关闭映射（原样直出，高亮可能过曝）'),
     ];
+    final source = _videoParams != null && _isHdrParams(_videoParams!)
+        ? ((_videoParams?.gamma ?? '').toLowerCase().contains('hlg')
+            ? '片源：HLG · 已映射到 SDR'
+            : '片源：HDR10 · 已映射到 SDR')
+        : '片源：SDR（无 HDR）';
     final action = await MiuixActionSheet.show<String>(
       context,
-      title: 'HDR / 色调映射（即时生效）',
+      title: 'HDR / 色调映射（即时生效）· $source',
       actions: [
         for (final o in options)
           (
@@ -751,6 +769,15 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return h > 0 ? '$h:$m:$s' : '$m:$s';
+  }
+
+  /// 片源是否为 HDR（bt.2020 广色域 + PQ/HLG 传输函数）。
+  bool _isHdrParams(VideoParams vp) {
+    final prim = (vp.primaries ?? '').toLowerCase();
+    final gamma = (vp.gamma ?? '').toLowerCase();
+    return prim.contains('bt.2020') ||
+        gamma.contains('pq') ||
+        gamma.contains('hlg');
   }
 
   // ---------------- build ----------------
@@ -1075,7 +1102,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                           const Spacer(),
                           _controlButton(
                             icon: Icons.video_settings_rounded,
-                            label: '规格',
+                            label: '画质',
                             onTap: _showSpecSheet,
                           ),
                           _controlButton(
