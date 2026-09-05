@@ -61,6 +61,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   String _toneMapping = 'bt.2446a';
   List<MediaVariant> _extraVariants = const [];
   ProxyHandle? _proxyHandle;
+  // 代理被 mpv 判定不可用（探针通过但真实打开失败）后，本次会话内
+  // 全部改走直连，避免"失败→重开代理→再失败"循环
+  bool _proxyBlocked = false;
+  String? _openProxyUrl;
+  Duration _lastOpenAt = Duration.zero;
 
   StreamSubscription<Duration>? _posSub;
   StreamSubscription<VideoParams>? _vpSub;
@@ -136,10 +141,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       await _native.setProperty('force-window', 'no');
       await _native.setProperty('osc', 'no');
       // 网盘直链中断自动重连；reconnect_delay_max 限制重连间隔，
-      // network-timeout 避免直链抖动时无限卡死等待
+      // timeout 同时作用于本地代理连接：代理首字节最坏要等一次上游
+      // TTFB + 慢速 CDN，5s 会误杀（探针 8s 能过、mpv 5s 失败），
+      // 与 network-timeout 对齐到 30s
       await _native.setProperty('network-timeout', '30');
       await _native.setProperty('stream-lavf-o',
-          'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,reconnect_delay_max=10,timeout=5000000');
+          'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,reconnect_delay_max=10,timeout=30000000');
       // HLS 直连时的 ffmpeg 参数：预建下一分段请求 + 持久连接，减小分段间隙
       await _native.setProperty('demuxer-lavf-o',
           'http_multiple=1,http_persistent=1');
@@ -281,6 +288,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   Future<void> _open({required Duration at, MediaVariant? variant}) async {
     final v = variant ?? _pickDefaultVariant();
     final epoch = ++_openEpoch;
+    _lastOpenAt = at;
+    _openProxyUrl = null;
     if (mounted) {
       setState(() {
         _loading = true;
@@ -294,10 +303,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       if (epoch != _openEpoch) return;
       // 本地多线程加速代理：上游鉴权头收进代理，mpv 走 127.0.0.1，
       // 代理在上游做并发预取（HLS 分段 / 直链分块），解决高码率卡顿。
-      // 代理启动失败或自检不通过（上游 502/拒绝）自动回退为 mpv 直连。
+      // 代理启动失败或自检不通过（上游 502/拒绝）自动回退为 mpv 直连；
+      // mpv 打不开代理 URL（_onPlayError）后置 _proxyBlocked 也直连。
       var url = resolved.url;
       var headers = resolved.headers;
-      if (AppState.I.streamProxyEnabled) {
+      if (!_proxyBlocked && AppState.I.streamProxyEnabled) {
         final handle = await StreamProxy.I.start(url, headers);
         if (handle != null) {
           final ok = await StreamProxy.I.probe(handle.url);
@@ -306,6 +316,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             _proxyHandle = handle;
             url = handle.url;
             headers = const {};
+            _openProxyUrl = handle.url;
           } else {
             handle.dispose();
           }
@@ -323,7 +334,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         await _player.seek(at);
       }
       await _player.play();
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = null;
+        });
+      }
       _scheduleHide();
     } catch (e) {
       if (epoch != _openEpoch) return;
@@ -337,6 +353,21 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   void _onPlayError(String msg) {
+    // mpv 打不开本地代理 URL：探针已通过但真实打开失败（典型是上游首字节
+    // 慢导致本地连接超时）。本次会话内弃用代理改直连重开；首开阶段也会
+    // 触发，因此不受 _loading 门禁限制。
+    if (!_proxyBlocked &&
+        _openProxyUrl != null &&
+        msg.contains(_openProxyUrl!)) {
+      _proxyBlocked = true;
+      _proxyHandle?.dispose();
+      _proxyHandle = null;
+      var pos = _player.state.position;
+      if (pos <= Duration.zero) pos = _lastOpenAt;
+      _flash('本地加速不可用，已切换直连播放');
+      unawaited(_open(at: pos, variant: _variant));
+      return;
+    }
     // 直链过期/失效：重取一次并从当前位置续播
     if (!_retriedLink && _variant != null && !_loading) {
       _retriedLink = true;
