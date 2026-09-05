@@ -459,6 +459,15 @@ class StreamProxy {
     }
     s.cursor = baseChunk;
     _pump(s);
+    // 首块未缓存时优先直通：按请求区间直接向上游拉流、边收边写，
+    // 首字节不再等整块 8MiB 下载完（mpv 打开 mp4 时会另开连接长距
+    // seek 到片尾读 moov，原来必撞本地 5s 超时）。途经的完整分块
+    // 回填滑窗缓存；上游没能给出可用响应（未写出任何字节）时回落
+    // 到下方分块窗口路径。
+    if (s.chunks[baseChunk] == null &&
+        await _teeFileRange(req, s, start, last)) {
+      return;
+    }
     try {
       var pos = start;
       var idx = baseChunk;
@@ -481,6 +490,88 @@ class StreamProxy {
       try {
         await r.close();
       } catch (_) {}
+    }
+  }
+
+  /// 文件模式直通：按客户端请求的 [start]-[last] 区间向上游拉流，
+  /// 边收边写给客户端，并把途经的完整分块回填进滑窗缓存（部分块丢弃，
+  /// 保持 chunks 只存整块的语义；末块按文件实际剩余长度截断）。
+  /// 返回 true 表示响应已接管；返回 false 表示一个字节都没写出去，
+  /// 调用方应走分块窗口兜底。
+  Future<bool> _teeFileRange(
+      HttpRequest req, _Session s, int start, int last) async {
+    if (s.disposed) return false;
+    final size = s.fileSize!;
+    HttpClientResponse? resp;
+    var delivered = 0;
+    // 回填游标：从 start 所在块开始顺序收整块
+    var fillIdx = start ~/ chunkSize;
+    var fillStart = fillIdx * chunkSize;
+    Uint8List? fillBuf;
+    var fillLen = 0;
+    void feed(List<int> c) {
+      var off = 0;
+      while (off < c.length) {
+        if (fillBuf == null) {
+          if (s.disposed) return;
+          fillBuf = Uint8List(chunkSize);
+          fillLen = 0;
+        }
+        final buf = fillBuf!;
+        final take = min(chunkSize - fillLen, c.length - off);
+        buf.setRange(fillLen, fillLen + take, c, off);
+        fillLen += take;
+        off += take;
+        if (fillLen >= chunkSize || fillStart + fillLen >= size) {
+          if (!s.disposed) {
+            s.chunks[fillIdx] = fillLen == chunkSize
+                ? buf
+                : Uint8List.sublistView(buf, 0, fillLen);
+            if (fillIdx + 1 > s.cursor) s.cursor = fillIdx + 1;
+            _pump(s);
+            _evict(s, fillIdx);
+          }
+          fillIdx++;
+          fillStart += chunkSize;
+          fillBuf = null;
+          fillLen = 0;
+        }
+      }
+    }
+
+    try {
+      // 末段用开区间，让 CDN 直流到文件尾（对齐 mpv 的 bytes=0- 习惯）
+      final range = last >= size - 1 ? 'bytes=$start-' : 'bytes=$start-$last';
+      resp = await _openGet(s.rootUrl, s.headers, range: range)
+          .timeout(const Duration(seconds: 20));
+      // 仅接受 206（200 说明上游忽略了 Range，数据起点不对，不能直通）；
+      // Content-Range 起点异常时同样放弃，交分块路径处理
+      final cr = resp.headers.value(HttpHeaders.contentRangeHeader);
+      if (resp.statusCode != 206 ||
+          (cr != null && !cr.startsWith('bytes $start-'))) {
+        await _discardUpstream(resp);
+        return false;
+      }
+      final r = req.response;
+      await r.addStream(resp.map((c) {
+        delivered += c.length;
+        feed(c);
+        return c;
+      }));
+      await r.close();
+      _countSent(delivered);
+      return true;
+    } catch (_) {
+      await _discardUpstream(resp);
+      if (delivered > 0) {
+        // 已开始写出后中断（seek/停止属正常路径），连接到此为止
+        try {
+          await req.response.close();
+        } catch (_) {}
+        return true;
+      }
+      // 未写出任何字节：响应仍干净，交给分块窗口兜底
+      return false;
     }
   }
 
@@ -584,7 +675,12 @@ class StreamProxy {
       if (resp.statusCode >= 400) {
         final code = resp.statusCode;
         await _discardUpstream(resp);
-        if (isRetry || code >= 500 || code == 403 || code == 401) {
+        // 403/401 若由客户端携带的 Range 引起（部分 CDN 拒绝开区间
+        // Range），先去掉 Range 再试一次；5xx 与重试路径直接透传
+        final hardFail = isRetry ||
+            code >= 500 ||
+            ((code == 403 || code == 401) && range == null);
+        if (hardFail) {
           final r = req.response;
           r.statusCode = code >= 400 ? code : 502;
           r.contentLength = 0;
