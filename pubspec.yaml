@@ -2,7 +2,7 @@ name: quarklite
 description: "Quarklite - 夸克网盘不限速下载工具"
 publish_to: 'none'
 
-version: 1.3.4+1
+version: 1.3.5+1
 
 environment:
   sdk: ^3.12.2
@@ -45,6 +45,12 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^6.0.0
+
+dependency_overrides:
+  # 内置修复版 flutter_miuix（复制自 pub 1.1.1）：修复 MiuixTextField
+  # 占位符不随输入即时消失/删除后不恢复的问题（packages/flutter_miuix）
+  flutter_miuix:
+    path: packages/flutter_miuix
 
 flutter:
   uses-material-design: true
