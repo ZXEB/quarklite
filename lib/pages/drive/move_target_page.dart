@@ -60,7 +60,8 @@ class _MoveTargetPageState extends State<MoveTargetPage> {
   void _enterDir(QuarkFile dir) {
     if (widget.movedFids.contains(dir.fid)) return;
     setState(() {
-      _crumbs.add((_dirFid, dir.fileName));
+      // 压入新目录本身的 fid：原来存父 fid 会导致点该面包屑跳错目录
+      _crumbs.add((dir.fid, dir.fileName));
       _dirFid = dir.fid;
       _files = [];
       _loading = true;

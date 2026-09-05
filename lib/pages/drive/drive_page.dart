@@ -201,7 +201,8 @@ class _DrivePageState extends State<DrivePage>
 
   Future<void> _enterDir(QuarkFile dir) async {
     setState(() {
-      _crumbs.add((_pdirFid, _currentName));
+      // 压入的是"新进入的目录"：压旧目录会导致路径整体落后一级且根目录重复
+      _crumbs.add((dir.fid, dir.fileName));
       _pdirFid = dir.fid;
       _currentName = dir.fileName;
       _files = [];

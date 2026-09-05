@@ -79,7 +79,8 @@ class _XunleiDrivePageState extends State<XunleiDrivePage> {
 
   void _enterDir(XunleiFile dir) {
     setState(() {
-      _crumbs.add((_parentId, _space, _currentName));
+      // 同 drive_page：压入新目录，避免路径落后一级且根目录重复
+      _crumbs.add((dir.id, dir.space, dir.name));
       _parentId = dir.id;
       _space = dir.space;
       _currentName = dir.name;

@@ -81,7 +81,8 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
 
   void _enterDir(Netdisk123File dir) {
     setState(() {
-      _crumbs.add((_parentId, _currentName));
+      // 同 drive_page：压入新目录，避免路径落后一级且根目录重复
+      _crumbs.add((dir.id, dir.name));
       _parentId = dir.id;
       _currentName = dir.name;
       _files = [];
