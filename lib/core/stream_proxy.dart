@@ -346,7 +346,8 @@ class StreamProxy {
   }
 
   /// 消费上游响应：嗅探 m3u8 → 改写为本地播放列表；其余缓存为分段数据。
-  Future<_ResData> _consumeResource(
+  /// 超过整读上限返回 null（调用方走直通）。
+  Future<_ResData?> _consumeResource(
       _Session s, int rid, HttpClientResponse resp) async {
     final ctype = resp.headers.value(HttpHeaders.contentTypeHeader) ?? '';
     final builder = BytesBuilder(copy: false);
@@ -790,14 +791,24 @@ class StreamProxy {
         final code0 = resp.statusCode;
         await _discardUpstream(resp);
         AppLogger.I.w('proxy', '会话 ${s.id} pipe 上游 $code0，刷新头重试');
+        HttpClientResponse? resp2;
         try {
           final fresh = await s.refresher!();
           if (fresh.isNotEmpty) s.headers = fresh;
-          resp = await _openGet(url, s.headers, range: range)
+          resp2 = await _openGet(url, s.headers, range: range)
               .timeout(const Duration(seconds: 30));
         } catch (e) {
           AppLogger.I.e('proxy', '会话 ${s.id} pipe 刷新头失败: $e');
         }
+        // 刷新重试失败且从未拿到可用响应：透传原 403/401 后放弃
+        if (resp2 == null) {
+          final r = req.response;
+          r.statusCode = code0;
+          r.contentLength = 0;
+          await r.close();
+          return;
+        }
+        resp = resp2;
       }
       // pipeRetry：探测失败后的二次尝试。若仍失败，把状态码透传给客户端
       // 后放弃（调用方 mpv 会得到明确的 HTTP 错误而非挂死）。
