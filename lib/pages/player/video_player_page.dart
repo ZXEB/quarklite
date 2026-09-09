@@ -12,6 +12,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../core/stream_proxy.dart';
 import '../../state/app_state.dart';
+import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
 import '../../widgets/miuix_common.dart';
 import 'playback_cache.dart';
@@ -305,10 +306,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       // 代理在上游做并发预取（HLS 分段 / 直链分块），解决高码率卡顿。
       // 代理启动失败或自检不通过（上游 502/拒绝）自动回退为 mpv 直连；
       // mpv 打不开代理 URL（_onPlayError）后置 _proxyBlocked 也直连。
+      // headersRefresher：上游 403/401 时由代理回调拿最新鉴权头（Cookie 轮换）。
       var url = resolved.url;
       var headers = resolved.headers;
       if (!_proxyBlocked && AppState.I.streamProxyEnabled) {
-        final handle = await StreamProxy.I.start(url, headers);
+        final handle = await StreamProxy.I.start(url, headers,
+            headersRefresher: widget.request.headersRefresher);
         if (handle != null) {
           final ok = await StreamProxy.I.probe(handle.url);
           if (ok) {
@@ -317,10 +320,20 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             url = handle.url;
             headers = const {};
             _openProxyUrl = handle.url;
+            AppLogger.I.i('player',
+                '源=${v.label} 走本地代理 host=${Uri.tryParse(resolved.url)?.host}');
           } else {
             handle.dispose();
+            AppLogger.I.w('player', '源=${v.label} 代理自检未通过，回退直连');
           }
+        } else {
+          AppLogger.I.w('player', '源=${v.label} 代理启动失败，回退直连');
         }
+      } else {
+        AppLogger.I.i(
+            'player',
+            '源=${v.label} 直连 host=${Uri.tryParse(resolved.url)?.host} '
+            'proxyBlocked=$_proxyBlocked');
       }
       // 监听本次加载的首个有效时长（元数据解析完成），用于恢复进度
       final firstDuration = _player.stream.duration
@@ -353,6 +366,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   void _onPlayError(String msg) {
+    AppLogger.I.w('player',
+        'mpv错误 proxy=${_openProxyUrl != null ? "本地" : "直连"} variant=${_variant?.label} msg=$msg');
     // mpv 打不开本地代理 URL：探针已通过但真实打开失败（典型是上游首字节
     // 慢导致本地连接超时）。本次会话内弃用代理改直连重开；首开阶段也会
     // 触发，因此不受 _loading 门禁限制。

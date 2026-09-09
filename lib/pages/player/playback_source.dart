@@ -42,8 +42,7 @@ class MediaVariant {
 
 /// 从清晰度 label 解析排序权重（如 2160/1080P/4K/蓝光），与夸克
 /// video_preview 的 _qualityRank 规则一致，用于跨网盘统一选默认源。
-int variantRank(String label) {
-  final m = RegExp(r'(\d{3,4})').firstMatch(label);
+int variantRank(String label) {  final m = RegExp(r'(\d{3,4})').firstMatch(label);
   if (m != null) return int.tryParse(m.group(1)!) ?? 0;
   const named = {
     '4K': 2160,
@@ -87,6 +86,10 @@ class PlaybackRequest {
   /// 对非会员限速明显，转码 CDN 通常不限速）；false 保持 variants.first。
   final bool preferTranscodeDefault;
 
+  /// 播放代理上游 403/401 时的鉴权头刷新回调（Cookie 轮换等场景）；
+  /// 返回空 Map 表示无法刷新，代理沿用旧头。
+  final Future<Map<String, String>> Function()? headersRefresher;
+
   const PlaybackRequest({
     required this.provider,
     required this.providerLabel,
@@ -96,9 +99,17 @@ class PlaybackRequest {
     this.subtitles = const [],
     this.moreVariantsLoader,
     this.preferTranscodeDefault = false,
+    this.headersRefresher,
   });
 
   MediaVariant get defaultVariant => variants.first;
+
+  /// 当前夸克鉴权头快照（播放代理在 403/401 时调用，拿轮换后的 Cookie）。
+  static Map<String, String> _quarkHeaders(String cookie) => {
+        'Cookie': cookie,
+        'Referer': 'https://pan.quark.cn/',
+        'User-Agent': QuarkClient.uaDesktopClient,
+      };
 
   /// 夸克网盘：下载直链绑定请求时的 Cookie 快照 + 桌面客户端 UA。
   /// [subtitleFids]：同目录下与视频同名的外挂字幕（文件名 → fid）。
@@ -112,11 +123,8 @@ class PlaybackRequest {
       if (infos.isEmpty || infos.first.url.isEmpty) {
         throw Exception('未获取到播放地址');
       }
-      return ResolvedMedia(url: infos.first.url, headers: {
-        'Cookie': cookie,
-        'Referer': 'https://pan.quark.cn/',
-        'User-Agent': QuarkClient.uaDesktopClient,
-      });
+      return ResolvedMedia(
+          url: infos.first.url, headers: _quarkHeaders(cookie));
     }
 
     return PlaybackRequest(
@@ -133,6 +141,9 @@ class PlaybackRequest {
       ],
       // 下载 CDN 限速，默认改走转码 CDN；原画仍保留在规格面板可手动切换
       preferTranscodeDefault: true,
+      // 403/401 时取当前 Cookie 快照（__puus 会被 _mergeSetCookie 轮换）
+      headersRefresher: () async =>
+          _quarkHeaders(AppState.I.quark.downloadCookieSnapshot),
       // 转码多清晰度（video_preview）：打开播放器后异步加载
       moreVariantsLoader: () async {
         final (qualities, cookie) = await AppState.I.quark.getVideoPreview(fid);
@@ -142,11 +153,8 @@ class PlaybackRequest {
               key: 'q_${q.label}',
               label: prettyQualityLabel(q.label),
               rank: variantRank(q.label),
-              resolve: () async => ResolvedMedia(url: q.url, headers: {
-                'Cookie': cookie,
-                'Referer': 'https://pan.quark.cn/',
-                'User-Agent': QuarkClient.uaDesktopClient,
-              }),
+              resolve: () async => ResolvedMedia(
+                  url: q.url, headers: _quarkHeaders(cookie)),
             ),
         ];
       },

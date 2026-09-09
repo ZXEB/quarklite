@@ -4,6 +4,8 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import '../utils/app_logger.dart';
+
 /// 本地多线程播放加速代理。
 ///
 /// mpv 单连接直连网盘 CDN 时，4K 高码率流的吞吐抖动会让缓冲耗尽而卡顿
@@ -90,13 +92,22 @@ class StreamProxy {
 
   /// 为一个上游直链创建代理会话。失败（端口不可用等）返回 null，
   /// 调用方应回退为 mpv 直连。
-  Future<ProxyHandle?> start(String url, Map<String, String> headers) async {
+  ///
+  /// [headersRefresher]：可选的鉴权头刷新回调。上游 403/401 时先调用它
+  /// 拿最新的头（如夸克 __puus 轮换后的 Cookie 快照）再重试，避免
+  /// 长时间播放中会话固化的旧凭据被 CDN 拒绝。
+  Future<ProxyHandle?> start(
+      String url, Map<String, String> headers,
+      {Future<Map<String, String>> Function()? headersRefresher}) async {
     try {
       final server = await _ensureServer();
       final sid = 's${_seq++}';
       final s = _Session(sid, url, Map.of(headers));
+      s.refresher = headersRefresher;
       s.registerResource(url);
       _sessions[sid] = s;
+      AppLogger.I.i('proxy',
+          '会话 $sid 建立 host=${_hostOf(url)} 头=${headers.keys.join(',')}');
       // 会话收敛：最多保留 6 个（换清晰度/续播会产生新会话）
       while (_sessions.length > 6) {
         final key = _sessions.keys.first;
@@ -104,8 +115,17 @@ class StreamProxy {
         _sessions.remove(key)?.dispose();
       }
       return ProxyHandle('http://127.0.0.1:${server.port}/p/$sid', sid, s.dispose);
-    } catch (_) {
+    } catch (e) {
+      AppLogger.I.w('proxy', '会话创建失败: $e');
       return null;
+    }
+  }
+
+  static String _hostOf(String url) {
+    try {
+      return Uri.parse(url).host;
+    } catch (_) {
+      return '?';
     }
   }
 
@@ -201,41 +221,53 @@ class StreamProxy {
   }
 
   /// 模式探测：m3u8 → HLS；Range 可用 → 分块文件；否则单连接直通。
+  /// 无论 200/206 都嗅探响应体前几字节——夸克转码直链是带签名的无后缀
+  /// URL，实际返回 fMP4/HLS 播放列表，不能只看 URL 后缀。
   Future<void> _detectMode(_Session s) async {
     if (s.mode != _Mode.undetermined) return;
     final clean = s.rootUrl.split('?').first.toLowerCase();
     if (clean.endsWith('.m3u8') || clean.endsWith('.m3u')) {
       s.mode = _Mode.hls;
+      AppLogger.I.i('proxy', '会话 ${s.id} 模式=HLS(按URL后缀)');
       return;
     }
     HttpClientResponse? resp;
     try {
       resp = await _openGet(s.rootUrl, s.headers, range: 'bytes=0-15')
           .timeout(const Duration(seconds: 15));
+      final head = await _peek(resp, 16);
+      if (_looksLikeM3u8(head)) {
+        s.mode = _Mode.hls;
+        AppLogger.I
+            .i('proxy', '会话 ${s.id} 模式=HLS(内容嗅探 code=${resp.statusCode})');
+        return;
+      }
       if (resp.statusCode == 206) {
-        final head = await _peek(resp, 16);
-        if (_looksLikeM3u8(head)) {
-          s.mode = _Mode.hls;
-          return;
-        }
         final total = _contentRangeTotal(
             resp.headers.value(HttpHeaders.contentRangeHeader));
         if (total != null && total > 0) {
           s.fileSize = total;
           s.mode = _Mode.file;
+          AppLogger.I.i('proxy', '会话 ${s.id} 模式=文件 size=$total');
           return;
         }
       }
       // 200（上游忽略 Range）或其他状态：无法分块，只能直通
       s.mode = _Mode.pipe;
-    } catch (_) {
+      AppLogger.I.i(
+          'proxy', '会话 ${s.id} 模式=直通 code=${resp.statusCode} 首字节=${_hexHead(head)}');
+    } catch (e) {
       // 首次探测失败不直接定死 pipe：留待 _pipeUrl 用完整 Range 再试一次
       // （部分 CDN 对 bytes=0-15 的微小 Range 返回异常，但正常 Range 可用）
       s.mode = _Mode.pipeRetry;
+      AppLogger.I.w('proxy', '会话 ${s.id} 探测异常 → pipeRetry: $e');
     } finally {
       await _discardUpstream(resp);
     }
   }
+
+  static String _hexHead(Uint8List b) =>
+      b.take(8).map((e) => e.toRadixString(16).padLeft(2, '0')).join(' ');
 
   // ---------------- HLS resources ----------------
 
@@ -243,8 +275,13 @@ class StreamProxy {
     _ResData? data = s.cacheGet(rid);
     data ??= await _loadResource(s, rid, priority: true);
     if (data == null) {
-      // 超过整读上限的大资源：单连接直通
-      await _pipeUrl(req, s, s.urlByRid[rid]!);
+      // 超过整读上限的大资源：单连接直通。BYTERANGE 区间段不能直通
+      // （直通会发整个文件而非该段区间），只能明确报错让 mpv 重试。
+      if (s.isRangeResource(rid)) {
+        await _respondStatus(req, 502);
+      } else {
+        await _pipeUrl(req, s, s.urlByRid[rid]!);
+      }
       return;
     }
     if (!data.playlist) {
@@ -259,57 +296,97 @@ class StreamProxy {
   }
 
   /// 拉取并缓存一个资源（播放列表或分段）；超过整读上限返回 null。
+  /// BYTERANGE 区间资源按 rid 记录的 (offset,length) 带 Range 上游取段。
   Future<_ResData?> _loadResource(_Session s, int rid,
       {required bool priority}) async {
     final cached = s.cacheGet(rid);
     if (cached != null) return cached;
     final url = s.urlByRid[rid];
     if (url == null) return null;
+    final range = s.rangeByRid[rid] == null
+        ? null
+        : () {
+            final (off, len) = s.rangeByRid[rid]!;
+            return 'bytes=$off-${off + len - 1}';
+          }();
     await s.gate.enter(priority: priority);
     try {
       final again = s.cacheGet(rid);
       if (again != null) return again;
-      final resp =
-          await _openGet(url, s.headers).timeout(const Duration(seconds: 30));
+      final resp = await _openGet(url, s.headers, range: range)
+          .timeout(const Duration(seconds: 30));
       if (resp.statusCode >= 400) {
+        final code = resp.statusCode;
         await _discardUpstream(resp);
-        throw HttpException('上游 ${resp.statusCode}');
-      }
-      final ctype = resp.headers.value(HttpHeaders.contentTypeHeader) ?? '';
-      final builder = BytesBuilder(copy: false);
-      var playlist = false;
-      var sniffed = false;
-      var overflow = false;
-      await for (final chunk in resp.timeout(const Duration(seconds: 30))) {
-        if (!sniffed) {
-          sniffed = true;
-          playlist = _looksLikeM3u8(chunk);
+        // 403/401：凭据可能已被轮换，刷新鉴权头后重试一次
+        if ((code == 403 || code == 401) && s.refresher != null) {
+          try {
+            final fresh = await s.refresher!();
+            if (fresh.isNotEmpty) s.headers = fresh;
+            AppLogger.I
+                .w('proxy', '会话 ${s.id} rid=$rid 上游 $code，刷新头重试');
+            final resp2 = await _openGet(url, s.headers, range: range)
+                .timeout(const Duration(seconds: 30));
+            if (resp2.statusCode < 400) {
+              return await _consumeResource(s, rid, resp2);
+            }
+            AppLogger.I.e('proxy',
+                '会话 ${s.id} rid=$rid 刷新头后仍 ${resp2.statusCode}');
+            await _discardUpstream(resp2);
+          } catch (e) {
+            AppLogger.I.e('proxy', '会话 ${s.id} rid=$rid 刷新头重试失败: $e');
+          }
         }
-        builder.add(chunk);
-        if (!playlist && builder.length > fetchCapBytes) {
-          overflow = true;
-          break; // 退出循环即取消订阅，中断上游连接
-        }
+        throw HttpException('上游 $code');
       }
-      if (overflow) return null;
-      if (playlist) {
-        final text = utf8.decode(builder.takeBytes(), allowMalformed: true);
-        final rewritten = _rewritePlaylist(s, text, url);
-        final out = _ResData(
-            Uint8List.fromList(utf8.encode(rewritten)),
-            'application/vnd.apple.mpegurl',
-            playlist: true);
-        s.cachePut(rid, out);
-        return out;
-      }
-      final out =
-          _ResData(builder.takeBytes(), ctype.isEmpty ? 'video/mp2t' : ctype);
-      s.cachePut(rid, out);
-      return out;
+      return await _consumeResource(s, rid, resp);
     } finally {
       s.gate.leave();
     }
   }
+
+  /// 消费上游响应：嗅探 m3u8 → 改写为本地播放列表；其余缓存为分段数据。
+  Future<_ResData> _consumeResource(
+      _Session s, int rid, HttpClientResponse resp) async {
+    final ctype = resp.headers.value(HttpHeaders.contentTypeHeader) ?? '';
+    final builder = BytesBuilder(copy: false);
+    var playlist = false;
+    var sniffed = false;
+    var overflow = false;
+    await for (final chunk in resp.timeout(const Duration(seconds: 30))) {
+      if (!sniffed) {
+        sniffed = true;
+        playlist = _looksLikeM3u8(chunk);
+      }
+      builder.add(chunk);
+      if (!playlist && builder.length > fetchCapBytes) {
+        overflow = true;
+        break; // 退出循环即取消订阅，中断上游连接
+      }
+    }
+    if (overflow) {
+      // 超过整读上限：返回 null，调用方走单连接直通
+      return null;
+    }
+    if (playlist) {
+      final text = utf8.decode(builder.takeBytes(), allowMalformed: true);
+      final rewritten = _rewritePlaylist(s, text, urlByRidOf(s, rid));
+      final out = _ResData(
+          Uint8List.fromList(utf8.encode(rewritten)),
+          'application/vnd.apple.mpegurl',
+          playlist: true);
+      s.cachePut(rid, out);
+      AppLogger.I.i('proxy',
+          '会话 ${s.id} rid=$rid 播放列表已改写(${out.bytes.length}B)');
+      return out;
+    }
+    final out =
+        _ResData(builder.takeBytes(), ctype.isEmpty ? 'video/mp2t' : ctype);
+    s.cachePut(rid, out);
+    return out;
+  }
+
+  static String urlByRidOf(_Session s, int rid) => s.urlByRid[rid] ?? '';
 
   void _kickHlsPrefetch(_Session s) {
     if (s.disposed || s.segments == null) return;
@@ -335,9 +412,10 @@ class StreamProxy {
       RegExp('URI="([^"]+)"', caseSensitive: false);
 
   String _rewritePlaylist(_Session s, String body, String baseUrl) {
-    final hasByteRange = body.contains('#EXT-X-BYTERANGE');
     final isMaster = body.contains('#EXT-X-STREAM-INF');
     final segIds = <int>[];
+    var byteRange = '';
+    var nextAutoOffset = 0; // 省略 @offset 时沿用前段结束位置（HLS 规范）
     final out = StringBuffer();
     for (final raw in body.split('\n')) {
       final line = raw.trim();
@@ -346,16 +424,41 @@ class StreamProxy {
         continue;
       }
       if (line.startsWith('#')) {
-        // 标签行：只改写 URI="..."（KEY / MAP / 媒体组等）
+        // BYTERANGE 标签（#EXT-X-BYTERANGE:<n>[@<o>]）暂存，作用于紧随的
+        // URL 行；其余标签行只改写 URI="..."（KEY / MAP / 媒体组等）
+        if (line.startsWith('#EXT-X-BYTERANGE:')) {
+          byteRange = line.substring('#EXT-X-BYTERANGE:'.length).trim();
+          continue;
+        }
         out.writeln(_rewriteUriAttrs(s, line, baseUrl));
         continue;
       }
-      if (hasByteRange) {
-        // BYTERANGE 分段共用同一 URI，无法逐段代理，保持原样交 mpv 直连
+      // BYTERANGE 分段与普通分段同样代理到本地（先前"保持原样交 mpv 直连"
+      // 会裸连 CDN——mpv 侧鉴权头已被清空，必 403）。段内区间挂在 rid 上，
+      // _loadResource 按 Range 上游取段；同一 URI 的不同区间视为不同资源。
+      final url = _resolveUrl(baseUrl, line);
+      final hasBrTag = byteRange.isNotEmpty;
+      final br = hasBrTag ? _parseByteRange(byteRange) : null;
+      byteRange = '';
+      if (hasBrTag && br == null) {
+        // 标签存在但解析失败：无法定位区间，原样交 mpv 直连该段
         out.writeln(line);
         continue;
       }
-      final rid = s.registerResource(_resolveUrl(baseUrl, line));
+      if (br == null) {
+        // 普通分段（无 BYTERANGE 标签）
+        final rid = s.registerResource(url);
+        segIds.add(rid);
+        out.writeln(_localUrl(s, rid));
+        continue;
+      }
+      // BYTERANGE 分段：@offset 省略时沿用前段结束位置（HLS 规范）
+      final (off0, len) = br;
+      final off = off0 >= 0 ? off0 : nextAutoOffset;
+      // 同一 URL 的不同区间视为不同资源，避免按 URL 去重互串
+      final rid = s.registerRangeResource(url, off, len);
+      s.rangeByRid[rid] = (off, len);
+      nextAutoOffset = off + len;
       segIds.add(rid);
       out.writeln(_localUrl(s, rid));
     }
@@ -364,6 +467,17 @@ class StreamProxy {
       s.segCursor = -1;
     }
     return out.toString();
+  }
+
+  /// 解析 #EXT-X-BYTERANGE 值 "<length>[@<offset>]"；offset 省略返回
+  /// -1（由调用方沿用前段结束位置）。
+  static (int, int)? _parseByteRange(String v) {
+    final m = RegExp(r'^(\d+)(?:@(-?\d+))?$').firstMatch(v.trim());
+    if (m == null) return null;
+    final len = int.tryParse(m.group(1)!);
+    if (len == null || len <= 0) return null;
+    final off = int.tryParse(m.group(2) ?? '-1') ?? -1;
+    return (off, len);
   }
 
   String _rewriteUriAttrs(_Session s, String line, String baseUrl) {
@@ -670,10 +784,27 @@ class StreamProxy {
     try {
       resp = await _openGet(url, s.headers, range: range)
           .timeout(const Duration(seconds: 30));
+      // 403/401：凭据可能已被轮换（如夸克 __puus），刷新鉴权头重试一次
+      if ((resp.statusCode == 403 || resp.statusCode == 401) &&
+          s.refresher != null) {
+        final code0 = resp.statusCode;
+        await _discardUpstream(resp);
+        AppLogger.I.w('proxy', '会话 ${s.id} pipe 上游 $code0，刷新头重试');
+        try {
+          final fresh = await s.refresher!();
+          if (fresh.isNotEmpty) s.headers = fresh;
+          resp = await _openGet(url, s.headers, range: range)
+              .timeout(const Duration(seconds: 30));
+        } catch (e) {
+          AppLogger.I.e('proxy', '会话 ${s.id} pipe 刷新头失败: $e');
+        }
+      }
       // pipeRetry：探测失败后的二次尝试。若仍失败，把状态码透传给客户端
       // 后放弃（调用方 mpv 会得到明确的 HTTP 错误而非挂死）。
       if (resp.statusCode >= 400) {
         final code = resp.statusCode;
+        AppLogger.I.w('proxy',
+            '会话 ${s.id} pipe 上游失败 code=$code url=${_hostOf(url)} range=${range != null}');
         await _discardUpstream(resp);
         // 403/401 若由客户端携带的 Range 引起（部分 CDN 拒绝开区间
         // Range），先去掉 Range 再试一次；5xx 与重试路径直接透传
@@ -921,7 +1052,9 @@ class _Session {
 
   final String id;
   final String rootUrl;
-  final Map<String, String> headers;
+
+  /// 鉴权头快照；403/401 刷新后整体替换（非 final）。
+  Map<String, String> headers;
   final _Gate gate = _Gate(StreamProxy.gateMax);
 
   _Mode mode = _Mode.undetermined;
@@ -931,6 +1064,12 @@ class _Session {
   int _ridSeq = 0;
   final Map<String, int> _ridByUrl = {};
   final Map<int, String> urlByRid = {};
+
+  /// BYTERANGE 分段的 rid → (offset, length)；不在表内表示整资源。
+  final Map<int, (int, int)> rangeByRid = {};
+
+  /// 403/401 时刷新鉴权头的回调（如夸克 Cookie 轮换）。
+  Future<Map<String, String>> Function()? refresher;
 
   // HLS
   List<int>? segments;
@@ -954,6 +1093,21 @@ class _Session {
     urlByRid[rid] = url;
     return rid;
   }
+
+  /// 注册同一 URL 的第 [seq] 个区间资源（BYTERANGE 分段共用 URI，
+  /// 不能按 URL 去重，否则各段互串）。
+  int registerRangeResource(String url, int offset, int length) {
+    final key = '$url#$offset+$length';
+    final existing = _ridByUrl[key];
+    if (existing != null) return existing;
+    final rid = _ridSeq++;
+    _ridByUrl[key] = rid;
+    urlByRid[rid] = url;
+    return rid;
+  }
+
+  /// 该 rid 是否为 BYTERANGE 区间资源。
+  bool isRangeResource(int rid) => rangeByRid.containsKey(rid);
 
   _ResData? cacheGet(int rid) {
     final v = cache.remove(rid);
@@ -980,5 +1134,6 @@ class _Session {
     cacheBytes = 0;
     segInflight.clear();
     segments = null;
+    rangeByRid.clear();
   }
 }

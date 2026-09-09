@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
+import '../utils/app_logger.dart';
 import '../utils/types.dart';
 import 'quark_models.dart';
 
@@ -322,14 +323,27 @@ class QuarkClient {
       }
     }
     final list = data;
-    if (list is! List) return (<QuarkDownloadInfo>[], snapshot);
-    return (
-      list
-          .whereType<Map>()
-          .map((e) => QuarkDownloadInfo.fromJson(e.cast<String, dynamic>()))
-          .toList(),
-      snapshot
-    );
+    if (list is! List) {
+      AppLogger.I.w('quark', 'file/download 响应非列表');
+      return (<QuarkDownloadInfo>[], snapshot);
+    }
+    final infos = list
+        .whereType<Map>()
+        .map((e) => QuarkDownloadInfo.fromJson(e.cast<String, dynamic>()))
+        .toList();
+    for (final i in infos) {
+      AppLogger.I.i('quark',
+          '直链 ${i.fileName} host=${_hostOf(i.url)} len=${i.size}');
+    }
+    return (infos, snapshot);
+  }
+
+  static String _hostOf(String url) {
+    try {
+      return Uri.parse(url).host;
+    } catch (_) {
+      return '?';
+    }
   }
 
   /// 获取视频转码清晰度列表（在线播放多清晰度用）。
@@ -353,7 +367,9 @@ class QuarkClient {
           },
           userAgent: uaDesktopClient);
       candidates.add(_extractVideoList(data));
-    } catch (_) {}
+    } catch (e) {
+      AppLogger.I.w('quark', 'v2/play/project 失败: $e');
+    }
     // ② ③ video_preview 兼容 fids 数组与单 fid 两种请求体
     for (final body in [
       {
@@ -366,7 +382,9 @@ class QuarkClient {
         final data = await _post('$driveApi/file/video_preview',
             params: params, data: body, userAgent: uaDesktopClient);
         candidates.add(_extractVideoList(data));
-      } catch (_) {}
+      } catch (e) {
+        AppLogger.I.w('quark', 'video_preview 失败: $e');
+      }
     }
     final qualities = <QuarkVideoQuality>[];
     for (final list in candidates) {
@@ -378,10 +396,13 @@ class QuarkClient {
     }
     qualities.sort((a, b) => _qualityRank(b).compareTo(_qualityRank(a)));
     final seen = <String>{};
-    return (
-      qualities.where((q) => seen.add(q.label)).toList(),
-      snapshot
-    );
+    final result =
+        qualities.where((q) => seen.add(q.label)).toList();
+    AppLogger.I.i(
+        'quark',
+        '转码列表 fid=$fid 档数=${result.length} '
+        'label=${result.map((q) => q.label).join('/')}');
+    return (result, snapshot);
   }
 
   /// 解析单条清晰度条目。响应形态多样（v2/play/project 为
