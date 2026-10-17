@@ -97,7 +97,11 @@ class Netdisk123Traffic {
   /// 本次要下载的文件总大小（字节）
   final int fileSize;
 
-  /// 账号剩余下载流量（字节）
+  /// 服务端返回的 originalRemainTraffic。
+  ///
+  /// 警告：大文件场景下这个值**不可信**——实测它等于「文件大小 − 10GiB」，
+  /// 不是账号真实剩余额度。小文件（未超额）时它才约等于真实剩余。
+  /// UI 不要直接展示这个字段。
   final int remain;
 
   /// 收银台场景标识：a/b/c/d 表示要弹付费框，e1 表示走 Scheme E
@@ -892,12 +896,14 @@ class Netdisk123Client {
 
 /// 123 网盘**分享**解析（免登录）。
 ///
-/// 实测：`GET /b/api/share/download-list?uniID=...` 在完全没有 token 的情况下
-/// 返回的是业务错误（"分享不存在"），而不是 `20101 未登录` —— 说明分享通道
-/// 本身不需要登录，只要拿到有效的 uniID（分享 ID）+ 提取码即可。
+/// 端点逆向自分享页 SPA（`statics.123pan.com/assets/js/index.*.js`），实测可用：
+///  * 文件列表：`GET  /b/api/share/get?shareKey=...`
+///  * 取直链：  `POST /b/api/v2/share/download/info`
+///              body `{ShareKey, FileID, S3keyFlag, Size, Etag}`
+///              返回 `dispatchList[0].prefix + downloadPath`
 ///
-/// 注意：这只适用于**别人分享出来的链接**。自己网盘里的文件必须带 token，
-/// 因为 list/new 与 download_info 都会校验账号归属。
+/// 注意：分享下载与个人下载**共用同一本流量账**。登录态超额返回 5113，
+/// 匿名超额/超限返回 5112（需注册登录或付费）。
 class Netdisk123Share {
   static const _apiBase = 'https://api.123278.com/b/api';
 
@@ -906,25 +912,34 @@ class Netdisk123Share {
     receiveTimeout: const Duration(seconds: 30),
   ));
 
-  Map<String, dynamic> _headers() => {
+  Map<String, dynamic> _headers({String? token}) => {
         'accept': 'application/json, text/plain, */*',
         'origin': 'https://www.123pan.com',
         'referer': 'https://www.123pan.com/',
         'user-agent': Netdisk123Client.ua,
         'platform': Netdisk123Client.platform,
         'app-version': Netdisk123Client.appVersion,
+        if (token != null && token.isNotEmpty) 'authorization': 'Bearer $token',
       };
 
-  /// 从分享链接里取 uniID。
-  /// 支持 `https://www.123pan.com/s/abc-def`、`https://www.123pan.cn/s/abc-def`
-  /// 以及直接给 `abc-def` 的情况。
-  static String parseUniId(String url) {
+  /// 从分享链接里取 shareKey。
+  ///
+  /// 支持：
+  ///  * `https://www.123pan.com/s/abc-def`
+  ///  * `https://1829767515.share.123pan.cn/123pan/abc-def`
+  ///  * 直接给 `abc-def`
+  static String parseShareKey(String url) {
     final s = url.trim();
-    final m = RegExp(r'/s/([A-Za-z0-9_\-]+)').firstMatch(s);
-    if (m != null) return m.group(1)!;
-    final m2 = RegExp(r'^([A-Za-z0-9]{3,}-[A-Za-z0-9]{2,})$').firstMatch(s);
-    return m2?.group(1) ?? '';
+    final m1 = RegExp(r'/123pan/([A-Za-z0-9_\-]+)').firstMatch(s);
+    if (m1 != null) return m1.group(1)!;
+    final m2 = RegExp(r'/s/([A-Za-z0-9_\-]+)').firstMatch(s);
+    if (m2 != null) return m2.group(1)!;
+    final m3 = RegExp(r'^([A-Za-z0-9]{3,}-[A-Za-z0-9]{2,})$').firstMatch(s);
+    return m3?.group(1) ?? '';
   }
+
+  /// 兼容旧调用名
+  static String parseUniId(String url) => parseShareKey(url);
 
   /// 从分享链接里取提取码：`?pwd=abcd` / `&pwd=abcd`
   static String parsePwd(String url) {
@@ -933,8 +948,8 @@ class Netdisk123Share {
   }
 
   /// 列出分享内容（无需登录）
-  Future<List<Netdisk123File>> list(String uniId,
-      {String pwd = '', String parentId = '0'}) async {
+  Future<List<Netdisk123File>> list(String shareKey,
+      {String pwd = '', String parentId = '0', String token = ''}) async {
     final files = <Netdisk123File>[];
     for (var page = 1; page <= 50; page++) {
       final params = <String, dynamic>{
@@ -942,17 +957,18 @@ class Netdisk123Share {
         'next': '0',
         'orderBy': 'file_name',
         'orderDirection': 'asc',
-        'parentFileId': parentId,
-        'trashed': 'false',
-        'SearchData': '',
+        'shareKey': shareKey,
+        'ParentFileId': parentId,
         'Page': '$page',
-        'OnlyLookAbnormalFile': '0',
-        'uniID': uniId,
-        if (pwd.isNotEmpty) 'passcode': pwd,
+        'event': 'HomeRequest',
+        'operateType': 4,
+        'OrderId': '',
+        if (pwd.isNotEmpty) 'SharePwd': pwd,
       };
-      final resp = await _dio.get<dynamic>('$_apiBase/share/download-list',
+      final resp = await _dio.get<dynamic>('$_apiBase/share/get',
           queryParameters: params,
-          options: Options(headers: _headers(), validateStatus: (_) => true));
+          options: Options(
+              headers: _headers(token: token), validateStatus: (_) => true));
       final map = _decode(resp);
       final code = toInt(map['code'], fallback: -1);
       if (code != 0) {
@@ -973,48 +989,39 @@ class Netdisk123Share {
     return files;
   }
 
-  /// 分享文件直链。优先用列表里带的 DownloadUrl，否则请求 shareDownload/info。
-  Future<String> getDownloadUrl(Netdisk123File f, String uniId,
-      {String pwd = ''}) async {
-    if (f.downloadUrl.isNotEmpty) return f.downloadUrl;
-
+  /// 分享文件直链（无需登录；超额时服务端返回 5112/5113）
+  Future<String> getDownloadUrl(Netdisk123File f, String shareKey,
+      {String pwd = '', String token = ''}) async {
     final body = <String, dynamic>{
-      'driveId': 0,
-      'etag': f.etag,
-      'fileId': f.id,
-      's3keyFlag': f.s3KeyFlag,
-      'type': f.isDir ? 1 : 0,
-      'fileName': f.name,
-      'size': f.size,
-      'shareKey': uniId,
-      if (pwd.isNotEmpty) 'sharePwd': pwd,
+      'ShareKey': shareKey,
+      'FileID': int.tryParse(f.id) ?? f.id,
+      'S3keyFlag': f.s3KeyFlag,
+      'Size': f.size,
+      'Etag': f.etag,
     };
-
-    for (final path in const [
-      'restful/goapi/v1/file/shareDownload/info',
-      'file/download_info',
-    ]) {
-      try {
-        final resp = await _dio.post<dynamic>('$_apiBase/$path',
-            data: body,
-            options: Options(headers: _headers(), validateStatus: (_) => true));
-        final map = _decode(resp);
-        if (toInt(map['code'], fallback: -1) != 0) {
-          AppLogger.I.w('netdisk123',
-              'share $path 失败: ${toStr(map['message'])}');
-          continue;
-        }
-        final data = map['data'];
-        final inner = data is Map ? data.cast<String, dynamic>() : map;
-        final url = toStr(inner['DownloadUrl']).isNotEmpty
-            ? toStr(inner['DownloadUrl'])
-            : toStr(inner['downloadUrl']);
-        if (url.isNotEmpty) return url;
-      } catch (e) {
-        AppLogger.I.w('netdisk123', 'share $path 异常: $e');
-      }
+    final resp = await _dio.post<dynamic>('$_apiBase/v2/share/download/info',
+        data: body,
+        options: Options(
+            headers: _headers(token: token), validateStatus: (_) => true));
+    final map = _decode(resp);
+    final code = toInt(map['code'], fallback: -1);
+    if (code != 0) {
+      throw Netdisk123Exception(
+          code, toStr(map['message'], fallback: '获取分享直链失败'));
     }
-    return '';
+    final data = map['data'];
+    if (data is! Map) return '';
+    final inner = data.cast<String, dynamic>();
+    final path = toStr(inner['downloadPath']);
+    if (path.isEmpty) return '';
+    if (path.startsWith('http')) return path;
+    final list = inner['dispatchList'];
+    String prefix = '';
+    if (list is List && list.isNotEmpty) {
+      final first = list.first;
+      if (first is Map) prefix = toStr(first['prefix']);
+    }
+    return '$prefix$path';
   }
 
   Map<String, dynamic> _decode(Response<dynamic> resp) {

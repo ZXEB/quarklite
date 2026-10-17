@@ -180,14 +180,17 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
     ));
   }
 
-  /// 精确提示：告诉用户是「这一单」超了，而不是笼统的「流量用完」
+  /// 精确提示：告诉用户是「这一单」超了，而不是笼统的「流量用完」。
+  ///
+  /// 注意：服务端返回的 originalRemainTraffic 在大文件场景下不可信
+  /// （实测等于「文件大小 − 10GiB」，不是真实剩余），所以这里只展示
+  /// 文件大小和档位，不展示剩余额度。
   Future<void> _showTrafficDetail(Netdisk123Traffic t) async {
     final go = await confirmMiuix(
       context,
-      title: '这一单超出剩余流量',
+      title: '这一单超出本月免费流量',
       content: '文件大小 ${formatBytes(t.fileSize)}\n'
-          '剩余额度 ${formatBytes(t.remain)}\n'
-          '还差 ${formatBytes(t.shortage)}\n\n'
+          '免费账号每月下载额度为 10 GB，当前额度不足以完成这一单。\n\n'
           '可选流量包：${t.tier1} / ${t.tier2} / ${t.tier3}\n'
           '也可以等下月额度刷新，或换个小号下载。',
       confirmText: '去充值',
