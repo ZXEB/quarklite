@@ -1,4 +1,4 @@
-name: Build
+name: Build Android
 
 on:
   push:
@@ -16,9 +16,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set release version
+      - name: Read app version
+        id: ver
         shell: bash
-        run: "sed -i -E 's/^version:.*/version: 1.3.2+1/' pubspec.yaml"
+        run: |
+          VER=$(grep -E '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//' | tr -d '\r')
+          echo "app_version=$VER" >> "$GITHUB_OUTPUT"
+          echo "APP_VERSION=$VER" >> "$GITHUB_ENV"
+          echo "Building version: $VER"
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -49,8 +54,14 @@ jobs:
         env:
           GOPEED_VERSION: ${{ vars.GOPEED_VERSION || 'v1.9.3' }}
 
-      - name: Keystore (generate + cache)
-        id: keystore
+      - name: Cache keystore
+        uses: actions/cache@v4
+        with:
+          path: android/app/upload-keystore.jks
+          key: keystore-${{ github.repository }}
+
+      - name: Keystore + key.properties
+        shell: bash
         run: |
           mkdir -p android/app
           if [ ! -f android/app/upload-keystore.jks ]; then
@@ -59,19 +70,13 @@ jobs:
               -alias quarklite -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass quarklite2026 -keypass quarklite2026 \
               -dname "CN=QuarkLite, OU=Dev, O=QuarkLite, L=Beijing, S=Beijing, C=CN"
-            printf '%s\n' \
-              "storeFile=upload-keystore.jks" \
-              "storePassword=quarklite2026" \
-              "keyAlias=quarklite" \
-              "keyPassword=quarklite2026" > android/key.properties
           fi
-        shell: bash
-
-      - name: Cache keystore
-        uses: actions/cache@v4
-        with:
-          path: android/app/upload-keystore.jks
-          key: keystore-${{ github.repository }}
+          # 每次都写，避免 keystore 命中缓存时退回 debug 签名（签名不一致会导致无法覆盖安装）
+          printf '%s\n' \
+            "storeFile=upload-keystore.jks" \
+            "storePassword=quarklite2026" \
+            "keyAlias=quarklite" \
+            "keyPassword=quarklite2026" > android/key.properties
 
       - name: Build release APK
         run: |
@@ -90,169 +95,36 @@ jobs:
             build/app/outputs/flutter-apk/app-x86_64-release.apk
           if-no-files-found: error
 
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set release version
-        shell: pwsh
-        run: "(Get-Content pubspec.yaml) -replace '^version:.*$', 'version: 1.3.2+1' | Set-Content pubspec.yaml"
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-
-      - name: Download gopeed engine
-        shell: pwsh
-        run: |
-          $ver = "${{ vars.GOPEED_VERSION || 'v1.9.3' }}"
-          $url = "https://github.com/GopeedLab/gopeed/releases/download/$ver/gopeed-web-$ver-windows-amd64.zip"
-          Invoke-WebRequest -Uri $url -OutFile gopeed.zip
-          Expand-Archive gopeed.zip -DestinationPath gopeed
-          New-Item -ItemType Directory -Force -Path windows/resources | Out-Null
-          $exe = Get-ChildItem -Path gopeed -Recurse -Filter "gopeed*.exe" | Select-Object -First 1
-          if (-not $exe) { throw "gopeed.exe not found in archive" }
-          Copy-Item $exe.FullName windows/resources/gopeed.exe
-          Get-Item windows/resources/gopeed.exe | Select-Object Name, Length
-
-      - name: Build Windows release
-        shell: pwsh
-        run: |
-          flutter pub get
-          flutter build windows --release --verbose 2>&1 | Tee-Object -FilePath build_verbose.log
-          if ($LASTEXITCODE -ne 0) {
-            Get-Content build_verbose.log -Tail 120
-            exit $LASTEXITCODE
-          }
-
-      - name: Package
-        shell: pwsh
-        run: |
-          $dir = "build/windows/x64/runner/Release"
-          if (-not (Test-Path "$dir/gopeed.exe")) { throw "gopeed.exe missing from output" }
-          Compress-Archive -Path "$dir/*" -DestinationPath quarklite-win.zip
-
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: quarklite-windows
-          path: quarklite-win.zip
-          if-no-files-found: error
-
-      - name: Install Inno Setup
-        shell: pwsh
-        run: choco install innosetup -y --no-progress
-
-      - name: Build installer
-        shell: pwsh
-        run: |
-          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9.]+)').Matches[0].Groups[1].Value
-          Write-Host "App version: $version"
-          $iscc = Get-ChildItem "C:\Program Files (x86)\Inno Setup*" -Recurse -Filter ISCC.exe | Sort-Object FullName -Descending | Select-Object -First 1
-          if (-not $iscc) { throw "ISCC.exe not found" }
-          & $iscc.FullName "scripts\quarklite.iss" "/DAppVersion=$version"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Get-ChildItem build\installer | Select-Object Name, Length
-
-      - name: Upload installer artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: quarklite-setup
-          path: build/installer/quarklite-*-setup.exe
-          if-no-files-found: error
-
-  build-ios:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set release version
-        shell: bash
-        run: "sed -i '' -E 's/^version:.*/version: 1.3.2+1/' pubspec.yaml"
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Install Flutter dependencies
-        run: flutter pub get
-
-      - name: Install iOS pods
-        working-directory: ios
-        run: pod install --repo-update
-
-      - name: Build unsigned iOS app
-        run: flutter build ios --release --no-codesign
-
-      - name: Package unsigned IPA
-        shell: bash
-        run: |
-          test -d build/ios/iphoneos/Runner.app
-          rm -rf build/ios/ipa-payload
-          mkdir -p build/ios/ipa-payload/Payload
-          cp -R build/ios/iphoneos/Runner.app build/ios/ipa-payload/Payload/
-          cd build/ios/ipa-payload
-          /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload ../quarklite-ios-unsigned.ipa
-          ls -lh ../quarklite-ios-unsigned.ipa
-
-      - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: quarklite-ios-unsigned
-          path: build/ios/quarklite-ios-unsigned.ipa
-          if-no-files-found: error
-
   publish-release:
-    needs: [build-android, build-windows, build-ios]
+    needs: [build-android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download Android artifacts
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download APK artifacts
         uses: actions/download-artifact@v4
         with:
           name: quarklite-apk
           path: release/android
 
-      - name: Download Windows archive
-        uses: actions/download-artifact@v4
-        with:
-          name: quarklite-windows
-          path: release/windows
-
-      - name: Download Windows installer
-        uses: actions/download-artifact@v4
-        with:
-          name: quarklite-setup
-          path: release/installer
-
-      - name: Download iOS IPA
-        uses: actions/download-artifact@v4
-        with:
-          name: quarklite-ios-unsigned
-          path: release/ios
-
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v1.3.2 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload v1.3.2 --repo "$GITHUB_REPOSITORY" --clobber \
-              release/android/* release/windows/* release/installer/* release/ios/*
+          VER=$(grep -E '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//' | cut -d+ -f1 | tr -d '\r')
+          TAG="v$VER"
+          echo "Publishing $TAG"
+          ls -lh release/android
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber release/android/*
           else
-            gh release create v1.3.2 \
+            gh release create "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
-              --title "Quarklite v1.3.2" \
+              --title "Quarklite $TAG" \
               --generate-notes \
               --target "$GITHUB_SHA" \
-              release/android/* \
-              release/windows/* \
-              release/installer/* \
-              release/ios/*
+              release/android/*
           fi
