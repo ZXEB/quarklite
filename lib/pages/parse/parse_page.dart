@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../api/netdisk123_client.dart';
 import '../../api/quark_client.dart';
 import '../../state/app_state.dart';
 import '../../state/download_service.dart';
@@ -10,6 +11,7 @@ import '../../widgets/file_list_anim.dart';
 import '../../widgets/miuix_common.dart';
 import '../drive/netdisk123_accounts_page.dart';
 import '../drive/xunlei_drive_page.dart';
+import 'netdisk123_share_page.dart';
 import 'share_files_page.dart';
 
 enum ShareType { quark, netdisk123, xunlei, magnet, unknown }
@@ -92,10 +94,6 @@ class _ParsePageState extends State<ParsePage> {
   Future<void> _parse() async {
     if (_parsing) return;
     final app = AppState.I;
-    if (!app.isLoggedIn) {
-      _toast('请先登录夸克账号');
-      return;
-    }
     if (_btMode) {
       final magnet = _btController.text.trim();
       if (magnet.isEmpty) {
@@ -123,6 +121,29 @@ class _ParsePageState extends State<ParsePage> {
       return;
     }
 
+    // 123 网盘分享：走免登录通道，不依赖夸克账号
+    if (_detectType(url) == ShareType.netdisk123) {
+      final uniId = Netdisk123Share.parseUniId(url);
+      if (uniId.isEmpty) {
+        _toast('无法识别的 123 分享链接');
+        return;
+      }
+      final pwd = _pwdController.text.trim();
+      await _saveHistory(url, pwd);
+      if (!mounted) return;
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => Netdisk123SharePage(
+          uniId: uniId,
+          pwd: pwd,
+          shareUrl: url,
+        ),
+      ));
+      return;
+    }
+    if (!app.isLoggedIn) {
+      _toast('请先登录夸克账号');
+      return;
+    }
     final parsed = QuarkClient.parseShareUrl(url);
     if (parsed.pwdId.isEmpty) {
       _toast('无法识别的分享链接');

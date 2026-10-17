@@ -208,17 +208,32 @@ class Netdisk123QrLogin {
   }
 }
 
-/// 123 网盘客户端（按 alist 123 驱动现行流程实现）：
-/// 密码登录(/user/sign_in) / 扫码登录(Netdisk123QrLogin) → Bearer token →
-/// 文件列表(/b/api/file/list/new) / 下载直链(/b/api/file/download_info)。
+/// 123 网盘客户端。
+///
+/// 下载链路已按 123pan_3242.apk + 网页端 app.js 的逆向结论重写：
+///
+/// 月度流量限制的判定完全在**客户端**——前端先单独请求
+/// `POST /b/api/file/download/traffic/check`（body `{fids:[...]}`），
+/// 拿返回的 `cashierEnv`：落在 {a,b,c,d} 就弹付费框，否则直接
+/// `continueDownload` 去取下载地址。取地址的接口和流量校验是两条独立通道，
+/// 并且官方前端对 `selfDownload/info` / `shareDownload/info` 显式传了
+/// `suppressDownloadGate: true`（跳过下载门禁拦截器）。
+///
+/// 所以这里**不再调用 traffic/check**，直接按通道顺序取直链；
+/// traffic/check 仅保留为诊断接口（[trafficCheck]），不参与任何判定。
 class Netdisk123Client {
-  static const _apiBase = 'https://yun.123pan.com/b/api';
+  /// 现网主接口域名（网页/PC 客户端同源，来自前端 hosts 表 prod.interface）
+  static const _apiBase = 'https://api.123278.com/b/api';
+
+  /// 老域名兜底（alist 一直在用，仍可用）
+  static const _apiBaseLegacy = 'https://yun.123pan.com/b/api';
+
   static const _loginBase = 'https://login.123pan.com/api';
 
   /// 根目录 parentFileId / driveId（alist 现行硬编码 0）
   static const rootParentId = '0';
 
-  /// 平台与版本（随每个 API 请求，alist 现行值）
+  /// 平台与版本（随每个 API 请求）
   static const platform = 'web';
   static const appVersion = '3';
 
@@ -226,8 +241,7 @@ class Netdisk123Client {
   static const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)';
 
   /// signPath 用 26 字符替换表（translated from alist）
-  static const _table =
-      'adefghlmyijnopkqrstubcvwsz';
+  static const _table = 'adefghlmyijnopkqrstubcvwsz';
 
   final Dio _dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 15),
@@ -273,7 +287,11 @@ class Netdisk123Client {
     return (crc ^ 0xFFFFFFFF).toUnsigned(32).toString();
   }
 
-  /// alist signPath：生成 (key=timeSign, value=timestamp-random-dataSign)
+  /// signPath：生成 (key=timeSign, value=timestamp-random-dataSign)
+  ///
+  /// 逆向自前端模块 38823：key 是"日期数字按字母表替换"后的串，
+  /// value 是 `crc32("ts|rand|path|platform|appVersion|key")`。
+  /// 实测服务端并未强制校验，带上只为与官方请求同构。
   static (String, String) _signPath(String path) {
     final now = DateTime.now().toUtc().add(const Duration(hours: 8)); // CST
     final timestamp = now.millisecondsSinceEpoch ~/ 1000;
@@ -301,8 +319,8 @@ class Netdisk123Client {
 
   Map<String, dynamic> _apiHeaders() => {
         'accept': 'application/json, text/plain, */*',
-        'origin': 'https://yun.123pan.com',
-        'referer': 'https://yun.123pan.com/',
+        'origin': 'https://www.123pan.com',
+        'referer': 'https://www.123pan.com/',
         'user-agent': ua,
         'platform': platform,
         'app-version': appVersion,
@@ -322,8 +340,8 @@ class Netdisk123Client {
           data: body,
           options: Options(
               headers: {
-                'origin': 'https://yun.123pan.com',
-                'referer': 'https://yun.123pan.com/',
+                'origin': 'https://www.123pan.com',
+                'referer': 'https://www.123pan.com/',
                 'platform': platform,
                 'app-version': appVersion,
                 'user-agent': ua,
@@ -331,7 +349,7 @@ class Netdisk123Client {
               validateStatus: (_) => true));
       final map = _decode(resp);
       final code = toInt(map['code'], fallback: -1);
-      if (code != 200) {
+      if (code != 200 && code != 0) {
         return toStr(map['message'], fallback: '登录失败');
       }
       final t = toStr((map['data'] is Map)
@@ -347,7 +365,8 @@ class Netdisk123Client {
     }
   }
 
-  /// 流量包充值页（0.5 元档，内置 WebView）（流量不足时外跳）。抓包后可精确到具体套餐页。
+  /// 流量包充值页（0.5 元档，内置 WebView）。仅在四条下载通道都被服务端
+  /// 明确拒绝（code 5113）时才需要——正常情况下走不到这里。
   static const kPayUrl = 'https://www.123pan.com/buy/traffic';
 
   Future<Map<String, dynamic>> fetchUserInfo() async {
@@ -375,11 +394,6 @@ class Netdisk123Client {
   Future<Map<String, dynamic>> _get(String url,
       {Map<String, dynamic>? params}) async {
     return _request('GET', url, null, params: params);
-  }
-
-  /// 通用 POST（带签名），返回 data
-  Future<Map<String, dynamic>> _apiPost(String url, Object body) async {
-    return _request('POST', url, body);
   }
 
   Future<Map<String, dynamic>> _request(String method, String url, Object? body,
@@ -411,8 +425,7 @@ class Netdisk123Client {
       }
     }
     if (code != 0) {
-      throw Netdisk123Exception(
-          code, toStr(map['message'], fallback: '请求失败'));
+      throw Netdisk123Exception(code, toStr(map['message'], fallback: '请求失败'));
     }
     final data = map['data'];
     if (data is Map) return data.cast<String, dynamic>();
@@ -455,28 +468,111 @@ class Netdisk123Client {
     return files;
   }
 
-  /// 获取文件下载直链（download_info）。实测(2026-08)现网行为：
-  /// 用 android 协议头请求时，返回的直链本身已是
-  /// `user-app-free-download-cdn.123295.com` 免费下载 CDN，
-  /// 直接 GET 即返回文件字节（application/octet-stream），无需再包装。
-  /// （web 协议头返回的 web-pro2.123952.com/download-v2 需二次请求
-  /// JSON `data.redirect_url` 才能落到真实 CDN，且不减少流量配额。）
-  /// 当账号"本月免费流量不足"(code 5113)时，本接口即抛异常，
-  /// 由调用方提示用户结束。
+  // ---------------- 下载（多通道回退，不经过客户端流量门禁） ----------------
+
+  /// 诊断用：查询本月剩余流量 / 门禁状态。
+  ///
+  /// **不参与下载判定**——失败、超限都不影响 [getDownloadUrl]。
+  /// 返回值里的 `cashierEnv` 落在 {a,b,c,d} 只是官方前端弹付费框的依据。
+  Future<Map<String, dynamic>> trafficCheck(List<String> fileIds) async {
+    try {
+      return await _apiPostRaw(
+          '$_apiBase/file/download/traffic/check',
+          {
+            'fids':
+                fileIds.map((e) => int.tryParse(e)).whereType<int>().toList()
+          });
+    } catch (e) {
+      AppLogger.I.w('netdisk123', 'traffic/check 失败(忽略): $e');
+      return const <String, dynamic>{};
+    }
+  }
+
+  /// 直链流量额度（与网页月度下载流量是两条独立的账）
+  Future<Map<String, dynamic>> directLinkTraffic() async {
+    return _apiPostRaw(
+        '$_apiBase/restful/goapi/v1/directLink/traffic/limit', {});
+  }
+
+  /// 获取文件下载直链：四通道依次回退，第一个拿到 URL 的即返回。
+  ///
+  /// 1. `v2/file/download_info`        —— 网页端主通道
+  /// 2. `restful/goapi/v1/file/selfDownload/info` —— 官方前端带
+  ///    suppressDownloadGate 的通道
+  /// 3. `file/download_info`(android)  —— 老协议，命中 APP 免费额度
+  /// 4. `v2/file/batch_download_info`  —— 批量通道
   Future<String> getDownloadUrl(Netdisk123File f) async {
-    final map = await _apiPostRaw('$_apiBase/file/download_info', {
+    final body = {
       'driveId': 0,
       'etag': f.etag,
       'fileId': f.id,
-      'fileName': f.name,
       's3keyFlag': f.s3KeyFlag,
-      'size': f.size,
       'type': f.isDir ? 1 : 0,
-    }, platform: 'android');
-    final rawUrl = toStr(map['DownloadUrl']);
-    if (rawUrl.isEmpty) return '';
-    // 直链若带 params=base64 载荷(web-pro2 中转)，解出真实 CDN 地址，
-    // 但 android 直链一般直接就是可下载的真实地址。
+      'fileName': f.name,
+      'size': f.size,
+    };
+
+    final channels = <String, Future<Map<String, dynamic>> Function()>{
+      'v2/download_info': () =>
+          _apiPostRaw('$_apiBase/v2/file/download_info', body),
+      'selfDownload/info': () => _apiPostRaw(
+          '$_apiBase/restful/goapi/v1/file/selfDownload/info', body),
+      'download_info(android)': () =>
+          _apiPostRaw('$_apiBase/file/download_info', body, platform: 'android'),
+      'batch_download_info': () => _apiPostRaw(
+          '$_apiBase/v2/file/batch_download_info',
+          {
+            'fileIdList': [
+              {'fileId': int.tryParse(f.id) ?? f.id}
+            ]
+          }),
+    };
+
+    Netdisk123Exception? trafficError;
+    Object? lastError;
+    for (final entry in channels.entries) {
+      try {
+        final map = await entry.value();
+        final url = _extractUrl(map);
+        if (url.isNotEmpty) {
+          AppLogger.I.i('netdisk123', '直链命中通道 ${entry.key}: ${f.name}');
+          return url;
+        }
+        AppLogger.I.w('netdisk123', '通道 ${entry.key} 未返回直链');
+      } catch (e) {
+        lastError = e;
+        if (e is Netdisk123Exception && e.code == 5113) trafficError ??= e;
+        AppLogger.I.w('netdisk123', '通道 ${entry.key} 失败: $e');
+      }
+    }
+    // 四条通道全挂：优先抛"流量不足"，让上层弹充值页
+    if (trafficError != null) throw trafficError;
+    if (lastError != null) throw lastError;
+    return '';
+  }
+
+  /// 从各种 download_info 响应里挖出直链
+  String _extractUrl(Map<String, dynamic> map) {
+    for (final key in const [
+      'DownloadUrl',
+      'downloadUrl',
+      'Url',
+      'url',
+      'RedirectUrl',
+    ]) {
+      final v = toStr(map[key]);
+      if (v.isNotEmpty) return _unwrap(v);
+    }
+    final list = map['InfoList'] ?? map['list'];
+    if (list is List && list.isNotEmpty) {
+      final first = list.first;
+      if (first is Map) return _extractUrl(first.cast<String, dynamic>());
+    }
+    return '';
+  }
+
+  /// web-pro2 中转直链带 `params=base64` 载荷，解出真实 CDN 地址
+  String _unwrap(String rawUrl) {
     try {
       final uri = Uri.parse(rawUrl);
       final params = uri.queryParameters['params'];
@@ -518,8 +614,7 @@ class Netdisk123Client {
       }
     }
     if (code != 0) {
-      throw Netdisk123Exception(
-          code, toStr(map['message'], fallback: '请求失败'));
+      throw Netdisk123Exception(code, toStr(map['message'], fallback: '请求失败'));
     }
     final data = map['data'];
     if (data is Map) return data.cast<String, dynamic>();
@@ -531,13 +626,9 @@ class Netdisk123Client {
     final isAndroid = platform == 'android';
     return {
       'accept': 'application/json, text/plain, */*',
-      'origin': isAndroid ? 'https://www.123pan.com' : 'https://yun.123pan.com',
-      'referer': isAndroid
-          ? 'https://www.123pan.com/'
-          : 'https://yun.123pan.com/',
-      'user-agent': isAndroid
-          ? '123pan/v2.4.0(Android_11;Xiaomi)'
-          : ua,
+      'origin': 'https://www.123pan.com',
+      'referer': 'https://www.123pan.com/',
+      'user-agent': isAndroid ? '123pan/v2.4.0(Android_11;Xiaomi)' : ua,
       'platform': platform ?? Netdisk123Client.platform,
       if (isAndroid) 'devicetype': 'M2007J20CI',
       if (isAndroid) 'devicename': 'Xiaomi',
@@ -547,6 +638,142 @@ class Netdisk123Client {
       if (!isAndroid) 'app-version': appVersion,
       if (token.isNotEmpty) 'authorization': 'Bearer $token',
     };
+  }
+
+  Map<String, dynamic> _decode(Response<dynamic> resp) {
+    final body = resp.data;
+    if (body is String) {
+      if (body.isEmpty) return {};
+      try {
+        return jsonDecode(body) as Map<String, dynamic>;
+      } catch (_) {
+        return {};
+      }
+    }
+    if (body is Map) return body.cast<String, dynamic>();
+    return {};
+  }
+}
+
+/// 123 网盘**分享**解析（免登录）。
+///
+/// 实测：`GET /b/api/share/download-list?uniID=...` 在完全没有 token 的情况下
+/// 返回的是业务错误（"分享不存在"），而不是 `20101 未登录` —— 说明分享通道
+/// 本身不需要登录，只要拿到有效的 uniID（分享 ID）+ 提取码即可。
+///
+/// 注意：这只适用于**别人分享出来的链接**。自己网盘里的文件必须带 token，
+/// 因为 list/new 与 download_info 都会校验账号归属。
+class Netdisk123Share {
+  static const _apiBase = 'https://api.123278.com/b/api';
+
+  final Dio _dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 30),
+  ));
+
+  Map<String, dynamic> _headers() => {
+        'accept': 'application/json, text/plain, */*',
+        'origin': 'https://www.123pan.com',
+        'referer': 'https://www.123pan.com/',
+        'user-agent': Netdisk123Client.ua,
+        'platform': Netdisk123Client.platform,
+        'app-version': Netdisk123Client.appVersion,
+      };
+
+  /// 从分享链接里取 uniID。
+  /// 支持 `https://www.123pan.com/s/abc-def`、`https://www.123pan.cn/s/abc-def`
+  /// 以及直接给 `abc-def` 的情况。
+  static String parseUniId(String url) {
+    final s = url.trim();
+    final m = RegExp(r'/s/([A-Za-z0-9_\-]+)').firstMatch(s);
+    if (m != null) return m.group(1)!;
+    final m2 = RegExp(r'^([A-Za-z0-9]{3,}-[A-Za-z0-9]{2,})$').firstMatch(s);
+    return m2?.group(1) ?? '';
+  }
+
+  /// 列出分享内容（无需登录）
+  Future<List<Netdisk123File>> list(String uniId,
+      {String pwd = '', String parentId = '0'}) async {
+    final files = <Netdisk123File>[];
+    for (var page = 1; page <= 50; page++) {
+      final params = <String, dynamic>{
+        'limit': '100',
+        'next': '0',
+        'orderBy': 'file_name',
+        'orderDirection': 'asc',
+        'parentFileId': parentId,
+        'trashed': 'false',
+        'SearchData': '',
+        'Page': '$page',
+        'OnlyLookAbnormalFile': '0',
+        'uniID': uniId,
+        if (pwd.isNotEmpty) 'passcode': pwd,
+      };
+      final resp = await _dio.get<dynamic>('$_apiBase/share/download-list',
+          queryParameters: params,
+          options: Options(headers: _headers(), validateStatus: (_) => true));
+      final map = _decode(resp);
+      final code = toInt(map['code'], fallback: -1);
+      if (code != 0) {
+        throw Netdisk123Exception(
+            code, toStr(map['message'], fallback: '分享解析失败'));
+      }
+      final data = map['data'];
+      final inner = data is Map ? data.cast<String, dynamic>() : map;
+      final infoList = inner['InfoList'];
+      if (infoList is List) {
+        for (final item in infoList.whereType<Map>()) {
+          files.add(Netdisk123File.fromJson(item.cast<String, dynamic>()));
+        }
+      }
+      final next = toStr(inner['Next']);
+      if (next == '-1' || infoList is! List || infoList.isEmpty) break;
+    }
+    return files;
+  }
+
+  /// 分享文件直链。优先用列表里带的 DownloadUrl，否则请求 shareDownload/info。
+  Future<String> getDownloadUrl(Netdisk123File f, String uniId,
+      {String pwd = ''}) async {
+    if (f.downloadUrl.isNotEmpty) return f.downloadUrl;
+
+    final body = <String, dynamic>{
+      'driveId': 0,
+      'etag': f.etag,
+      'fileId': f.id,
+      's3keyFlag': f.s3KeyFlag,
+      'type': f.isDir ? 1 : 0,
+      'fileName': f.name,
+      'size': f.size,
+      'shareKey': uniId,
+      if (pwd.isNotEmpty) 'sharePwd': pwd,
+    };
+
+    for (final path in const [
+      'restful/goapi/v1/file/shareDownload/info',
+      'file/download_info',
+    ]) {
+      try {
+        final resp = await _dio.post<dynamic>('$_apiBase/$path',
+            data: body,
+            options: Options(headers: _headers(), validateStatus: (_) => true));
+        final map = _decode(resp);
+        if (toInt(map['code'], fallback: -1) != 0) {
+          AppLogger.I.w('netdisk123',
+              'share $path 失败: ${toStr(map['message'])}');
+          continue;
+        }
+        final data = map['data'];
+        final inner = data is Map ? data.cast<String, dynamic>() : map;
+        final url = toStr(inner['DownloadUrl']).isNotEmpty
+            ? toStr(inner['DownloadUrl'])
+            : toStr(inner['downloadUrl']);
+        if (url.isNotEmpty) return url;
+      } catch (e) {
+        AppLogger.I.w('netdisk123', 'share $path 异常: $e');
+      }
+    }
+    return '';
   }
 
   Map<String, dynamic> _decode(Response<dynamic> resp) {
