@@ -82,6 +82,67 @@ class Netdisk123File {
   }
 }
 
+/// 123 网盘月度下载流量状态（`POST file/download/traffic/check` 响应）
+///
+/// 实测（2026-10，免费账号）：服务端按「文件大小 vs 剩余额度」判定，
+/// 文件大于剩余额度就整单拒绝（download_info 返回 5113），
+/// 提示语「本月免费流量已用完」是误导，真实情况是这一单超额。
+class Netdisk123Traffic {
+  /// 是否被拦截
+  final bool blocked;
+
+  /// 是否超额
+  final bool exceeded;
+
+  /// 本次要下载的文件总大小（字节）
+  final int fileSize;
+
+  /// 账号剩余下载流量（字节）
+  final int remain;
+
+  /// 收银台场景标识：a/b/c/d 表示要弹付费框，e1 表示走 Scheme E
+  final String cashierEnv;
+
+  /// 服务端给的流量包档位（如 10GB / 20GB / 50GB）
+  final String tier1;
+  final String tier2;
+  final String tier3;
+
+  const Netdisk123Traffic({
+    required this.blocked,
+    required this.exceeded,
+    required this.fileSize,
+    required this.remain,
+    this.cashierEnv = '',
+    this.tier1 = '',
+    this.tier2 = '',
+    this.tier3 = '',
+  });
+
+  /// 还差多少字节才能下这一单
+  int get shortage => fileSize > remain ? fileSize - remain : 0;
+
+  factory Netdisk123Traffic.fromJson(Map<String, dynamic> json) {
+    int pick(String k) {
+      final v = json[k];
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? 0;
+      return 0;
+    }
+
+    return Netdisk123Traffic(
+      blocked: json['isBlocked'] == true,
+      exceeded: json['isTrafficExceeded'] == true,
+      fileSize: pick('originalFileSize'),
+      remain: pick('originalRemainTraffic'),
+      cashierEnv: toStr(json['cashierEnv']),
+      tier1: toStr(json['desc1']),
+      tier2: toStr(json['desc2']),
+      tier3: toStr(json['desc3']),
+    );
+  }
+}
+
 /// 扫码登录客户端（新版 user.123pan.cn 流程）
 ///
 /// 步骤：qr-code/generate → 轮询 qr-code/result → qr-code/wx_code → sign_in(type=4) 拿到 token。
@@ -488,6 +549,22 @@ class Netdisk123Client {
     }
   }
 
+  /// 结构化流量状态：文件大小、剩余额度、差额、档位
+  Future<Netdisk123Traffic?> checkTraffic(List<String> fileIds) async {
+    try {
+      final map = await _apiPostRaw(
+          '$_apiBase/file/download/traffic/check',
+          {
+            'fids':
+                fileIds.map((e) => int.tryParse(e)).whereType<int>().toList()
+          });
+      return Netdisk123Traffic.fromJson(map);
+    } catch (e) {
+      AppLogger.I.w('netdisk123', 'traffic/check 失败(忽略): $e');
+      return null;
+    }
+  }
+
   /// 直链流量额度（与网页月度下载流量是两条独立的账）
   Future<Map<String, dynamic>> directLinkTraffic() async {
     return _apiPostRaw(
@@ -552,6 +629,11 @@ class Netdisk123Client {
   }
 
   /// 从各种 download_info 响应里挖出直链
+  ///
+  /// 两条通道的返回结构不同：
+  ///  * `file/download_info`  → `DownloadUrl`（web-pro2 中转，base64 包一层）
+  ///  * `v2/file/download_info` → `downloadPath`（相对路径）+ `dispatchList`
+  ///    里的 `prefix`，两者拼接才是真实 CDN 地址
   String _extractUrl(Map<String, dynamic> map) {
     for (final key in const [
       'DownloadUrl',
@@ -563,10 +645,28 @@ class Netdisk123Client {
       final v = toStr(map[key]);
       if (v.isNotEmpty) return _unwrap(v);
     }
+
+    // v2 通道：downloadPath 是相对路径，需要拼 dispatchList 的 prefix
+    final path = toStr(map['downloadPath']);
+    if (path.isNotEmpty) {
+      if (path.startsWith('http')) return path;
+      final prefix = _firstPrefix(map);
+      if (prefix.isNotEmpty) return '$prefix$path';
+    }
+
     final list = map['InfoList'] ?? map['list'];
     if (list is List && list.isNotEmpty) {
       final first = list.first;
       if (first is Map) return _extractUrl(first.cast<String, dynamic>());
+    }
+    return '';
+  }
+
+  String _firstPrefix(Map<String, dynamic> map) {
+    final list = map['dispatchList'];
+    if (list is List && list.isNotEmpty) {
+      final first = list.first;
+      if (first is Map) return toStr(first['prefix']);
     }
     return '';
   }

@@ -180,6 +180,25 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
     ));
   }
 
+  /// 精确提示：告诉用户是「这一单」超了，而不是笼统的「流量用完」
+  Future<void> _showTrafficDetail(Netdisk123Traffic t) async {
+    final go = await confirmMiuix(
+      context,
+      title: '这一单超出剩余流量',
+      content: '文件大小 ${formatBytes(t.fileSize)}\n'
+          '剩余额度 ${formatBytes(t.remain)}\n'
+          '还差 ${formatBytes(t.shortage)}\n\n'
+          '可选流量包：${t.tier1} / ${t.tier2} / ${t.tier3}\n'
+          '也可以等下月额度刷新，或换个小号下载。',
+      confirmText: '去充值',
+    );
+    if (go == true && mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const Netdisk123PayPage()),
+      );
+    }
+  }
+
   Future<void> _showTrafficExhausted(Netdisk123Account acc) async {
     final go = await confirmMiuix(
       context,
@@ -267,6 +286,16 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
       Netdisk123Account picked) async {
     final app = AppState.I;
     final base = await app.effectiveDownloadDir();
+
+    // 下载前先问服务端这一单的额度：文件大于剩余流量会被整单拒（5113），
+    // 提前拦下并给出具体差额，比下载到一半才报错清楚。
+    final traffic =
+        await _client.checkTraffic(items.map((e) => e.$1.id).toList());
+    if (traffic != null && traffic.exceeded) {
+      await _showTrafficDetail(traffic);
+      return -1;
+    }
+
     var added = 0;
     const batchSize = 20;
     for (var i = 0; i < items.length; i += batchSize) {
