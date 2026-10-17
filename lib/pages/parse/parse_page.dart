@@ -128,7 +128,9 @@ class _ParsePageState extends State<ParsePage> {
         _toast('无法识别的 123 分享链接');
         return;
       }
-      final pwd = _pwdController.text.trim();
+      final pwd = _pwdController.text.trim().isNotEmpty
+          ? _pwdController.text.trim()
+          : Netdisk123Share.parsePwd(url);
       await _saveHistory(url, pwd);
       if (!mounted) return;
       await Navigator.of(context).push(MaterialPageRoute(

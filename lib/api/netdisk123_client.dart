@@ -691,6 +691,12 @@ class Netdisk123Share {
     return m2?.group(1) ?? '';
   }
 
+  /// 从分享链接里取提取码：`?pwd=abcd` / `&pwd=abcd`
+  static String parsePwd(String url) {
+    final m = RegExp(r'[?&]pwd=([A-Za-z0-9]+)').firstMatch(url);
+    return m?.group(1) ?? '';
+  }
+
   /// 列出分享内容（无需登录）
   Future<List<Netdisk123File>> list(String uniId,
       {String pwd = '', String parentId = '0'}) async {
