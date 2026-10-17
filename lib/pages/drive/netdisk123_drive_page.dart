@@ -7,6 +7,7 @@ import '../../state/download_manager.dart';
 import '../../state/download_service.dart';
 import '../../state/netdisk123_state.dart';
 import '../../theme/app_theme.dart';
+import 'netdisk123_diag_page.dart';
 import 'netdisk123_pay_page.dart';
 import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
@@ -150,11 +151,40 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
     return picked;
   }
 
+  /// 打开通道诊断：优先用选中的文件，否则取当前目录第一个文件
+  Future<void> _openDiag() async {
+    Netdisk123File? target;
+    if (_selected.isNotEmpty) {
+      final id = _selected.first;
+      for (final f in _files) {
+        if (f.id == id) {
+          target = f;
+          break;
+        }
+      }
+    }
+    if (target == null) {
+      for (final f in _files) {
+        if (!f.isDir) {
+          target = f;
+          break;
+        }
+      }
+    }
+    if (target == null) {
+      _toast('当前目录没有可诊断的文件');
+      return;
+    }
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => Netdisk123DiagPage(client: _client, file: target!),
+    ));
+  }
+
   Future<void> _showTrafficExhausted(Netdisk123Account acc) async {
     final go = await confirmMiuix(
       context,
       title: '流量不足',
-      content: '账号「${acc.username}」本月免费流量已用完，是否购买流量包（0.5 元起）？',
+      content: '账号「${acc.username}」本月免费流量已用完，是否购买流量包（0.5 元起）？\n\n可先用右上角「通道诊断」看各接口返回，可能还有不计流量的通道。',
       confirmText: '去充值',
     );
     if (go == true && mounted) {
@@ -286,6 +316,11 @@ class _Netdisk123DrivePageState extends State<Netdisk123DrivePage> {
               size: 20),
         ),
         actions: [
+          MiuixIconButton(
+            onPressed: _openDiag,
+            child: MiuixIcon(
+                icon: Icons.monitor_heart_rounded, tint: colors.primary),
+          ),
           MiuixIconButton(
             onPressed: _load,
             child: MiuixIcon(icon: Icons.refresh_rounded, tint: colors.primary),

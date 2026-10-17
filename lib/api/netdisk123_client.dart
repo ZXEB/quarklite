@@ -640,6 +640,141 @@ class Netdisk123Client {
     };
   }
 
+  // ---------------- 通道诊断 ----------------
+
+  /// 原始请求：不抛业务异常，原样返回解码后的响应体
+  Future<Map<String, dynamic>> rawRequest(String method, String path,
+      {Object? body, Map<String, dynamic>? params, String? platform}) async {
+    final url = '$_apiBase/$path';
+    final signed = _signUrl(url);
+    final resp = await _dio.request<dynamic>(signed,
+        data: body,
+        queryParameters: params,
+        options: Options(
+            method: method,
+            headers: _androidHeaders(platform),
+            validateStatus: (_) => true));
+    return _decode(resp);
+  }
+
+  /// 把每条可能取到直链的通道都打一遍，用于定位服务端到底在哪一步拦。
+  ///
+  /// 返回每项：name / code / message / hasUrl / urlHost / ms
+  Future<List<Map<String, dynamic>>> diagnose(Netdisk123File f) async {
+    final body = <String, dynamic>{
+      'driveId': 0,
+      'etag': f.etag,
+      'fileId': f.id,
+      's3keyFlag': f.s3KeyFlag,
+      'type': f.isDir ? 1 : 0,
+      'fileName': f.name,
+      'size': f.size,
+    };
+    final fid = int.tryParse(f.id) ?? 0;
+    final probes = <Map<String, dynamic>>[
+      {'name': 'user/info', 'method': 'GET', 'path': 'user/info'},
+      {
+        'name': 'traffic/check',
+        'method': 'POST',
+        'path': 'file/download/traffic/check',
+        'body': {
+          'fids': [fid]
+        }
+      },
+      {
+        'name': 'download_info(web)',
+        'method': 'POST',
+        'path': 'file/download_info',
+        'body': body
+      },
+      {
+        'name': 'download_info(android)',
+        'method': 'POST',
+        'path': 'file/download_info',
+        'body': body,
+        'platform': 'android'
+      },
+      {
+        'name': 'v2/download_info',
+        'method': 'POST',
+        'path': 'v2/file/download_info',
+        'body': body
+      },
+      {
+        'name': 'batch_download_info',
+        'method': 'POST',
+        'path': 'v2/file/batch_download_info',
+        'body': {
+          'fileIdList': [
+            {'fileId': fid}
+          ]
+        }
+      },
+      {
+        'name': 'selfDownload/info',
+        'method': 'POST',
+        'path': 'restful/goapi/v1/file/selfDownload/info',
+        'body': body
+      },
+      {
+        'name': 'directLink/traffic',
+        'method': 'POST',
+        'path': 'restful/goapi/v1/directLink/traffic/limit',
+        'body': <String, dynamic>{}
+      },
+      {
+        'name': 'cdnLink/links',
+        'method': 'POST',
+        'path': 'restful/goapi/v1/cdnLink/links',
+        'body': <String, dynamic>{}
+      },
+      {
+        'name': 'webdav',
+        'method': 'GET',
+        'path': 'restful/goapi/v1/webdav'
+      },
+      {
+        'name': 'file/belong/info',
+        'method': 'POST',
+        'path': 'restful/goapi/v1/file/belong/info',
+        'body': body
+      },
+      {'name': '3rd/app-id', 'method': 'GET', 'path': 'v3/3rd/app-id'},
+    ];
+
+    final out = <Map<String, dynamic>>[];
+    for (final p in probes) {
+      final sw = Stopwatch()..start();
+      try {
+        final map = await rawRequest(
+          p['method'] as String,
+          p['path'] as String,
+          body: p['body'],
+          platform: p['platform'] as String?,
+        );
+        final url = _extractUrl(map);
+        out.add({
+          'name': p['name'],
+          'code': toInt(map['code'], fallback: -1),
+          'message': toStr(map['message']),
+          'hasUrl': url.isNotEmpty,
+          'urlHost': url.isEmpty ? '' : (Uri.tryParse(url)?.host ?? ''),
+          'ms': sw.elapsedMilliseconds,
+        });
+      } catch (e) {
+        out.add({
+          'name': p['name'],
+          'code': -999,
+          'message': e.toString(),
+          'hasUrl': false,
+          'urlHost': '',
+          'ms': sw.elapsedMilliseconds,
+        });
+      }
+    }
+    return out;
+  }
+
   Map<String, dynamic> _decode(Response<dynamic> resp) {
     final body = resp.data;
     if (body is String) {
