@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_miuix/miuix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -7,6 +8,7 @@ import '../../api/quark_client.dart';
 import '../../state/app_state.dart';
 import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_logger.dart';
 import '../../widgets/file_list_anim.dart';
 import '../../widgets/miuix_common.dart';
 import '../drive/netdisk123_accounts_page.dart';
@@ -62,8 +64,14 @@ class _ParsePageState extends State<ParsePage> {
   String _typeLabel(ShareType t) { switch(t){ case ShareType.quark: return '夸克分享'; case ShareType.netdisk123: return '123 网盘'; case ShareType.xunlei: return '迅雷分享'; case ShareType.magnet: return '磁力/BT'; case ShareType.unknown: return '自动识别'; } }
   IconData _typeIcon(ShareType t) { switch(t){ case ShareType.quark: return Icons.cloud_rounded; case ShareType.netdisk123: return Icons.cloud_upload_rounded; case ShareType.xunlei: return Icons.bolt_rounded; case ShareType.magnet: return Icons.wifi_tethering_rounded; case ShareType.unknown: return Icons.search_rounded; } }
   Future<void> _loadHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('parse_history');
+    final String? raw;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      raw = prefs.getString('parse_history');
+    } on PlatformException catch (error) {
+      AppLogger.I.w('parse', '读取解析记录失败 (${error.code})');
+      return;
+    }
     if (raw != null) {
       final list = (raw.split('\n'))
           .where((e) => e.isNotEmpty)
@@ -85,10 +93,20 @@ class _ParsePageState extends State<ParsePage> {
     _history.removeWhere((e) => e['url'] == url);
     _history.insert(0, {'url': url, 'pwd': pwd, 'time': time});
     if (_history.length > 30) _history = _history.sublist(0, 30);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-        'parse_history', _history.map((e) => e.values.join('\u0001')).join('\n'));
+    await _persistHistory();
     if (mounted) setState(() {});
+  }
+
+  Future<void> _persistHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'parse_history',
+        _history.map((e) => e.values.join('\u0001')).join('\n'),
+      );
+    } on PlatformException catch (error) {
+      AppLogger.I.w('parse', '保存解析记录失败 (${error.code})');
+    }
   }
 
   Future<void> _parse() async {
@@ -428,9 +446,7 @@ class _ParsePageState extends State<ParsePage> {
     setState(() {
       _history.removeWhere((e) => e['url'] == url);
     });
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-        'parse_history', _history.map((e) => e.values.join('\u0001')).join('\n'));
+    await _persistHistory();
   }
 
   void _showHistory() {
