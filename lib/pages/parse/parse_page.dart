@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_miuix/miuix.dart';
@@ -26,12 +28,16 @@ class ParsePage extends StatefulWidget {
 }
 
 class _ParsePageState extends State<ParsePage> {
+  static const _historyKey = 'parse_history';
   final _urlController = TextEditingController();
   final _pwdController = TextEditingController();
   final _btController = TextEditingController();
 
   bool _btMode = false;
   bool _parsing = false;
+  bool _historyUnsaved = false;
+  late final Future<SharedPreferences?> _historyReady;
+  Future<void> _pendingHistoryWrite = Future<void>.value();
   List<Map<String, String>> _history = [];
   ShareType _detected = ShareType.unknown;
   String _detectedUrl = '';
@@ -39,7 +45,7 @@ class _ParsePageState extends State<ParsePage> {
   @override
   void initState() {
     super.initState();
-    _loadHistory();
+    _historyReady = _loadHistory();
     _urlController.addListener(_onInputChanged);
     _btController.addListener(_onInputChanged);
   }
@@ -63,50 +69,65 @@ class _ParsePageState extends State<ParsePage> {
   }
   String _typeLabel(ShareType t) { switch(t){ case ShareType.quark: return '夸克分享'; case ShareType.netdisk123: return '123 网盘'; case ShareType.xunlei: return '迅雷分享'; case ShareType.magnet: return '磁力/BT'; case ShareType.unknown: return '自动识别'; } }
   IconData _typeIcon(ShareType t) { switch(t){ case ShareType.quark: return Icons.cloud_rounded; case ShareType.netdisk123: return Icons.cloud_upload_rounded; case ShareType.xunlei: return Icons.bolt_rounded; case ShareType.magnet: return Icons.wifi_tethering_rounded; case ShareType.unknown: return Icons.search_rounded; } }
-  Future<void> _loadHistory() async {
-    final String? raw;
+  Future<SharedPreferences?> _loadHistory() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      raw = prefs.getString('parse_history');
+      final raw = prefs.getString(_historyKey);
+      if (raw != null && mounted) {
+        final history = raw.split('\n').where((line) => line.isNotEmpty).map((line) {
+          final parts = line.split('\u0001');
+          return {
+            'url': parts[0],
+            'pwd': parts.length > 1 ? parts[1] : '',
+            'time': parts.length > 2 ? parts[2] : '',
+          };
+        }).toList();
+        setState(() => _history = history);
+      }
+      return prefs;
     } on PlatformException catch (error) {
       AppLogger.I.w('parse', '读取解析记录失败 (${error.code})');
-      return;
-    }
-    if (raw != null) {
-      final list = (raw.split('\n'))
-          .where((e) => e.isNotEmpty)
-          .map((e) {
-            final parts = e.split('\u0001');
-            return {
-              'url': parts.isNotEmpty ? parts[0] : '',
-              'pwd': parts.length > 1 ? parts[1] : '',
-              'time': parts.length > 2 ? parts[2] : '',
-            };
-          })
-          .toList();
-      if (mounted) setState(() => _history = list);
+      return null;
     }
   }
 
   Future<void> _saveHistory(String url, String pwd) async {
+    final prefs = await _historyReady;
+    if (!mounted) return;
     final time = DateTime.now().millisecondsSinceEpoch.toString();
-    _history.removeWhere((e) => e['url'] == url);
-    _history.insert(0, {'url': url, 'pwd': pwd, 'time': time});
-    if (_history.length > 30) _history = _history.sublist(0, 30);
-    await _persistHistory();
-    if (mounted) setState(() {});
+    setState(() {
+      _history.removeWhere((e) => e['url'] == url);
+      _history.insert(0, {'url': url, 'pwd': pwd, 'time': time});
+      if (_history.length > 30) _history = _history.sublist(0, 30);
+    });
+    await _persistHistory(prefs);
   }
 
-  Future<void> _persistHistory() async {
+  Future<void> _persistHistory(SharedPreferences? prefs) async {
+    if (prefs == null) {
+      // A partial in-memory list must never overwrite unread history.
+      if (mounted) setState(() => _historyUnsaved = true);
+      return;
+    }
+
+    final serialized = _history.map((entry) {
+      return [entry['url'] ?? '', entry['pwd'] ?? '', entry['time'] ?? '']
+          .join('\u0001');
+    }).join('\n');
+    final previousWrite = _pendingHistoryWrite;
+    final completion = Completer<void>();
+    _pendingHistoryWrite = completion.future;
+    var saved = false;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        'parse_history',
-        _history.map((e) => e.values.join('\u0001')).join('\n'),
-      );
+      await previousWrite;
+      saved = await prefs.setString(_historyKey, serialized);
+      if (!saved) AppLogger.I.w('parse', '保存解析记录失败 (returned false)');
     } on PlatformException catch (error) {
       AppLogger.I.w('parse', '保存解析记录失败 (${error.code})');
+    } finally {
+      completion.complete();
     }
+    if (mounted) setState(() => _historyUnsaved = !saved);
   }
 
   Future<void> _parse() async {
@@ -279,13 +300,19 @@ class _ParsePageState extends State<ParsePage> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 children: [
                   _buildInputCard(),
-                  if (_history.isNotEmpty) ...[
+                  if (_history.isNotEmpty || _historyUnsaved) ...[
                     const SizedBox(height: 20),
                     Padding(
                       padding: EdgeInsets.only(left: 4, bottom: 10),
                       child: MiuixText('解析记录',
                           color: colors.onSurfaceSecondary, fontSize: 13),
                     ),
+                    if (_historyUnsaved)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 10),
+                        child: MiuixText('解析记录的更改未保存',
+                            color: colors.onSurfaceSecondary, fontSize: 13),
+                      ),
                     ..._history.map(_buildHistoryItem),
                   ],
                 ],
@@ -443,10 +470,12 @@ class _ParsePageState extends State<ParsePage> {
   }
 
   Future<void> _removeHistory(String url) async {
+    final prefs = await _historyReady;
+    if (!mounted) return;
     setState(() {
       _history.removeWhere((e) => e['url'] == url);
     });
-    await _persistHistory();
+    await _persistHistory(prefs);
   }
 
   void _showHistory() {

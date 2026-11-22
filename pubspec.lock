@@ -21,7 +21,7 @@ packages:
     dependency: "direct main"
     description:
       name: background_downloader
-      sha256: bdd41f116998233182cc4ec04cb6afac534067d640ddebb791ce44593f574b87
+      sha256: "bdd41f116998233182cc4ec04cb6afac534067d640ddebb791ce44593f574b87"
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "9.5.8"

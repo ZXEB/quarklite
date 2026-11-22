@@ -15,7 +15,8 @@ dependencies:
   dio: ^5.7.0
   background_downloader: ^9.5.8
   shared_preferences: ^2.3.2
-  # Earlier JNI versions can lose Kotlin method signatures in R8 builds.
+  # Keep the Android implementation on a version with the JNI/R8 fix.
+  # See flutter/flutter#194649 and flutter/packages#13311.
   shared_preferences_android: ^2.5.2
   flutter_secure_storage: ^9.2.2
   qr_flutter: ^4.1.0

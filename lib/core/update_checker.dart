@@ -20,7 +20,7 @@ class AppUpdate {
 class UpdateChecker {
   UpdateChecker._();
 
-  static const currentVersion = '1.3.3';
+  static const currentVersion = '1.3.2';
   static const _latestReleaseUrl =
       'https://api.github.com/repos/ZXEB/quarklite/releases/latest';
   static final Dio _dio = Dio(BaseOptions(
